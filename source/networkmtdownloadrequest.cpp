@@ -1,6 +1,7 @@
 #include "networkmtdownloadrequest.h"
 #include "memorymappedfile.h"
 #include <QtGlobal> // Add Qt version check support
+#include <QThread>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -165,6 +166,11 @@ void NetworkMTDownloadRequest::startMTDownload()
     clearDownloaders();
     Q_ASSERT(nullptr != m_upContext->downloadConfig);
     m_nThreadCount = m_upContext->downloadConfig->threadCount;
+    // If threadCount is 0, auto detect CPU cores
+    if (m_nThreadCount == 0) {
+        m_nThreadCount = QThread::idealThreadCount();
+        qDebug() << "[QMultiThreadNetwork]" << "Auto-detected thread count:" << m_nThreadCount;
+    }
     m_nThreadCount = qMax(m_nThreadCount, 2);
     m_bytesTotal = m_nFileSize;
 

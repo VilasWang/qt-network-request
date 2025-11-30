@@ -153,7 +153,7 @@ namespace QtNetworkRequest
         QString saveFileName;
         QString saveDir;
         bool overwriteFile{ false };
-        quint16 threadCount{ 16 };
+        quint16 threadCount{ 0 }; // 0 = auto detect CPU cores
     };
 
     // 上传配置

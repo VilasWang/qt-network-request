@@ -116,7 +116,7 @@ std::unique_ptr<NetworkRequest> NetworkRequestFactory::create(std::unique_ptr<Re
     {
     case RequestType::Download:
     {
-		if (context->downloadConfig->threadCount > 1)
+	if (context->downloadConfig->threadCount > 1 || context->downloadConfig->threadCount == 0)
 		{
             pRequest = std::make_unique<NetworkMTDownloadRequest>();
 		}

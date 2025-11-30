@@ -27,7 +27,7 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 ### 🚀 Core Capabilities
 - **Multi-threaded Architecture**: Each request executes in separate threads using a managed thread pool
 - **Concurrent Operations**: Support for both single and batch request modes
-- **Multi-threaded Downloads**: Large file downloads with multiple channels for faster performance
+- **Multi-threaded Downloads**: Large file downloads with multiple channels for faster performance (auto-detects CPU cores when threadCount=0)
 - **Protocol Support**: HTTP(S)/FTP with full request method support (GET/POST/PUT/DELETE/HEAD)
 - **Asynchronous API**: Non-blocking operations with signal/slot progress reporting
 - **Thread Safety**: All public methods are thread-safe with atomic operations
@@ -40,8 +40,8 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 - **Cross-Platform**: Windows, Linux, and macOS support with platform-specific optimizations
 
 ### 📦 Sample Applications
-- **QtNetworkRequestTool**: GUI demo application for testing HTTP requests
-- **QtNetworkDownloader**: Download manager with multi-threading support
+- **QtNetworkRequestTool**: GUI demo application for testing HTTP requests (located in `samples/networkrequesttool/`)
+- **QtNetworkDownloader**: Download manager with intelligent multi-threading support (located in `samples/networkdownloader/`)
 - **Unit Tests**: Comprehensive test suite covering all functionality
 
 ## Requirements
@@ -76,8 +76,12 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 git clone https://gitee.com/vilasj/qt-network-request.git
 cd qt-network-request
 
-# Configure and build
+# Configure and build (Windows)
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
+
+# Configure and build (Linux/macOS)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 
 # Install (optional)
@@ -97,12 +101,28 @@ nmake release
 
 ### Using Provided Scripts
 
+#### Windows
+
 ```bash
 # Windows build script
-scripts/build.bat
+scripts\build_win.bat
 
 # Generate Visual Studio solution
 GenerateVsSln.bat
+```
+
+#### Linux
+
+```bash
+# Linux build script (requires execution permissions)
+chmod +x scripts/build_linux.sh
+./scripts/build_linux.sh
+
+# Build with debug symbols
+./scripts/build_linux.sh --debug
+
+# Clean build and run tests
+./scripts/build_linux.sh --clean --tests
 ```
 
 ## Quick Start
@@ -127,7 +147,13 @@ req->behavior.showProgress = true;
 req->downloadConfig = std::make_unique<QtNetworkRequest::DownloadConfig>();
 req->downloadConfig->saveDir = "downloads";
 req->downloadConfig->overwriteFile = true;
-req->downloadConfig->threadCount = 32;
+req->downloadConfig->threadCount = 0; // 0 = auto detect CPU cores
+/*
+ * Thread count options:
+ * - 0: Auto detect CPU cores (recommended for most cases)
+ * - 1: Single-threaded download
+ * - N>1: Use N threads for multi-threaded download
+ */
 
 // Execute asynchronously
 auto reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
@@ -309,6 +335,25 @@ Structure containing request response data.
 - `performance.bytesSent`: Bytes sent
 - `userContext`: User-defined context data
 
+#### DownloadConfig
+Configuration structure for download operations.
+
+**Key Properties:**
+- `saveFileName`: Custom filename for the downloaded file
+- `saveDir`: Directory to save the downloaded file
+- `overwriteFile`: Whether to overwrite existing files (default: false)
+- `threadCount`: Number of download threads for multi-threaded downloads (default: 0 = auto detect CPU cores)
+
+#### UploadConfig
+Configuration structure for upload operations.
+
+**Key Properties:**
+- `filePath`: Path to the file to upload
+- `data`: Raw data to upload
+- `usePutMethod`: Use HTTP PUT method instead of POST (default: false)
+- `useStream`: Use streaming upload (default: false)
+- `useFormData`: Use multipart form data (default: false)
+
 ## Building
 
 ### Build Configuration
@@ -322,14 +367,14 @@ The library supports both CMake and QMake build systems with standardized naming
 
 **CMake Targets:**
 - `QNetworkRequest`: Core library (DLL)
-- `QtNetworkRequestTool`: GUI demo application
-- `QtNetworkDownloader`: Download manager application
+- `QtNetworkRequestTool`: GUI demo application (source in `samples/networkrequesttool/`)
+- `QtNetworkDownloader`: Download manager application (source in `samples/networkdownloader/`)
 - `UnitTests`: Test suite
 
 **QMake Targets:**
 - `QNetworkRequest`: Core library (DLL)
-- `QtNetworkRequestTool`: GUI demo application
-- `QtNetworkDownloader`: Download manager application
+- `QtNetworkRequestTool`: GUI demo application (source in `samples/networkrequesttool/`)
+- `QtNetworkDownloader`: Download manager application (source in `samples/networkdownloader/`)
 
 ### Build Types
 
@@ -352,13 +397,15 @@ nmake debug
 
 ```bash
 # Windows build script
-scripts/build.bat
+scripts\build_win.bat
 
 # Generate Visual Studio solution
 GenerateVsSln.bat
 ```
 
 ### Cross-Platform Building
+
+#### Using CMake Directly
 
 ```bash
 # Linux
@@ -372,6 +419,17 @@ cmake --build build --config Release
 # Windows
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
+```
+
+#### Using Build Scripts
+
+```bash
+# Windows (batch script)
+scripts\build_win.bat
+
+# Linux (shell script)
+chmod +x scripts/build_linux.sh
+./scripts/build_linux.sh --release
 ```
 
 ## Cross-Platform Compatibility

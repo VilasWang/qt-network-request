@@ -116,20 +116,20 @@ target_include_directories(QtNetworkRequestTool PRIVATE ${CMAKE_CURRENT_SOURCE_D
 # --- Build executable: NetworkDownloader ---
 add_executable(QtNetworkDownloader WIN32
     # Sources
-    samples/NetworkDownloader/main.cpp
-    samples/NetworkDownloader/downloadermainwindow.cpp
-    samples/NetworkDownloader/downloadtaskmodel.cpp
-    samples/NetworkDownloader/downloadmanager.cpp
+    samples/networkdownloader/main.cpp
+    samples/networkdownloader/downloadermainwindow.cpp
+    samples/networkdownloader/downloadtaskmodel.cpp
+    samples/networkdownloader/downloadmanager.cpp
 
     # Headers for AUTOMOC
-    samples/NetworkDownloader/downloadermainwindow.h
-    samples/NetworkDownloader/downloadtaskmodel.h
-    samples/NetworkDownloader/downloadmanager.h
-    samples/NetworkDownloader/downloadtask.h
+    samples/networkdownloader/downloadermainwindow.h
+    samples/networkdownloader/downloadtaskmodel.h
+    samples/networkdownloader/downloadmanager.h
+    samples/networkdownloader/downloadtask.h
 
     # UI and Resource files
-    samples/NetworkDownloader/NetworkDownloaderMainWindow.ui
-    samples/NetworkDownloader/NetworkDownloader.qrc
+    samples/networkdownloader/NetworkDownloaderMainWindow.ui
+    samples/networkdownloader/NetworkDownloader.qrc
 )
 
 # Add additional debug settings for QtNetworkDownloader
@@ -149,7 +149,7 @@ target_link_libraries(QtNetworkDownloader PRIVATE QNetworkRequest Qt5::Widgets Q
 
 # Set include directories for executable
 target_include_directories(QtNetworkDownloader PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/samples/NetworkDownloader
+    ${CMAKE_CURRENT_SOURCE_DIR}/samples/networkdownloader
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 

@@ -1,4 +1,4 @@
 TEMPLATE = subdirs
 
-SUBDIRS += NetworkRequestTool
-SUBDIRS += NetworkDownloader
+SUBDIRS += networkrequesttool
+SUBDIRS += networkdownloader
