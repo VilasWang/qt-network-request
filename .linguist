@@ -1,0 +1,29 @@
+# Linguist configuration for QtMultiThreadNetwork project
+
+# Detectable languages
+c++
+qmake
+cmake
+batch
+php
+shell
+xml
+markdown
+json
+yaml
+
+# Generated files to exclude
+build/** linguist-generated
+*.moc linguist-generated
+*.o linguist-generated
+*.exe linguist-generated
+*.dll linguist-generated
+*.so linguist-generated
+*.dylib linguist-generated
+
+# Documentation
+docs/** linguist-documentation
+*.md linguist-documentation
+
+# Third-party dependencies
+ThirdParty/** linguist-vendored

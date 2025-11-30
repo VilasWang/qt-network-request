@@ -1,0 +1,125 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.vcxproj*
+*.filters
+*.props
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Qt build files
+*.pro.user*
+Makefile*
+*.obj
+*.pch
+*.pdb
+*.ilk
+*.meta
+*.lib
+*.exp
+*.log
+*.tlog
+*.lastbuildstate
+*.idb
+*.ipdb
+*.manifest
+*.res
+*.aps
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+
+# Qt generated files
+GeneratedFiles/
+*moc_*.cpp
+*qrc_*.cpp
+*ui_*.h
+*.unsuccessfulbuild
+
+# Binaries
+*.exe
+# *.dll
+*.so
+*.dylib
+*.a
+# *.lib
+
+# Debug and Release directories
+[Dd]ebug*/
+[Rr]elease*/
+[Rr]elwithDebInfo*/
+[Mm]inSizeRel*/
+[Dd]ebugPublic/
+[Dd]ebugPS/
+[Rr]eleasePS/
+
+# Test results
+[Tt]est[Rr]esult*/
+TestResult.xml
+
+# Logs
+*.log
+log/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.rej
+
+# IDE and editor files
+*.sublime-*
+# .vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Package managers
+node_modules/
+packages/
+
+# Deployment
+publish/
+installer/
+dist/
+
+# claude
+claude.md
+.claude/CLAUDE.md

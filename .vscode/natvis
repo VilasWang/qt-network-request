@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <!-- QString visualization -->
+  <Type Name="QString">
+    <DisplayString>{((reinterpret_cast<const QChar*>(d) + (d ? d->offset : 0)), _length)}</DisplayString>
+    <StringView>((reinterpret_cast<const QChar*>(d) + (d ? d->offset : 0)), _length)</StringView>
+    <Expand>
+      <Item Name="[size]">_length</Item>
+      <Item Name="[data]">((reinterpret_cast<const QChar*>(d) + (d ? d->offset : 0)), _length)</Item>
+      <ArrayItems>
+        <Size>_length</Size>
+        <ValuePointer>((reinterpret_cast<const QChar*>(d) + (d ? d->offset : 0)))</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- QMap visualization -->
+  <Type Name="QMap&lt;*,*&gt;">
+    <DisplayString>{{ size = {d->size} }}</DisplayString>
+    <Expand>
+      <Item Name="[size]">d->size</Item>
+      <ArrayItems>
+        <Size>d->size</Size>
+        <ValuePointer>e</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- QList visualization -->
+  <Type Name="QList&lt;*&gt;">
+    <DisplayString>{{ size = {d->size} }}</DisplayString>
+    <Expand>
+      <Item Name="[size]">d->size</Item>
+      <ArrayItems>
+        <Size>d->size</Size>
+        <ValuePointer>p</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- QObject visualization -->
+  <Type Name="QObject">
+    <DisplayString>{objectName}</DisplayString>
+    <Expand>
+      <Item Name="objectName">objectName</Item>
+      <Item Name="parent">d_ptr->q_ptr</Item>
+    </Expand>
+  </Type>
+
+</AutoVisualizer>

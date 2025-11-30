@@ -1,0 +1,78 @@
+version 2.1.4    2025-09-02
+
+- Multi-threaded download improvements with duplicate part detection
+- Updated build system with better cross-platform compatibility
+
+
+version 2.1.3    2019-4-29
+
+- x86 x64 platform support
+
+
+
+
+version 2.1.2    2019-2-20
+
+- Fix exception handling
+
+
+
+
+version 2.1.1    2019-1-11
+
+- C++11 support, replace raw pointers with smart pointers, replace atomic operations with thread-safe synchronization
+- Add memory allocation and release tracking interface
+
+
+
+
+version 2.0.3    2018-12-12
+
+- Add interface to stop all download tasks
+- Add interface to stop all tasks when one download fails
+
+
+
+
+version 2.0.2    2018-10-11
+
+- Fix progress calculation bug in multi-threaded download mode
+- Add qt creator project files
+- Optimize networktool project
+
+
+
+
+version 2.0.1    2018-9-18
+
+- Rename project to QtMultiThreadNetwork
+- Add multi-threaded download file interface
+- Fix thread-safety issues in multi-threaded processing
+- Add HTTP/HTTPS DELETE/HEAD request method interface
+
+
+
+
+version 1.0.1    2018-3-26
+
+- Refactor NetworkRequestManager
+- Add URL redirection logic
+- Add interface to stop batch requests
+- Add interface to stop specified requests
+- Add custom header communication
+
+
+
+
+version 0.0.2    2016-5-5
+
+- Add HTTP upload function
+- Add FTP upload and download function
+- HTTPS support
+
+
+
+
+version 0.0.1    2016-3-20
+
+- HTTP download function

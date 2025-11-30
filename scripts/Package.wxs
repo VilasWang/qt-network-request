@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="QtNetworkRequestTool" Language="1033" Codepage="65001" Manufacturer="QtMultiThreadNetwork" Version="1.0.0.0" UpgradeCode="43973849-7524-47EE-9576-2733F0100B1A">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Allow user to customize installation directory -->
+    <Property Id="INSTALLFOLDER" Value="C:\Program Files\QtNetworkRequestTool" />
+    
+    <Feature Id="ProductFeature" Title="QtNetworkRequestTool" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentGroupRef Id="BearerComponents" />
+      <ComponentGroupRef Id="IconEnginesComponents" />
+      <ComponentGroupRef Id="ImageFormatsComponents" />
+      <ComponentGroupRef Id="PlatformsComponents" />
+      <ComponentRef Id="BearerDirComponent" />
+      <ComponentRef Id="IconEnginesDirComponent" />
+      <ComponentRef Id="ImageFormatsDirComponent" />
+      <ComponentRef Id="PlatformsDirComponent" />
+      <ComponentRef Id="ApplicationShortcutDesktop" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="QtNetworkRequestTool.exe" Guid="*">
+        <File Id="QtNetworkRequestTool.exe" Source="install\QtNetworkRequestTool.exe" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="QNetworkRequest.dll" Guid="*">
+        <File Id="QNetworkRequest.dll" Source="install\QNetworkRequest.dll" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="Qt5Core.dll" Guid="*">
+        <File Id="Qt5Core.dll" Source="install\Qt5Core.dll" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="Qt5Gui.dll" Guid="*">
+        <File Id="Qt5Gui.dll" Source="install\Qt5Gui.dll" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="Qt5Network.dll" Guid="*">
+        <File Id="Qt5Network.dll" Source="install\Qt5Network.dll" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="Qt5Widgets.dll" Guid="*">
+        <File Id="Qt5Widgets.dll" Source="install\Qt5Widgets.dll" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="libEGL.dll" Guid="*">
+        <File Id="libEGL.dll" Source="install\libEGL.dll" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="libGLESV2.dll" Guid="*">
+        <File Id="libGLESV2.dll" Source="install\libGLESV2.dll" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="opengl32sw.dll" Guid="*">
+        <File Id="opengl32sw.dll" Source="install\opengl32sw.dll" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="Qt5Svg.dll" Guid="*">
+        <File Id="Qt5Svg.dll" Source="install\Qt5Svg.dll" KeyPath="yes" />
+      </Component>
+      
+      <!-- OpenSSL DLLs -->
+      <Component Id="libeay32.dll" Guid="*">
+        <File Id="libeay32.dll" Source="install\libeay32.dll" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="ssleay32.dll" Guid="*">
+        <File Id="ssleay32.dll" Source="install\ssleay32.dll" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Bearer directory component -->
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Directory Id="BearerDir" Name="bearer">
+        <Component Id="BearerDirComponent" Guid="BAE0C850-5A90-4FC4-BD01-1B2F3C4D5E6F">
+          <CreateFolder />
+        </Component>
+      </Directory>
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="BearerComponents" Directory="BearerDir">
+      <Component Id="qgenericbearer.dll" Guid="*">
+        <File Id="qgenericbearer.dll" Source="install\bearer\qgenericbearer.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="qnativewifibearer.dll" Guid="*">
+        <File Id="qnativewifibearer.dll" Source="install\bearer\qnativewifibearer.dll" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Icon Engines directory component -->
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Directory Id="IconEnginesDir" Name="iconengines">
+        <Component Id="IconEnginesDirComponent" Guid="11111111-2222-3333-4444-555555555555">
+          <CreateFolder />
+        </Component>
+      </Directory>
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="IconEnginesComponents" Directory="IconEnginesDir">
+      <Component Id="qsvgicon.dll" Guid="*">
+        <File Id="qsvgicon.dll" Source="install\iconengines\qsvgicon.dll" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Image Formats directory component -->
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Directory Id="ImageFormatsDir" Name="imageformats">
+        <Component Id="ImageFormatsDirComponent" Guid="22222222-3333-4444-5555-666666666666">
+          <CreateFolder />
+        </Component>
+      </Directory>
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ImageFormatsComponents" Directory="ImageFormatsDir">
+      <Component Id="qgif.dll" Guid="*">
+        <File Id="qgif.dll" Source="install\imageformats\qgif.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="qicns.dll" Guid="*">
+        <File Id="qicns.dll" Source="install\imageformats\qicns.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="qico.dll" Guid="*">
+        <File Id="qico.dll" Source="install\imageformats\qico.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="qjpeg.dll" Guid="*">
+        <File Id="qjpeg.dll" Source="install\imageformats\qjpeg.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="qsvg.dll" Guid="*">
+        <File Id="qsvg.dll" Source="install\imageformats\qsvg.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="qtga.dll" Guid="*">
+        <File Id="qtga.dll" Source="install\imageformats\qtga.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="qtiff.dll" Guid="*">
+        <File Id="qtiff.dll" Source="install\imageformats\qtiff.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="qwbmp.dll" Guid="*">
+        <File Id="qwbmp.dll" Source="install\imageformats\qwbmp.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="qwebp.dll" Guid="*">
+        <File Id="qwebp.dll" Source="install\imageformats\qwebp.dll" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Platforms directory component -->
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Directory Id="PlatformsDir" Name="platforms">
+        <Component Id="PlatformsDirComponent" Guid="33333333-4444-5555-6666-777777777777">
+          <CreateFolder />
+        </Component>
+      </Directory>
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="PlatformsComponents" Directory="PlatformsDir">
+      <Component Id="qwindows.dll" Guid="*">
+        <File Id="qwindows.dll" Source="install\platforms\qwindows.dll" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <!-- Define desktop shortcut -->
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="ApplicationShortcutDesktop" Guid="*">
+        <Shortcut Id="ApplicationDesktopShortcut"
+                  Name="NetworkRequestTool"
+                  Description="Network Tool Application"
+                  Target="[INSTALLFOLDER]NetworkRequestTool.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="DesktopFolder" On="uninstall" />
+        <RegistryValue Root="HKCU"
+                      Key="Software\QtMultiThreadNetwork\NetworkRequestTool"
+                      Name="installed"
+                      Type="integer"
+                      Value="1"
+                      KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="NetworkRequestTool" />
+    </StandardDirectory>
+  </Fragment>
+</Wix>

@@ -1,0 +1,54 @@
+###############################################################################
+# Set default behavior to automatically normalize line endings.
+###############################################################################
+* text=auto eol=lf
+
+# C++ source files
+*.h linguist-language=c++
+*.cpp linguist-language=c++
+*.c linguist-language=c++
+*.hpp linguist-language=c++
+*.cxx linguist-language=c++
+*.cc linguist-language=c++
+
+# QMake project files
+*.pro linguist-language=qmake
+*.pri linguist-language=qmake
+*.prf linguist-language=qmake
+
+# CMake files
+*.cmake linguist-language=cmake
+CMakeLists.txt linguist-language=cmake
+
+# Script files
+*.php linguist-language=php
+*.bat linguist-language=batch
+*.sh linguist-language=shell
+*.ps1 linguist-language=powershell
+
+# Qt UI and resource files
+*.ui linguist-language=xml
+*.qrc linguist-language=xml
+
+# Documentation
+*.md linguist-language=markdown
+*.txt linguist-language=text
+
+# Configuration files
+*.json linguist-language=json
+*.xml linguist-language=xml
+*.yaml linguist-language=yaml
+*.yml linguist-language=yaml
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.dll binary
+*.exe binary
+*.so binary
+*.dylib binary
+*.a binary
+*.lib binary

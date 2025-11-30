@@ -1,0 +1,962 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DownloaderMainWindow</class>
+ <widget class="QMainWindow" name="DownloaderMainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>900</width>
+    <height>600</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Qt Downloader</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">/* VSCode-Inspired Professional Dark Theme - Qt5 Compatible */
+/* ========================================
+   DESIGN SYSTEM CONSTANTS
+   ======================================== */
+
+/* Color Definitions (Qt5 compatible) */
+/* Background Colors */
+/* BG Primary: #1e1e1e, BG Secondary: #252526, BG Tertiary: #2d2d30 */
+/* Border Colors: Light #3e3e42, Medium #4e4e52 */
+/* Text Colors: Primary #cccccc, Secondary #969696, Disabled #6a6a6a */
+/* Accent Colors: Blue #0078d4, Green #107c10, Orange #ff8c00, Red #e81123 */
+/* State Colors: Hover #106ebe, Pressed #005a9e */
+
+/* ========================================
+   GLOBAL STYLES
+   ======================================== */
+
+QMainWindow {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+QWidget#centralWidget {
+    background-color: #1e1e1e;
+    color: #cccccc;
+}
+
+/* ========================================
+   CONTAINER STYLES
+   ======================================== */
+
+QFrame {
+    background-color: #252526;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    padding: 0px;
+}
+
+QFrame[frameShape="0"] {
+    border: none;
+    background-color: transparent;
+}
+
+/* ========================================
+   TYPOGRAPHY SYSTEM
+   ======================================== */
+
+QLabel {
+    color: #cccccc;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-weight: 400;
+    background-color: transparent;
+}
+
+QLabel.heading {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    letter-spacing: -0.2px;
+}
+
+QLabel.subheading {
+    color: #cccccc;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+
+QLabel.small {
+    font-size: 11px;
+    color: #969696;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Status labels with special colors */
+QLabel#labelSpeed {
+    color: #0078d4;
+    font-weight: 600;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+
+QLabel#labelTime {
+    color: #ff8c00;
+    font-weight: 600;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+
+/* ========================================
+   INPUT CONTROLS
+   ======================================== */
+
+QLineEdit, QPlainTextEdit, QTextEdit {
+    border: 1px solid #3e3e42;
+    border-radius: 4px;
+    padding: 8px 12px;
+    background-color: #1e1e1e;
+    color: #cccccc;
+    font-size: 13px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+}
+
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus {
+    border: 2px solid #0078d4;
+    background-color: #1e1e1e;
+    outline: none;
+    padding: 7px 11px; /* Compensate for 2px border */
+}
+
+QLineEdit:disabled, QPlainTextEdit:disabled, QTextEdit:disabled {
+    background-color: #2d2d30;
+    color: #6a6a6a;
+    border-color: #3e3e42;
+}
+
+QLineEdit::placeholder, QPlainTextEdit::placeholder {
+    color: #6a6a6a;
+    font-style: italic;
+}
+
+QLineEdit:hover, QPlainTextEdit:hover, QTextEdit:hover {
+    border-color: #4e4e52;
+}
+
+QLineEdit:focus:hover, QPlainTextEdit:focus:hover, QTextEdit:focus:hover {
+    border-color: #0078d4;
+}
+
+/* ========================================
+   TABLE VIEW STYLING
+   ======================================== */
+
+QTableView {
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    background-color: #252526;
+    alternate-background-color: #2d2d30;
+    gridline-color: #3e3e42;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    outline: none;
+}
+
+QTableView::item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #3e3e42;
+    color: #cccccc;
+    min-height: 28px;
+    background-color: #252526;
+}
+
+QTableView::item:selected {
+    background-color: #0078d4;
+    color: #ffffff;
+}
+
+/* Note: Qt5 doesn't support complex pseudo-classes like :!selected and :alternate:hover:!selected */
+
+/* ========================================
+   TABLE HEADER STYLING
+   ======================================== */
+
+QHeaderView::section {
+    background-color: #2d2d30;
+    color: #cccccc;
+    padding: 10px 12px;
+    border: none;
+    border-right: 1px solid #3e3e42;
+    border-bottom: 2px solid #0078d4;
+    font-weight: 600;
+    font-size: 12px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    letter-spacing: 0.2px;
+    text-transform: uppercase;
+}
+
+QHeaderView::section:first {
+    border-top-left-radius: 6px;
+}
+
+QHeaderView::section:last {
+    border-top-right-radius: 6px;
+    border-right: none;
+}
+
+QHeaderView::section:hover {
+    background-color: #333337;
+    color: #ffffff;
+}
+
+QHeaderView::section:pressed {
+    background-color: #0078d4;
+    color: #ffffff;
+}
+
+/* ========================================
+   BUTTON STYLING SYSTEM
+   ======================================== */
+
+QPushButton {
+    background-color: #0078d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    min-width: 80px;
+    min-height: 32px;
+    letter-spacing: 0.1px;
+    text-align: center;
+}
+
+QPushButton:hover {
+    background-color: #106ebe;
+}
+
+QPushButton:pressed {
+    background-color: #005a9e;
+}
+
+QPushButton:disabled {
+    background-color: #3e3e42;
+    color: #6a6a6a;
+}
+
+QPushButton:focus {
+    border: 2px solid #0078d4;
+    padding: 6px 14px;
+}
+
+/* Primary Action Buttons */
+QPushButton#btnStart {
+    background-color: #107c10;
+    font-weight: 600;
+}
+
+QPushButton#btnStart:hover {
+    background-color: #128a0f;
+}
+
+QPushButton#btnStart:pressed {
+    background-color: #0d5e0d;
+}
+
+QPushButton#btnStart:focus {
+    border: 2px solid #107c10;
+}
+
+/* Danger Action Buttons */
+QPushButton#btnCancel {
+    background-color: #e81123;
+    font-weight: 600;
+}
+
+QPushButton#btnCancel:hover {
+    background-color: #f1707a;
+}
+
+QPushButton#btnCancel:pressed {
+    background-color: #c50f1f;
+}
+
+QPushButton#btnCancel:focus {
+    border: 2px solid #e81123;
+}
+
+/* Warning Action Buttons */
+QPushButton#btnDelete {
+    background-color: #ff8c00;
+    font-weight: 500;
+}
+
+QPushButton#btnDelete:hover {
+    background-color: #ffa500;
+}
+
+QPushButton#btnDelete:pressed {
+    background-color: #e67300;
+}
+
+QPushButton#btnDelete:focus {
+    border: 2px solid #ff8c00;
+}
+
+/* Primary Add Button */
+QPushButton#btnAddTasks {
+    background-color: #107c10;
+    font-weight: 600;
+}
+
+QPushButton#btnAddTasks:hover {
+    background-color: #128a0f;
+}
+
+QPushButton#btnAddTasks:pressed {
+    background-color: #0d5e0d;
+}
+
+QPushButton#btnAddTasks:focus {
+    border: 2px solid #107c10;
+}
+
+/* ========================================
+   MENU BAR AND MENU STYLING
+   ======================================== */
+
+QMenuBar {
+    background-color: #2d2d30;
+    color: #cccccc;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    border-bottom: 1px solid #3e3e42;
+}
+
+QMenuBar::item {
+    background-color: transparent;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+QMenuBar::item:selected {
+    background-color: #0078d4;
+    color: #ffffff;
+}
+
+QMenuBar::item:pressed {
+    background-color: #005a9e;
+    color: #ffffff;
+}
+
+QMenu {
+    background-color: #2d2d30;
+    border: 1px solid #4e4e52;
+    border-radius: 6px;
+    color: #cccccc;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    padding: 4px 0;
+}
+
+QMenu::item {
+    padding: 8px 20px;
+    color: #cccccc;
+    border-radius: 3px;
+    margin: 1px 8px;
+    min-height: 20px;
+}
+
+QMenu::item:selected {
+    background-color: #0078d4;
+    color: #ffffff;
+}
+
+QMenu::item:disabled {
+    color: #6a6a6a;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #3e3e42;
+    margin: 4px 12px;
+}
+
+/* ========================================
+   STATUS BAR STYLING
+   ======================================== */
+
+QStatusBar {
+    background-color: #2d2d30;
+    color: #cccccc;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    border-top: 1px solid #3e3e42;
+}
+
+QStatusBar::item {
+    border: none;
+    padding: 4px 8px;
+}
+
+/* ========================================
+   PROGRESS BAR STYLING
+   ======================================== */
+
+QProgressBar {
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    text-align: center;
+    font-weight: 600;
+    background-color: #1e1e1e;
+    color: #cccccc;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-size: 12px;
+    padding: 1px;
+}
+
+QProgressBar::chunk {
+    background-color: #0078d4;
+    border-radius: 5px;
+}
+
+/* ========================================
+   MODERN SCROLLBAR STYLING
+   ======================================== */
+
+QScrollBar:vertical {
+    border: none;
+    background-color: #2d2d30;
+    width: 12px;
+    margin: 0;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #4e4e52;
+    border-radius: 6px;
+    min-height: 24px;
+    margin: 2px;
+    border: none;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #5e5e5e;
+}
+
+QScrollBar::handle:vertical:pressed {
+    background-color: #0078d4;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+QScrollBar:horizontal {
+    border: none;
+    background-color: #2d2d30;
+    height: 12px;
+    margin: 0;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #4e4e52;
+    border-radius: 6px;
+    min-width: 24px;
+    margin: 2px;
+    border: none;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #5e5e5e;
+}
+
+QScrollBar::handle:horizontal:pressed {
+    background-color: #0078d4;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+/* ========================================
+   MODERN DIALOG AND MESSAGE BOX STYLING
+   ======================================== */
+
+QMessageBox {
+    background-color: #2d2d30;
+    color: #cccccc;
+    border: 1px solid #4e4e52;
+    border-radius: 8px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+
+QMessageBox QPushButton {
+    background-color: #0078d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    min-width: 80px;
+    min-height: 32px;
+    letter-spacing: 0.1px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #106ebe;
+}
+
+QMessageBox QPushButton:pressed {
+    background-color: #005a9e;
+}
+
+QMessageBox QLabel {
+    color: #cccccc;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    background-color: transparent;
+}
+
+QMessageBox QLabel#qt_msgbox_label {
+    color: #cccccc;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    background-color: transparent;
+}
+
+QMessageBox QLabel#qt_msgboxex_icon_label {
+    background-color: transparent;
+}
+
+QTextEdit#qt_msgbox_textedit {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+}
+
+/* ========================================
+   SPECIAL COMPONENTS
+   ======================================== */
+
+/* Line separator styling */
+Line {
+    background-color: #3e3e42;
+}
+
+/* Status frame styling */
+QFrame#statusFrame {
+    background-color: #2d2d30;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+}
+
+/* ========================================
+   FINAL VISUAL ENHANCEMENTS
+   ======================================== */
+
+/* Focus indicators for all interactive elements */
+QLineEdit:focus,
+QPlainTextEdit:focus,
+QTextEdit:focus,
+QTableView:focus,
+QTableView::item:selected {
+    outline: 2px solid #0078d4;
+    outline-offset: 1px;
+}
+
+/* Enhanced disabled state styling */
+*:disabled {
+    color: #6a6a6a;
+    opacity: 0.7;
+}</string>
+  </property>
+  <widget class="QWidget" name="centralWidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <property name="spacing">
+     <number>12</number>
+    </property>
+    <property name="leftMargin">
+     <number>16</number>
+    </property>
+    <property name="topMargin">
+     <number>16</number>
+    </property>
+    <property name="rightMargin">
+     <number>16</number>
+    </property>
+    <property name="bottomMargin">
+     <number>16</number>
+    </property>
+    <item>
+     <widget class="QFrame" name="urlFrame">
+      <property name="frameShape">
+       <enum>QFrame::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Raised</enum>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <property name="spacing">
+        <number>12</number>
+       </property>
+       <property name="leftMargin">
+        <number>16</number>
+       </property>
+       <property name="topMargin">
+        <number>16</number>
+       </property>
+       <property name="rightMargin">
+        <number>16</number>
+       </property>
+       <property name="bottomMargin">
+        <number>16</number>
+       </property>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout">
+         <item>
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>Download URLs</string>
+           </property>
+           <property name="class" stdset="0">
+            <string>heading</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="btnAddTasks">
+           <property name="toolTip">
+            <string>Add download tasks from URLs</string>
+           </property>
+           <property name="text">
+            <string>Add Tasks</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QPlainTextEdit" name="plainTextEditUrls">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>80</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>120</height>
+          </size>
+         </property>
+         <property name="placeholderText">
+          <string>Enter URLs here, one per line...
+Example:
+https://example.com/file1.zip
+https://example.com/file2.zip</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QFrame" name="tableFrame">
+      <property name="frameShape">
+       <enum>QFrame::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Raised</enum>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <property name="spacing">
+        <number>12</number>
+       </property>
+       <property name="leftMargin">
+        <number>16</number>
+       </property>
+       <property name="topMargin">
+        <number>16</number>
+       </property>
+       <property name="rightMargin">
+        <number>16</number>
+       </property>
+       <property name="bottomMargin">
+        <number>16</number>
+       </property>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_3">
+         <item>
+          <widget class="QLabel" name="labelTasks">
+           <property name="text">
+            <string>Download Tasks</string>
+           </property>
+           <property name="class" stdset="0">
+            <string>heading</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_3">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QTableView" name="tableViewTasks">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>200</height>
+          </size>
+         </property>
+         <property name="alternatingRowColors">
+          <bool>true</bool>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::SingleSelection</enum>
+         </property>
+         <property name="selectionBehavior">
+          <enum>QAbstractItemView::SelectRows</enum>
+         </property>
+         <attribute name="verticalHeaderVisible">
+          <bool>false</bool>
+         </attribute>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QFrame" name="controlFrame">
+      <property name="frameShape">
+       <enum>QFrame::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Raised</enum>
+      </property>
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <property name="spacing">
+        <number>12</number>
+       </property>
+       <property name="leftMargin">
+        <number>12</number>
+       </property>
+       <property name="topMargin">
+        <number>12</number>
+       </property>
+       <property name="rightMargin">
+        <number>12</number>
+       </property>
+       <property name="bottomMargin">
+        <number>12</number>
+       </property>
+       <item>
+        <widget class="QPushButton" name="btnStart">
+         <property name="toolTip">
+          <string>Start selected download</string>
+         </property>
+         <property name="text">
+          <string>Start</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnCancel">
+         <property name="toolTip">
+          <string>Cancel selected download</string>
+         </property>
+         <property name="text">
+          <string>Cancel</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnDelete">
+         <property name="toolTip">
+          <string>Delete selected task</string>
+         </property>
+         <property name="text">
+          <string>Delete</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_2">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QFrame" name="statusFrame">
+         <property name="frameShape">
+          <enum>QFrame::StyledPanel</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Raised</enum>
+         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout_4">
+          <property name="spacing">
+           <number>16</number>
+          </property>
+          <property name="leftMargin">
+           <number>8</number>
+          </property>
+          <property name="topMargin">
+           <number>8</number>
+          </property>
+          <property name="rightMargin">
+           <number>8</number>
+          </property>
+          <property name="bottomMargin">
+           <number>8</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="labelSpeed">
+            <property name="styleSheet">
+             <string notr="true">color: #0078d4; font-weight: 600; font-family: 'Segoe UI', Arial, sans-serif;</string>
+            </property>
+            <property name="text">
+             <string>Speed: -- B/s</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="Line" name="line">
+            <property name="styleSheet">
+             <string notr="true">background: #3e3e42;</string>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelTime">
+            <property name="styleSheet">
+             <string notr="true">color: #ff8c00; font-weight: 600; font-family: 'Segoe UI', Arial, sans-serif;</string>
+            </property>
+            <property name="text">
+             <string>Time: --</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menuBar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1200</width>
+     <height>29</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionSettings"/>
+    <addaction name="separator"/>
+    <addaction name="actionExit"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionAbout"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuHelp"/>
+  </widget>
+  <widget class="QStatusBar" name="statusBar"/>
+  <action name="actionSettings">
+   <property name="text">
+    <string>Settings</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionExit">
+   <property name="text">
+    <string>Exit</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Q</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About</string>
+   </property>
+  </action>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <resources/>
+ <connections/>
+</ui>

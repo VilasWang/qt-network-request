@@ -1,0 +1,21 @@
+﻿#pragma once
+
+#include <QObject>
+#include "networkrequest.h"
+
+namespace QtNetworkRequest
+{
+	// Common request
+	class NetworkCommonRequest : public NetworkRequest
+	{
+		Q_OBJECT;
+
+	public:
+		explicit NetworkCommonRequest(QObject *parent = 0);
+		~NetworkCommonRequest();
+
+	public Q_SLOTS:
+		void start() Q_DECL_OVERRIDE;
+		void onFinished() Q_DECL_OVERRIDE;
+	};
+}

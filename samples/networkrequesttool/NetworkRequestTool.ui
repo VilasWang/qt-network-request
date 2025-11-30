@@ -1,0 +1,1533 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>networkClass</class>
+ <widget class="QMainWindow" name="networkClass">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Request Tool</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">/* VSCode-Inspired Professional Dark Theme - Qt5 Compatible */
+/* ========================================
+   DESIGN SYSTEM CONSTANTS
+   ======================================== */
+
+/* Color Definitions (Qt5 compatible) */
+/* Background Colors */
+/* BG Primary: #1e1e1e, BG Secondary: #252526, BG Tertiary: #2d2d30 */
+/* Border Colors: Light #3e3e42, Medium #4e4e52 */
+/* Text Colors: Primary #cccccc, Secondary #969696, Disabled #6a6a6a */
+/* Accent Colors: Blue #0078d4, Green #107c10, Orange #ff8c00 */
+/* State Colors: Hover #106ebe, Pressed #005a9e */
+
+/* ========================================
+   GLOBAL STYLES
+   ======================================== */
+
+QMainWindow {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+QWidget#centralWidget {
+    background-color: #1e1e1e;
+    color: #cccccc;
+}
+
+/* ========================================
+   CONTAINER STYLES
+   ======================================== */
+
+QFrame {
+    background-color: #252526;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    padding: 0px;
+}
+
+QFrame[frameShape="0"] {
+    border: none;
+    background-color: transparent;
+}
+
+/* ========================================
+   TYPOGRAPHY SYSTEM
+   ======================================== */
+
+QLabel {
+    color: #cccccc;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-weight: 400;
+    background-color: transparent;
+}
+
+QLabel.heading {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    letter-spacing: -0.2px;
+}
+
+QLabel.subheading {
+    color: #cccccc;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+
+QLabel.small {
+    font-size: 11px;
+    color: #969696;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ========================================
+   INPUT CONTROLS
+   ======================================== */
+
+QLineEdit, QComboBox, QTextEdit {
+    border: 1px solid #3e3e42;
+    border-radius: 4px;
+    padding: 8px 12px;
+    background-color: #1e1e1e;
+    color: #cccccc;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Consolas', 'Courier New', monospace;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+}
+
+QLineEdit:focus, QComboBox:focus, QTextEdit:focus {
+    border: 2px solid #0078d4;
+    background-color: #1e1e1e;
+    outline: none;
+    padding: 7px 11px; /* Compensate for 2px border */
+}
+
+QLineEdit:disabled, QComboBox:disabled, QTextEdit:disabled {
+    background-color: #2d2d30;
+    color: #6a6a6a;
+    border-color: #3e3e42;
+}
+
+QLineEdit::placeholder {
+    color: #6a6a6a;
+    font-style: italic;
+}
+
+QLineEdit:hover, QComboBox:hover {
+    border-color: #4e4e52;
+}
+
+QLineEdit:focus:hover, QComboBox:focus:hover {
+    border-color: #0078d4;
+}
+
+/* ========================================
+   COMBOBOX STYLING
+   ======================================== */
+
+QComboBox {
+    min-width: 100px;
+    padding-right: 24px; /* Space for dropdown arrow */
+    text-align: left;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #252526;
+    color: #cccccc;
+    border: 1px solid #4e4e52;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+    outline: none;
+    border-radius: 4px;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+QComboBox QAbstractItemView::item {
+    padding: 8px 12px;
+    min-height: 20px;
+    border: none;
+    margin: 1px 8px;
+    border-radius: 3px;
+}
+
+/* Note: Qt5 may have limited support for nested pseudo-classes */
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 24px;
+    border-left: 1px solid #3e3e42;
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+    background-color: #2d2d30;
+}
+
+QComboBox::drop-down:hover {
+    background-color: #3e3e42;
+    border-left-color: #4e4e52;
+}
+
+QComboBox::drop-down:pressed {
+    background-color: #0078d4;
+    border-left-color: #0078d4;
+}
+
+QComboBox::down-arrow {
+    image: none;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #cccccc;
+    margin: 2px;
+}
+
+QComboBox::down-arrow:hover {
+    border-top-color: #ffffff;
+}
+
+QComboBox::down-arrow:pressed {
+    border-top-color: #ffffff;
+}
+
+QComboBox:disabled {
+    background-color: #2d2d30;
+    color: #6a6a6a;
+}
+
+QComboBox:disabled::drop-down {
+    background-color: #2d2d30;
+    border-left-color: #3e3e42;
+}
+
+QComboBox:disabled::down-arrow {
+    border-top-color: #6a6a6a;
+}
+
+/* ========================================
+   TAB WIDGET STYLING
+   ======================================== */
+
+QTabWidget::pane {
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    background-color: #252526;
+    padding: 4px;
+    top: -1px;
+}
+
+QTabBar::tab {
+    background-color: transparent;
+    color: #969696;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 12px 20px 14px 20px;
+    margin-right: 2px;
+    font-weight: 500;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-size: 13px;
+    min-width: 80px;
+    min-height: 20px;
+    letter-spacing: 0.1px;
+    line-height: 16px;
+}
+
+QTabBar::tab:selected {
+    color: #ffffff;
+    border-bottom: 3px solid #0078d4;
+    background-color: #252526;
+}
+
+/* Note: Qt5 doesn't support :!selected - simplified hover */
+
+QTabBar::tab:first {
+    margin-left: 4px;
+}
+
+/* ========================================
+   TABLE WIDGET STYLING
+   ======================================== */
+
+QTableWidget {
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    background-color: #252526;
+    alternate-background-color: #2d2d30;
+    gridline-color: #3e3e42;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    outline: none;
+}
+
+QTableWidget::item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #3e3e42;
+    color: #cccccc;
+    min-height: 28px;
+    background-color: #252526;
+}
+
+QTableWidget::item:selected {
+    background-color: #0078d4;
+    color: #ffffff;
+}
+
+/* Note: Qt5 doesn't support complex pseudo-classes like :!selected and :alternate:hover:!selected */
+
+/* ========================================
+   TABLE EDITOR STYLING
+   ======================================== */
+
+QTableWidget QLineEdit {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    border: 2px solid #0078d4;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+QTableWidget QLineEdit:focus {
+    background-color: #1e1e1e;
+    border: 2px solid #0078d4;
+    outline: none;
+}
+
+QTableWidget QComboBox {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    border: 2px solid #0078d4;
+    padding: 4px 8px;
+    border-radius: 3px;
+    min-height: 20px;
+    font-size: 12px;
+}
+
+QTableWidget QComboBox:focus {
+    background-color: #1e1e1e;
+    border: 2px solid #0078d4;
+    outline: none;
+}
+
+/* ========================================
+   TABLE HEADER STYLING
+   ======================================== */
+
+QHeaderView::section {
+    background-color: #2d2d30;
+    color: #cccccc;
+    padding: 10px 12px;
+    border: none;
+    border-right: 1px solid #3e3e42;
+    border-bottom: 2px solid #0078d4;
+    font-weight: 600;
+    font-size: 12px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    letter-spacing: 0.2px;
+    text-transform: uppercase;
+}
+
+QHeaderView::section:first {
+    border-top-left-radius: 6px;
+}
+
+QHeaderView::section:last {
+    border-top-right-radius: 6px;
+    border-right: none;
+}
+
+QHeaderView::section:hover {
+    background-color: #333337;
+    color: #ffffff;
+}
+
+QHeaderView::section:pressed {
+    background-color: #0078d4;
+    color: #ffffff;
+}
+
+/* ========================================
+   LIST WIDGET STYLING
+   ======================================== */
+
+QListWidget {
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    background-color: #252526;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    outline: none;
+    padding: 4px;
+}
+
+QListWidget::item {
+    padding: 10px 12px;
+    border: none;
+    margin: 2px;
+    color: #cccccc;
+    border-radius: 4px;
+    background-color: transparent;
+    min-height: 24px;
+}
+
+QListWidget::item:selected {
+    background-color: #0078d4;
+    color: #ffffff;
+}
+
+/* Note: Qt5 doesn't support :hover:!selected - simplified for compatibility */
+
+QListWidget::item:focus {
+    border: 1px solid #0078d4;
+    border-radius: 3px;
+}
+
+/* ========================================
+   BUTTON STYLING SYSTEM
+   ======================================== */
+
+QPushButton {
+    background-color: #0078d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    min-width: 80px;
+    min-height: 32px;
+    letter-spacing: 0.1px;
+    text-align: center;
+}
+
+QPushButton:hover {
+    background-color: #106ebe;
+}
+
+QPushButton:pressed {
+    background-color: #005a9e;
+}
+
+QPushButton:disabled {
+    background-color: #3e3e42;
+    color: #6a6a6a;
+}
+
+QPushButton:focus {
+    border: 2px solid #0078d4;
+    padding: 6px 14px;
+}
+
+/* Primary Action Buttons */
+QPushButton#btn_new_request {
+    background-color: #107c10;
+    font-weight: 600;
+}
+
+QPushButton#btn_new_request:hover {
+    background-color: #128a0f;
+}
+
+QPushButton#btn_new_request:pressed {
+    background-color: #0d5e0d;
+}
+
+QPushButton#btn_new_request:focus {
+    border: 2px solid #107c10;
+}
+
+/* Secondary Action Buttons */
+QPushButton#btn_save {
+    background-color: #ff8c00;
+    font-weight: 500;
+}
+
+QPushButton#btn_save:hover {
+    background-color: #ffa500;
+}
+
+QPushButton#btn_save:pressed {
+    background-color: #e67300;
+}
+
+QPushButton#btn_save:focus {
+    border: 2px solid #ff8c00;
+}
+
+/* Primary Action Button */
+QPushButton#btn_send {
+    background-color: #0078d4;
+    font-weight: 600;
+    min-width: 100px;
+}
+
+QPushButton#btn_send:hover {
+    background-color: #106ebe;
+}
+
+QPushButton#btn_send:pressed {
+    background-color: #005a9e;
+}
+
+QPushButton#btn_send:focus {
+    border: 2px solid #0078d4;
+}
+
+/* Small utility buttons - individually styled for Qt5 compatibility */
+QPushButton#btn_add_param {
+    background-color: #3e3e42;
+    color: #cccccc;
+    min-width: 60px;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+QPushButton#btn_remove_param {
+    background-color: #3e3e42;
+    color: #cccccc;
+    min-width: 60px;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+QPushButton#btn_add_header {
+    background-color: #3e3e42;
+    color: #cccccc;
+    min-width: 60px;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+QPushButton#btn_remove_header {
+    background-color: #3e3e42;
+    color: #cccccc;
+    min-width: 60px;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+QPushButton#btn_add_body {
+    background-color: #3e3e42;
+    color: #cccccc;
+    min-width: 60px;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+QPushButton#btn_remove_body {
+    background-color: #3e3e42;
+    color: #cccccc;
+    min-width: 60px;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+/* Hover states */
+QPushButton#btn_add_param:hover,
+QPushButton#btn_remove_param:hover,
+QPushButton#btn_add_header:hover,
+QPushButton#btn_remove_header:hover,
+QPushButton#btn_add_body:hover,
+QPushButton#btn_remove_body:hover {
+    background-color: #4e4e52;
+    color: #ffffff;
+}
+
+/* Pressed states */
+QPushButton#btn_add_param:pressed,
+QPushButton#btn_remove_param:pressed,
+QPushButton#btn_add_header:pressed,
+QPushButton#btn_remove_header:pressed,
+QPushButton#btn_add_body:pressed,
+QPushButton#btn_remove_body:pressed {
+    background-color: #5e5e5e;
+}
+
+/* ========================================
+   SPLITTER STYLING
+   ======================================== */
+
+QSplitter::handle {
+    background-color: #3e3e42;
+    border-radius: 2px;
+}
+
+QSplitter::handle:horizontal {
+    width: 4px;
+    margin: 2px 0;
+}
+
+QSplitter::handle:vertical {
+    height: 4px;
+    margin: 0 2px;
+}
+
+QSplitter::handle:hover {
+    background-color: #0078d4;
+}
+
+QSplitter::handle:pressed {
+    background-color: #005a9e;
+}
+
+/* ========================================
+   MODERN SCROLLBAR STYLING
+   ======================================== */
+
+QScrollBar:vertical {
+    border: none;
+    background-color: #2d2d30;
+    width: 12px;
+    margin: 0;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #4e4e52;
+    border-radius: 6px;
+    min-height: 24px;
+    margin: 2px;
+    border: none;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #5e5e5e;
+}
+
+QScrollBar::handle:vertical:pressed {
+    background-color: #0078d4;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+QScrollBar:horizontal {
+    border: none;
+    background-color: #2d2d30;
+    height: 12px;
+    margin: 0;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #4e4e52;
+    border-radius: 6px;
+    min-width: 24px;
+    margin: 2px;
+    border: none;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #5e5e5e;
+}
+
+QScrollBar::handle:horizontal:pressed {
+    background-color: #0078d4;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+/* Scrollbar for specific widgets */
+/* Simplified scrollbars for Qt5 compatibility */
+QTextEdit QScrollBar:vertical {
+    background-color: #252526;
+    width: 10px;
+}
+
+QListWidget QScrollBar:vertical {
+    background-color: #252526;
+    width: 10px;
+}
+
+QTableWidget QScrollBar:vertical {
+    background-color: #252526;
+    width: 10px;
+}
+
+/* Simplified scrollbar handles for Qt5 compatibility */
+QTextEdit QScrollBar::handle:vertical {
+    background-color: #3e3e42;
+    border-radius: 5px;
+    min-height: 20px;
+    margin: 1px;
+}
+
+QListWidget QScrollBar::handle:vertical {
+    background-color: #3e3e42;
+    border-radius: 5px;
+    min-height: 20px;
+    margin: 1px;
+}
+
+QTableWidget QScrollBar::handle:vertical {
+    background-color: #3e3e42;
+    border-radius: 5px;
+    min-height: 20px;
+    margin: 1px;
+}
+
+/* Simplified scrollbar hover for Qt5 compatibility */
+QTextEdit QScrollBar::handle:vertical:hover {
+    background-color: #4e4e52;
+}
+
+QListWidget QScrollBar::handle:vertical:hover {
+    background-color: #4e4e52;
+}
+
+QTableWidget QScrollBar::handle:vertical:hover {
+    background-color: #4e4e52;
+}
+
+/* ========================================
+   MODERN DIALOG AND MESSAGE BOX STYLING
+   ======================================== */
+
+QMessageBox {
+    background-color: #2d2d30;
+    color: #cccccc;
+    border: 1px solid #4e4e52;
+    border-radius: 8px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+
+QMessageBox QPushButton {
+    background-color: #0078d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    min-width: 80px;
+    min-height: 32px;
+    letter-spacing: 0.1px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #106ebe;
+}
+
+QMessageBox QPushButton:pressed {
+    background-color: #005a9e;
+}
+
+QMessageBox QLabel {
+    color: #cccccc;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    background-color: transparent;
+}
+
+QMessageBox QTextEdit {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+}
+
+/* ========================================
+   RESPONSE TEXT EDITORS STYLING
+   ======================================== */
+
+QTextEdit#textEdit_response_headers,
+QTextEdit#textEdit_response_body,
+QTextEdit#textEdit_body {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+    font-size: 13px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    padding: 12px;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+}
+
+QTextEdit#textEdit_response_headers:focus,
+QTextEdit#textEdit_response_body:focus,
+QTextEdit#textEdit_body:focus {
+    border: 2px solid #0078d4;
+    padding: 11px;
+}
+
+/* Read-only text editors - simplified for Qt5 */
+/* Note: Qt5 has limited support for :read-only pseudo-class */
+
+/* ========================================
+   FINAL VISUAL ENHANCEMENTS
+   ======================================== */
+
+/* Focus indicators for all interactive elements */
+QLineEdit:focus,
+QComboBox:focus,
+QTextEdit:focus,
+QTableWidget:focus,
+QListWidget:focus,
+QTabBar::tab:selected {
+    outline: 2px solid #0078d4;
+    outline-offset: 1px;
+}
+
+/* Enhanced disabled state styling */
+*:disabled {
+    color: #6a6a6a;
+    opacity: 0.7;
+}
+
+/* Smooth transitions for better UX - simplified for Qt5 */
+/* Note: Qt5 has limited transition support */
+
+/* High contrast mode support - simplified for Qt5 */
+/* Note: Qt5 doesn't support @media queries - this is for documentation only */
+
+/* Special styling for URL input field */
+QLineEdit#lineEdit_url {
+    font-family: 'Consolas', 'Courier New', 'SF Mono', monospace;
+    font-size: 14px;
+    letter-spacing: 0.2px;
+}
+
+/* Enhanced search field styling */
+QLineEdit#lineEdit_search {
+    border-radius: 20px;
+    padding-left: 16px;
+    font-style: normal;
+}
+
+/* Method combobox specific styling */
+QComboBox#cmb_method {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    min-width: 80px;
+}</string>
+  </property>
+  <widget class="QWidget" name="centralWidget">
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <property name="spacing">
+     <number>12</number>
+    </property>
+    <property name="leftMargin">
+     <number>16</number>
+    </property>
+    <property name="topMargin">
+     <number>16</number>
+    </property>
+    <property name="rightMargin">
+     <number>16</number>
+    </property>
+    <property name="bottomMargin">
+     <number>16</number>
+    </property>
+    <item>
+     <widget class="QSplitter" name="splitter">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+      <widget class="QWidget" name="widget_history">
+       <layout class="QVBoxLayout" name="verticalLayout_history">
+        <property name="spacing">
+         <number>12</number>
+        </property>
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QFrame" name="frame_history">
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_history_frame">
+           <property name="spacing">
+            <number>8</number>
+           </property>
+           <property name="leftMargin">
+            <number>8</number>
+           </property>
+           <property name="topMargin">
+            <number>8</number>
+           </property>
+           <property name="rightMargin">
+            <number>8</number>
+           </property>
+           <property name="bottomMargin">
+            <number>8</number>
+           </property>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_history_header">
+             <item>
+              <widget class="QLabel" name="label_history">
+               <property name="text">
+                <string>Request History</string>
+               </property>
+               <property name="class" stdset="0">
+                <string>heading</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="horizontalSpacer_history">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>40</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="lineEdit_search">
+             <property name="placeholderText">
+              <string>Search requests...</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btn_new_request">
+             <property name="text">
+              <string>New Request</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QListWidget" name="listWidget_history"/>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="widget_request">
+       <layout class="QVBoxLayout" name="verticalLayout_request">
+        <property name="spacing">
+         <number>12</number>
+        </property>
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QFrame" name="frame_request_toolbar">
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_request_toolbar">
+           <property name="spacing">
+            <number>8</number>
+           </property>
+           <property name="leftMargin">
+            <number>8</number>
+           </property>
+           <property name="topMargin">
+            <number>8</number>
+           </property>
+           <property name="rightMargin">
+            <number>8</number>
+           </property>
+           <property name="bottomMargin">
+            <number>8</number>
+           </property>
+           <item>
+            <widget class="QComboBox" name="cmb_method">
+             <item>
+              <property name="text">
+               <string>GET</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>POST</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>PUT</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>DELETE</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>PATCH</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>HEAD</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="lineEdit_url">
+             <property name="placeholderText">
+              <string>Enter request URL</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btn_send">
+             <property name="text">
+              <string>Send</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btn_save">
+             <property name="text">
+              <string>Save</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSplitter" name="splitter_request">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <widget class="QTabWidget" name="tabWidget_request">
+           <property name="currentIndex">
+            <number>2</number>
+           </property>
+           <widget class="QWidget" name="tab_params">
+            <attribute name="title">
+             <string>Params</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayout_params">
+             <property name="spacing">
+              <number>8</number>
+             </property>
+             <property name="leftMargin">
+              <number>8</number>
+             </property>
+             <property name="topMargin">
+              <number>8</number>
+             </property>
+             <property name="rightMargin">
+              <number>8</number>
+             </property>
+             <property name="bottomMargin">
+              <number>8</number>
+             </property>
+             <item>
+              <widget class="QTableWidget" name="table_params">
+               <property name="columnCount">
+                <number>3</number>
+               </property>
+               <attribute name="verticalHeaderVisible">
+                <bool>false</bool>
+               </attribute>
+               <column>
+                <property name="text">
+                 <string>Key</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Value</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Description</string>
+                </property>
+               </column>
+              </widget>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_params">
+               <item>
+                <spacer name="horizontalSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+               <item>
+                <widget class="QPushButton" name="btn_add_param">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="text">
+                  <string>Add</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="btn_remove_param">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="text">
+                  <string>Remove</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+           <widget class="QWidget" name="tab_headers">
+            <attribute name="title">
+             <string>Headers</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayout_headers">
+             <property name="spacing">
+              <number>8</number>
+             </property>
+             <property name="leftMargin">
+              <number>8</number>
+             </property>
+             <property name="topMargin">
+              <number>8</number>
+             </property>
+             <property name="rightMargin">
+              <number>8</number>
+             </property>
+             <property name="bottomMargin">
+              <number>8</number>
+             </property>
+             <item>
+              <widget class="QTableWidget" name="table_headers">
+               <property name="columnCount">
+                <number>3</number>
+               </property>
+               <attribute name="verticalHeaderVisible">
+                <bool>false</bool>
+               </attribute>
+               <column>
+                <property name="text">
+                 <string>Key</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Value</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Description</string>
+                </property>
+               </column>
+              </widget>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_headers">
+               <item>
+                <spacer name="horizontalSpacer_2">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+               <item>
+                <widget class="QPushButton" name="btn_add_header">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="text">
+                  <string>Add</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="btn_remove_header">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="text">
+                  <string>Remove</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+           <widget class="QWidget" name="tab_body">
+            <attribute name="title">
+             <string>Body</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayout_body">
+             <property name="spacing">
+              <number>8</number>
+             </property>
+             <property name="leftMargin">
+              <number>8</number>
+             </property>
+             <property name="topMargin">
+              <number>8</number>
+             </property>
+             <property name="rightMargin">
+              <number>8</number>
+             </property>
+             <property name="bottomMargin">
+              <number>8</number>
+             </property>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_body">
+               <item>
+                <widget class="QComboBox" name="cmb_body_type">
+                 <item>
+                  <property name="text">
+                   <string>none</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>form-data</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>x-www-form-urlencoded</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>raw</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>binary</string>
+                  </property>
+                 </item>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="cmb_raw_type">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <item>
+                  <property name="text">
+                   <string>Text</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>JSON</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>XML</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>HTML</string>
+                  </property>
+                 </item>
+                </widget>
+               </item>
+               <item>
+                <spacer name="horizontalSpacer_3">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QStackedWidget" name="stackedWidget_body">
+               <widget class="QWidget" name="page_raw">
+                <layout class="QVBoxLayout" name="verticalLayout_raw">
+                 <property name="leftMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="topMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="rightMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="bottomMargin">
+                  <number>0</number>
+                 </property>
+                 <item>
+                  <widget class="QTextEdit" name="textEdit_body"/>
+                 </item>
+                </layout>
+               </widget>
+               <widget class="QWidget" name="page_form">
+                <layout class="QVBoxLayout" name="verticalLayout_form">
+                 <property name="leftMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="topMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="rightMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="bottomMargin">
+                  <number>0</number>
+                 </property>
+                 <item>
+                  <widget class="QTableWidget" name="table_body">
+                   <property name="columnCount">
+                    <number>4</number>
+                   </property>
+                   <attribute name="horizontalHeaderStretchLastSection">
+                    <bool>true</bool>
+                   </attribute>
+                   <attribute name="verticalHeaderVisible">
+                    <bool>false</bool>
+                   </attribute>
+                   <column>
+                    <property name="text">
+                     <string>Key</string>
+                    </property>
+                   </column>
+                   <column>
+                    <property name="text">
+                     <string>Value</string>
+                    </property>
+                   </column>
+                   <column>
+                    <property name="text">
+                     <string>Type</string>
+                    </property>
+                   </column>
+                   <column>
+                    <property name="text">
+                     <string>Description</string>
+                    </property>
+                   </column>
+                  </widget>
+                 </item>
+                 <item>
+                  <layout class="QHBoxLayout" name="horizontalLayout_form">
+                   <item>
+                    <spacer name="horizontalSpacer_4">
+                     <property name="orientation">
+                      <enum>Qt::Horizontal</enum>
+                     </property>
+                     <property name="sizeHint" stdset="0">
+                      <size>
+                       <width>40</width>
+                       <height>20</height>
+                      </size>
+                     </property>
+                    </spacer>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="btn_add_body">
+                     <property name="sizePolicy">
+                      <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                       <horstretch>0</horstretch>
+                       <verstretch>0</verstretch>
+                      </sizepolicy>
+                     </property>
+                     <property name="text">
+                      <string>Add</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="btn_remove_body">
+                     <property name="sizePolicy">
+                      <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                       <horstretch>0</horstretch>
+                       <verstretch>0</verstretch>
+                      </sizepolicy>
+                     </property>
+                     <property name="text">
+                      <string>Remove</string>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </widget>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+          <widget class="QTabWidget" name="tabWidget_response">
+           <property name="currentIndex">
+            <number>0</number>
+           </property>
+           <widget class="QWidget" name="tab_response_body">
+            <attribute name="title">
+             <string>Body</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayout_response_body">
+             <property name="spacing">
+              <number>8</number>
+             </property>
+             <property name="leftMargin">
+              <number>8</number>
+             </property>
+             <property name="topMargin">
+              <number>8</number>
+             </property>
+             <property name="rightMargin">
+              <number>8</number>
+             </property>
+             <property name="bottomMargin">
+              <number>8</number>
+             </property>
+             <item>
+              <widget class="QTextEdit" name="textEdit_response_body">
+               <property name="readOnly">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+           <widget class="QWidget" name="tab_response_headers">
+            <attribute name="title">
+             <string>Headers</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayout_response_headers">
+             <property name="spacing">
+              <number>8</number>
+             </property>
+             <property name="leftMargin">
+              <number>8</number>
+             </property>
+             <property name="topMargin">
+              <number>8</number>
+             </property>
+             <property name="rightMargin">
+              <number>8</number>
+             </property>
+             <property name="bottomMargin">
+              <number>8</number>
+             </property>
+             <item>
+              <widget class="QTextEdit" name="textEdit_response_headers">
+               <property name="readOnly">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
