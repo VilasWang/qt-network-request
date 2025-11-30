@@ -126,11 +126,9 @@ if !errorlevel! neq 0 (
 )
 
 rem === Run ctest if requested ===
-if %RUN_TESTS%==1 (
+if "%RUN_TESTS%"=="1" (
     echo Running tests with ctest...
-    pause
     pushd ..\build\test\Release
-    pause
     ctest --output-on-failure --build-config Release
     if !errorlevel! neq 0 (
         echo Some tests failed.

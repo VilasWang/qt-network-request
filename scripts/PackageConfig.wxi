@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Include xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!--
+    OpenSSL DLL configuration variables
+    These will be set by the pack.bat script based on Qt version
+  -->
+
+  <!-- OpenSSL 1.1.1 (Qt 5.12+) -->
+  <?ifndef OPENSSL_CRYPTO_DLL ?>
+    <?define OPENSSL_CRYPTO_DLL = "libcrypto-1_1-x64.dll" ?>
+  <?endif?>
+
+  <?ifndef OPENSSL_SSL_DLL ?>
+    <?define OPENSSL_SSL_DLL = "libssl-1_1-x64.dll" ?>
+  <?endif?>
+
+  <!-- OpenSSL 1.0.2 (Qt < 5.12) -->
+  <?ifndef OPENSSL_LEGACY_CRYPTO ?>
+    <?define OPENSSL_LEGACY_CRYPTO = "libeay32.dll" ?>
+  <?endif?>
+
+  <?ifndef OPENSSL_LEGACY_SSL ?>
+    <?define OPENSSL_LEGACY_SSL = "ssleay32.dll" ?>
+  <?endif?>
+
+  <!-- Version flag to determine which OpenSSL version to use -->
+  <?ifndef USE_OPENSSL_11 ?>
+    <?define USE_OPENSSL_11 = "yes" ?>
+  <?endif?>
+</Include>

@@ -76,33 +76,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 4) Copy OpenSSL DLL files
-echo Checking for OpenSSL DLL files...
-if not exist install\libeay32.dll (
-    if exist ThirdParty\openssl1.1.1\bin\libeay32.dll (
-        echo Copying OpenSSL DLL files...
-        copy ThirdParty\openssl1.1.1\bin\libeay32.dll install\ >nul
-        if errorlevel 1 (
-            echo ERROR: Failed to copy libeay32.dll
-            pause
-            exit /b 1
-        )
-    ) else (
-        echo WARNING: OpenSSL DLL files not found in ThirdParty\openssl1.1.1\bin\
-    )
-)
-
-if not exist install\ssleay32.dll (
-    if exist ThirdParty\openssl1.1.1\bin\ssleay32.dll (
-        copy ThirdParty\openssl1.1.1\bin\ssleay32.dll install\ >nul
-        if errorlevel 1 (
-            echo ERROR: Failed to copy ssleay32.dll
-            pause
-            exit /b 1
-        )
-    )
-)
-
 REM 5) Verify essential files exist
 echo Verifying essential files...
 if not exist install\QtNetworkRequestTool.exe (
@@ -141,7 +114,23 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 6) Check if WiX toolset is available
+REM 6) Determine Qt version and OpenSSL DLL requirements
+echo Determining Qt version...
+set USE_OPENSSL_11=yes
+set OPENSSL_CRYPTO_DLL=libcrypto-1_1-x64.dll
+set OPENSSL_SSL_DLL=libssl-1_1-x64.dll
+
+REM Check if OpenSSL 1.0.2 DLLs exist (indicates Qt < 5.12)
+if exist "install\libeay32.dll" (
+    echo Found OpenSSL 1.0.2 DLLs - using legacy OpenSSL
+    set USE_OPENSSL_11=no
+    set OPENSSL_CRYPTO_DLL=libeay32.dll
+    set OPENSSL_SSL_DLL=ssleay32.dll
+) else (
+    echo Found OpenSSL 1.1.1 DLLs - using modern OpenSSL
+)
+
+REM 7) Check if WiX toolset is available
 echo Checking for WiX toolset...
 wix --version >nul 2>&1
 if errorlevel 1 (
@@ -150,24 +139,30 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 7) Build MSI packages using WiX v4 syntax
-echo Building QtNetworkRequestTool MSI package...
-wix build scripts\Package.wxs -o installer\QtNetworkRequestTool-1.0.0.msi
+REM 8) Build MSI packages using WiX v4 syntax with OpenSSL configuration
+echo Building QtNetworkRequestTool MSI package with OpenSSL DLLs...
+wix build scripts\Package.wxs -o installer\QtNetworkRequestTool-1.0.0.msi ^
+    -d USE_OPENSSL_11=%USE_OPENSSL_11% ^
+    -d OPENSSL_CRYPTO_DLL=%OPENSSL_CRYPTO_DLL% ^
+    -d OPENSSL_SSL_DLL=%OPENSSL_SSL_DLL%
 if errorlevel 1 (
     echo ERROR: Failed to build QtNetworkRequestTool MSI package
     pause
     exit /b 1
 )
 
-echo Building QtNetworkDownloader MSI package...
-wix build scripts\Package_QtDownloader.wxs -o installer\QtNetworkDownloader-1.0.0.msi
+echo Building QtNetworkDownloader MSI package with OpenSSL DLLs...
+wix build scripts\Package_QtDownloader.wxs -o installer\QtNetworkDownloader-1.0.0.msi ^
+    -d USE_OPENSSL_11=%USE_OPENSSL_11% ^
+    -d OPENSSL_CRYPTO_DLL=%OPENSSL_CRYPTO_DLL% ^
+    -d OPENSSL_SSL_DLL=%OPENSSL_SSL_DLL%
 if errorlevel 1 (
     echo ERROR: Failed to build QtNetworkDownloader MSI package
     pause
     exit /b 1
 )
 
-REM 8) Verify MSI packages were created
+REM 9) Verify MSI packages were created
 if not exist installer\QtNetworkRequestTool-1.0.0.msi (
     echo ERROR: QtNetworkRequestTool MSI package was not created
     pause

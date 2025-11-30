@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <!-- Include OpenSSL configuration -->
+  <?include PackageConfig.wxi?>
   <Package Name="QtNetworkRequestTool" Language="1033" Codepage="65001" Manufacturer="QtMultiThreadNetwork" Version="1.0.0.0" UpgradeCode="43973849-7524-47EE-9576-2733F0100B1A">
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     
@@ -64,14 +67,26 @@
         <File Id="Qt5Svg.dll" Source="install\Qt5Svg.dll" KeyPath="yes" />
       </Component>
       
-      <!-- OpenSSL DLLs -->
-      <Component Id="libeay32.dll" Guid="*">
-        <File Id="libeay32.dll" Source="install\libeay32.dll" KeyPath="yes" />
-      </Component>
-      
-      <Component Id="ssleay32.dll" Guid="*">
-        <File Id="ssleay32.dll" Source="install\ssleay32.dll" KeyPath="yes" />
-      </Component>
+      <!-- OpenSSL DLLs - conditionally included based on Qt version -->
+      <?if $(var.USE_OPENSSL_11) = "yes"?>
+        <!-- OpenSSL 1.1.1 DLLs (Qt 5.12+) -->
+        <Component Id="libcrypto_1_1_x64.dll" Guid="*">
+          <File Id="libcrypto_1_1_x64.dll" Source="install\$(var.OPENSSL_CRYPTO_DLL)" KeyPath="yes" />
+        </Component>
+
+        <Component Id="libssl_1_1_x64.dll" Guid="*">
+          <File Id="libssl_1_1_x64.dll" Source="install\$(var.OPENSSL_SSL_DLL)" KeyPath="yes" />
+        </Component>
+      <?else?>
+        <!-- OpenSSL 1.0.2 DLLs (Qt < 5.12) -->
+        <Component Id="libeay32.dll" Guid="*">
+          <File Id="libeay32.dll" Source="install\$(var.OPENSSL_CRYPTO_DLL)" KeyPath="yes" />
+        </Component>
+
+        <Component Id="ssleay32.dll" Guid="*">
+          <File Id="ssleay32.dll" Source="install\$(var.OPENSSL_SSL_DLL)" KeyPath="yes" />
+        </Component>
+      <?endif?>
     </ComponentGroup>
   </Fragment>
 
@@ -91,9 +106,9 @@
       <Component Id="qgenericbearer.dll" Guid="*">
         <File Id="qgenericbearer.dll" Source="install\bearer\qgenericbearer.dll" KeyPath="yes" />
       </Component>
-      <Component Id="qnativewifibearer.dll" Guid="*">
+      <!-- <Component Id="qnativewifibearer.dll" Guid="*">
         <File Id="qnativewifibearer.dll" Source="install\bearer\qnativewifibearer.dll" KeyPath="yes" />
-      </Component>
+      </Component> -->
     </ComponentGroup>
   </Fragment>
 

@@ -3,6 +3,10 @@ build/
 cmake-build-*/
 out/
 
+# installer directories
+install/
+installer/
+
 # Visual Studio
 .vs/
 *.suo
@@ -123,3 +127,4 @@ dist/
 # claude
 claude.md
 .claude/CLAUDE.md
+.claude/
