@@ -1,6 +1,11 @@
 @echo off
 setlocal EnableDelayedExpansion
 
+REM Store the script directory and change to it
+set SCRIPT_DIR=%~dp0
+cd /d "%SCRIPT_DIR%"
+echo current work directory is "%SCRIPT_DIR%"
+
 :: Check for Qt environment variables
 if not defined QT_DIR (
     if not defined QTDIR (
