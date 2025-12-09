@@ -73,7 +73,7 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 
 ```bash
 # Clone the repository
-git clone https://gitee.com/vilasj/qt-network-request.git
+git clone https://github.com/VilasWang/qt-network-request.git
 cd qt-network-request
 
 # Configure and build (Windows)
