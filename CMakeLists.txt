@@ -93,8 +93,16 @@ target_include_directories(QNetworkRequest
 # Link Qt modules required by library
 target_link_libraries(QNetworkRequest PRIVATE Qt5::Core Qt5::Network)
 
+# --- Platform-specific GUI executable flag ---
+# WIN32 flag is only valid on Windows for GUI applications (no console window)
+if(WIN32)
+    set(GUI_EXECUTABLE_FLAG WIN32)
+else()
+    set(GUI_EXECUTABLE_FLAG "")
+endif()
+
 # --- Build executable: NetworkRequestTool ---
-add_executable(QtNetworkRequestTool WIN32
+add_executable(QtNetworkRequestTool ${GUI_EXECUTABLE_FLAG}
     # Sources
     samples/NetworkRequestTool/main.cpp
     samples/NetworkRequestTool/networkrequesttool.cpp
@@ -114,7 +122,7 @@ target_link_libraries(QtNetworkRequestTool PRIVATE QNetworkRequest Qt5::Widgets 
 target_include_directories(QtNetworkRequestTool PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/samples/NetworkRequestTool)
 
 # --- Build executable: NetworkDownloader ---
-add_executable(QtNetworkDownloader WIN32
+add_executable(QtNetworkDownloader ${GUI_EXECUTABLE_FLAG}
     # Sources
     samples/networkdownloader/main.cpp
     samples/networkdownloader/downloadermainwindow.cpp
