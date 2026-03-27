@@ -194,8 +194,8 @@ jobs:
       - name: Run unit tests (Windows)
         if: matrix.platform == 'windows'
         run: |
-          cd build\test\${{ matrix.build_type }}
-          .\UnitTests.exe --output-on-failure
+          cd build\test
+          ctest -C ${{ matrix.build_type }} --output-on-failure
 
       - name: Run unit tests (Linux)
         if: matrix.platform == 'linux'
