@@ -104,22 +104,22 @@ endif()
 # --- Build executable: NetworkRequestTool ---
 add_executable(QtNetworkRequestTool ${GUI_EXECUTABLE_FLAG}
     # Sources
-    samples/NetworkRequestTool/main.cpp
-    samples/NetworkRequestTool/networkrequesttool.cpp
+    samples/networkrequesttool/main.cpp
+    samples/networkrequesttool/networkrequesttool.cpp
 
     # Headers for AUTOMOC
-    samples/NetworkRequestTool/networkrequesttool.h
+    samples/networkrequesttool/networkrequesttool.h
 
     # UI and Resource files
-    samples/NetworkRequestTool/NetworkRequestTool.ui
-    samples/NetworkRequestTool/NetworkRequestTool.qrc
+    samples/networkrequesttool/NetworkRequestTool.ui
+    samples/networkrequesttool/NetworkRequestTool.qrc
 )
 
 # Link NetworkRequestTool to our library and Qt modules
 target_link_libraries(QtNetworkRequestTool PRIVATE QNetworkRequest Qt5::Widgets Qt5::Xml Qt5::Network)
 
 # Set include directories for executable
-target_include_directories(QtNetworkRequestTool PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/samples/NetworkRequestTool)
+target_include_directories(QtNetworkRequestTool PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/samples/networkrequesttool)
 
 # --- Build executable: NetworkDownloader ---
 add_executable(QtNetworkDownloader ${GUI_EXECUTABLE_FLAG}
