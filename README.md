@@ -548,7 +548,7 @@ We welcome contributions! Please follow these guidelines:
 
 ```bash
 # Clone with submodules
-git clone --recursive https://gitee.com/vilasj/qt-network-request.git
+git clone --recursive https://gitee.com/Lucasj/qt-network-request.git
 
 # Setup development build
 cmake -S . -B build-dev -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
@@ -567,4 +567,4 @@ cmake --build build-dev --config Debug
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-**Copyright © 2025 Vilas Wang. All rights reserved.**
+**Copyright © 2025 Lucas Wang. All rights reserved.**

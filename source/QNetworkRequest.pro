@@ -91,6 +91,6 @@ win32 {
 !rc_file {
     QMAKE_TARGET_COMPANY = ""
     QMAKE_TARGET_DESCRIPTION = "Qt Multi-Threaded Network Request framework."
-    QMAKE_TARGET_COPYRIGHT = "Copyright (C) 2016 vilas wang, vilas900420@gmail.com"
+    QMAKE_TARGET_COPYRIGHT = "Copyright (C) 2016 Lucas wang, Lucas900420@gmail.com"
     QMAKE_TARGET_PRODUCT = "QtNetworkRequest"
 }

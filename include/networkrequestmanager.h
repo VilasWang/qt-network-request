@@ -15,7 +15,7 @@ That must be called in the main thread.
 
 MIT License
 
-Copyright (c) 2025 Vilas Wang
+Copyright (c) 2025 Lucas Wang
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
