@@ -14,12 +14,8 @@ on:
     inputs:
       build_type:
         description: 'Build type (Debug for troubleshooting)'
-        required: true
+        required: false
         default: 'Release'
-        type: choice
-        options:
-          - Release
-          - Debug
 
 env:
   QT_VERSION: '5.15.2'
