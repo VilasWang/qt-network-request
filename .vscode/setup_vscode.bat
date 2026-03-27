@@ -7,16 +7,24 @@ echo ========================================
 echo.
 
 :: Check for Qt environment variables
+set "QT_DEFAULT_PATH=C:\Qt\5.15.2\msvc2019_64"
+
 if not defined QT_DIR (
     if not defined QTDIR (
-        echo Error: Qt environment variable not set!
-        echo Please set QT_DIR or QTDIR environment variable to point to your Qt installation.
-        echo Example: set QT_DIR=C:\Qt\Qt5.6.3\5.6.3\msvc2015_64
-        echo.
-        echo 或者运行此脚本时指定 Qt 路径:
-        echo setup_vscode.bat "C:\Qt\Qt5.6.3\5.6.3\msvc2015_64"
-        pause
-        exit /b 1
+        echo Qt environment variable not set, trying default path...
+        if exist "%QT_DEFAULT_PATH%" (
+            set QT_DIR=%QT_DEFAULT_PATH%
+            echo Using default Qt path: %QT_DIR%
+        ) else (
+            echo Error: Qt environment variable not set!
+            echo Please set QT_DIR or QTDIR environment variable to point to your Qt installation.
+            echo Example: set QT_DIR=C:\Qt\5.15.2\msvc2019_64
+            echo.
+            echo 或者运行此脚本时指定 Qt 路径:
+            echo setup_vscode.bat "C:\Qt\5.15.2\msvc2019_64"
+            pause
+            exit /b 1
+        )
     ) else (
         set QT_DIR=%QTDIR%
     )
@@ -42,7 +50,6 @@ if not exist .vscode mkdir .vscode
 :: Create or update VS Code settings
 echo {
     "cmake.configureOnOpen": true,
-    "cmake.generator": "Ninja",
     "cmake.buildDirectory": "${workspaceFolder}/build",
     "cmake.buildArgs": [
         "--parallel"
