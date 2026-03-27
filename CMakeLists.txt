@@ -270,6 +270,45 @@ if(WIN32)
     endif()
 endif()
 
+# --- OpenSSL for Unix-like systems (Linux, macOS) ---
+if(UNIX AND NOT APPLE)
+    # Linux: Find system OpenSSL packages
+    find_package(OpenSSL)
+    if(OPENSSL_FOUND)
+        message(STATUS "OpenSSL version: ${OPENSSL_VERSION}")
+        message(STATUS "OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
+        message(STATUS "OpenSSL libraries: ${OPENSSL_LIBRARIES}")
+
+        # Link OpenSSL to the library
+        target_link_libraries(QNetworkRequest PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+    else()
+        message(FATAL_ERROR "OpenSSL not found. Install libssl-dev on Linux:\n"
+            "  Ubuntu/Debian: sudo apt-get install libssl-dev\n"
+            "  Fedora: sudo dnf install openssl-devel\n"
+            "  Arch: sudo pacman -S openssl")
+    endif()
+elseif(APPLE)
+    # macOS: Try to find OpenSSL (may be from Homebrew or system)
+    find_package(OpenSSL)
+    if(OPENSSL_FOUND)
+        message(STATUS "OpenSSL version: ${OPENSSL_VERSION}")
+        message(STATUS "OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
+        target_link_libraries(QNetworkRequest PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+
+        # Add Homebrew OpenSSL path if found via brew (both Intel and Apple Silicon)
+        if(EXISTS "/opt/homebrew/opt/openssl")
+            target_include_directories(QNetworkRequest PRIVATE "/opt/homebrew/opt/openssl/include")
+            target_link_directories(QNetworkRequest PRIVATE "/opt/homebrew/opt/openssl/lib")
+        elseif(EXISTS "/usr/local/opt/openssl")
+            target_include_directories(QNetworkRequest PRIVATE "/usr/local/opt/openssl/include")
+            target_link_directories(QNetworkRequest PRIVATE "/usr/local/opt/openssl/lib")
+        endif()
+    else()
+        message(WARNING "OpenSSL not found on macOS. Install via Homebrew:")
+        message(WARNING "  brew install openssl")
+    endif()
+endif()
+
 # --- Build tests ---
 enable_testing()
 add_subdirectory(test)
