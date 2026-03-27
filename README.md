@@ -441,8 +441,8 @@ QtMultiThreadNetwork is designed to work across multiple platforms with proper b
 | Platform | Status | Notes |
 |----------|--------|-------|
 | **Windows** | ✅ Fully Supported | Primary development platform, MSVC 2017+ |
-| **Linux** | ✅ Supported | Requires build system adjustments |
-| **macOS** | ✅ Supported | Requires build system adjustments |
+| **Linux** | ✅ Fully Supported | GCC 7+ or Clang 6+, CMake 3.15+ |
+| **macOS** | ✅ Fully Supported | Xcode 10+ (Clang), CMake 3.15+ |
 
 ### Component Compatibility
 
@@ -452,8 +452,9 @@ QtMultiThreadNetwork is designed to work across multiple platforms with proper b
 | Memory-Mapped Files | ✅ | ✅ | ✅ | Implemented with platform-specific APIs |
 | Multi-threaded Downloads | ✅ | ✅ | ✅ | Compatible across platforms |
 | Thread Pool Management | ✅ | ✅ | ✅ | Uses Qt's threading framework |
-| Build System | ✅ | ✅ | ⚠️ | Requires CMake adjustments |
+| Build System | ✅ | ✅ | ✅ | CMake with platform-specific optimizations |
 | OpenSSL Integration | DLL | Dynamic | Dynamic | Platform-specific linking |
+| GUI Applications | ✅ | ✅ | ✅ | Conditional WIN32 flag for proper GUI apps |
 
 ### Platform-Specific Implementations
 
@@ -481,11 +482,11 @@ QtMultiThreadNetwork is designed to work across multiple platforms with proper b
 - **OpenSSL**: Homebrew or system packages
 - **Build**: CMake 3.15+
 
-### Known Limitations
+### Platform-Specific Notes
 
 1. **DLL Entry Point**: `dllmain.cpp` is Windows-only and conditionally compiled
-2. **OpenSSL Handling**: Platform-specific dynamic library linking
-3. **Build Scripts**: Currently Windows-focused, needs Unix equivalents
+2. **OpenSSL Handling**: Platform-specific dynamic library linking (Windows DLLs, Unix dynamic libraries)
+3. **Build System**: CMake automatically detects and configures platform-specific settings
 
 ### Cross-Platform Build Instructions
 
@@ -501,14 +502,14 @@ target_link_libraries(QNetworkRequest PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
 ### Migration Guide
 
-To port existing Windows projects to other platforms:
+The build system now supports cross-platform compilation with automatic platform detection:
 
-1. **Remove Windows-specific flags**: Remove `WIN32` from executable targets
-2. **Adjust OpenSSL linking**: Use system OpenSSL packages instead of DLLs
-3. **Update paths**: Replace Windows-style paths with cross-platform equivalents
-4. **Test threading**: Verify thread pool behavior on target platform
+1. **Automatic GUI Flag**: The WIN32 flag is automatically applied only on Windows for GUI executables
+2. **OpenSSL Detection**: CMake automatically finds and links OpenSSL on all platforms
+3. **Cross-Platform Paths**: CMake handles platform-specific path separators
+4. **Threading**: Thread pool management works identically across all platforms
 
-The core library functionality is platform-agnostic and should work seamlessly across all supported platforms with proper build configuration.
+The core library functionality is platform-agnostic and works seamlessly across all supported platforms with proper build configuration.
 
 ## Testing
 
