@@ -33,7 +33,7 @@ NetworkMTDownloadRequest::~NetworkMTDownloadRequest()
 
 void NetworkMTDownloadRequest::abort()
 {
-    __super::abort();
+    NetworkRequest::abort();
     clearDownloaders();
 
     // Close memory mapped file
@@ -103,7 +103,7 @@ bool NetworkMTDownloadRequest::requestFileSize()
 
 void NetworkMTDownloadRequest::start()
 {
-    __super::start();
+    NetworkRequest::start();
 
     m_nSuccess = 0;
     m_nFailed = 0;

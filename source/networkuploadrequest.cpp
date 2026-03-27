@@ -36,7 +36,7 @@ NetworkUploadRequest::~NetworkUploadRequest()
 
 void NetworkUploadRequest::start()
 {
-	__super::start();
+	NetworkRequest::start();
 
 	const QUrl& url = m_url;
 	if (!url.isValid())
