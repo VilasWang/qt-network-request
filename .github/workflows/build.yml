@@ -247,3 +247,4 @@ jobs:
             build/CMakeFiles/CMakeOutput.log
             build/CMakeFiles/CMakeError.log
           retention-days: 7
+// Test Actions trigger
