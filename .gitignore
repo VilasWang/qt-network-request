@@ -128,3 +128,5 @@ dist/
 claude.md
 .claude/CLAUDE.md
 .claude/
+
+.env
