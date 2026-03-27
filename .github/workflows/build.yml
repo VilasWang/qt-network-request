@@ -10,12 +10,6 @@ on:
       - 'LICENSE'
   pull_request:
     branches: [main, master, develop]
-  workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build type (Debug for troubleshooting)'
-        required: false
-        default: 'Release'
 
 env:
   QT_VERSION: '5.15.2'
