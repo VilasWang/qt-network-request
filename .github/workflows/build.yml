@@ -144,7 +144,7 @@ jobs:
       # ============ Caching Strategy ============
 
       - name: Cache CMake build
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             build
@@ -232,7 +232,7 @@ jobs:
           find build/${{ matrix.build_type }} -type f \( -perm +111 -o -name "*.dylib*" \) -exec cp {} artifacts/ \;
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: artifacts/
@@ -240,7 +240,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}-logs
           path: |
