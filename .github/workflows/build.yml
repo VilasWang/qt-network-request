@@ -223,13 +223,13 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           mkdir -p artifacts
-          find build/${{ matrix.build_type }} -type f \( -executable -perm +111 -o -name "*.so*" \) -exec cp {} artifacts/ \;
+          find build/${{ matrix.build_type }} -type f \( -executable -o -name "*.so*" \) -exec cp {} artifacts/ \;
 
       - name: Prepare artifacts (macOS)
         if: matrix.platform == 'macos'
         run: |
           mkdir -p artifacts
-          find build/${{ matrix.build_type }} -type f \( -perm +111 -o -name "*.dylib*" \) -exec cp {} artifacts/ \;
+          find build/${{ matrix.build_type }} -type f \( -executable -o -name "*.dylib*" \) -exec cp {} artifacts/ \;
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
