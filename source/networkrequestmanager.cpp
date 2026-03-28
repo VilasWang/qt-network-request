@@ -66,7 +66,7 @@ public:
     bool isStopped() const;
     bool isSessionStopped(quint64 uiSessionId) const;
 
-private:
+public:
     Q_DISABLE_COPY(NetworkRequestManagerPrivate);
     NetworkRequestManager *q_ptr;
 
@@ -75,11 +75,6 @@ private:
     static std::atomic<quint64> ms_uiSessionId;
     std::atomic<bool> m_bStopAllFlag;
 
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
-    mutable QRecursiveMutex m_mutex;
-#else
-    mutable QMutex m_mutex;
-#endif
     QThreadPool *m_pThreadPool;
 
     QHash<quint64, std::shared_ptr<NetworkRequestRunnable>> m_mapRunnable;
@@ -102,6 +97,11 @@ private:
     QHash<quint64, qint64> m_mapBatchUTotalBytes;
 
 public:
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+    mutable QRecursiveMutex m_mutex;
+#else
+    mutable QMutex m_mutex;
+#endif
     // (batchId <---> Total task count)
     QHash<quint64, size_t> m_mapBatchTotalSize;
     // (batchId <----> Task completion count)
