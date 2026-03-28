@@ -70,7 +70,6 @@ private:
     Q_DISABLE_COPY(NetworkRequestManagerPrivate);
     NetworkRequestManager *q_ptr;
 
-private:
     static std::atomic<quint64> ms_uiRequestId;
     static std::atomic<quint64> ms_uiBatchId;
     static std::atomic<quint64> ms_uiSessionId;
@@ -93,11 +92,6 @@ private:
     QMultiMap<quint64, quint64> m_mapSessionIdToRequestId;
     QSet<quint64> m_stoppedSessionIds;
 
-    // (batchId <---> Total task count)
-    QHash<quint64, size_t> m_mapBatchTotalSize;
-    // (batchId <----> Task completion count)
-    QHash<quint64, size_t> m_mapBatchFinishedSize;
-
     // (<batchId, <requestId, downloaded bytes>>)
     QHash<quint64, QHash<quint64, qint64>> m_mapBatchDCurrentBytes;
     // (batchId <---> Total download bytes)
@@ -106,6 +100,12 @@ private:
     QHash<quint64, QHash<quint64, qint64>> m_mapBatchUCurrentBytes;
     // (batchId <---> Total upload bytes)
     QHash<quint64, qint64> m_mapBatchUTotalBytes;
+
+public:
+    // (batchId <---> Total task count)
+    QHash<quint64, size_t> m_mapBatchTotalSize;
+    // (batchId <----> Task completion count)
+    QHash<quint64, size_t> m_mapBatchFinishedSize;
 };
 std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiRequestId = 0;
 std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiBatchId = 0;
