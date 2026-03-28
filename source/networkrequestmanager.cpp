@@ -25,10 +25,10 @@ class NetworkRequestManagerPrivate
     Q_DECLARE_PUBLIC(NetworkRequestManager)
 
 public:
-    NetworkRequestManagerPrivate();
+    explicit NetworkRequestManagerPrivate();
     ~NetworkRequestManagerPrivate();
 
-private:
+public:
     std::shared_ptr<NetworkReply> postRequest(const QUrl &url, quint64 &uiTaskId, quint64 uiSessionId = (quint64)0);
     std::shared_ptr<NetworkReply> postBatchRequest(BatchRequestPtrTasks &&tasks, quint64 &uiBatchId);
     bool sendRequest(std::unique_ptr<RequestContext> context, ResponseCallBack callback, bool bBlockUserInteraction);
