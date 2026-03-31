@@ -17,9 +17,9 @@
 #include "networkreply.h"
 #include "networkrequestevent.h"
 
-using namespace QtNetworkRequest;
 #define DEFAULT_MAX_THREAD_COUNT 8
 
+namespace QtNetworkRequest {
 class NetworkRequestManagerPrivate
 {
     Q_DECLARE_PUBLIC(NetworkRequestManager)
@@ -996,3 +996,5 @@ void NetworkRequestManager::onResponse(QSharedPointer<QtNetworkRequest::Response
         qCritical() << "NetworkRequestManager::onResponse() unknown exception";
     }
 }
+
+} // namespace QtNetworkRequest

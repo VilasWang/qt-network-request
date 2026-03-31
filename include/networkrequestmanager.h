@@ -46,10 +46,10 @@ SOFTWARE.
 #include <memory>
 
 class QEvent;
-class NetworkRequestManagerPrivate;
 
 namespace QtNetworkRequest
 {
+	class NetworkRequestManagerPrivate;
 	class NetworkReply;
 	using ResponseCallBack = std::function<void(QSharedPointer<QtNetworkRequest::ResponseResult> rsp)>;
 
