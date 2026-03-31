@@ -70,22 +70,26 @@ public:
     Q_DISABLE_COPY(NetworkRequestManagerPrivate);
     NetworkRequestManager *q_ptr;
 
-    static std::atomic<quint64> ms_uiRequestId;
-    static std::atomic<quint64> ms_uiBatchId;
-    static std::atomic<quint64> ms_uiSessionId;
-    std::atomic<bool> m_bStopAllFlag;
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+    mutable QRecursiveMutex m_mutex;
+#else
+    mutable QMutex m_mutex;
+#endif
 
     QThreadPool *m_pThreadPool;
-
     QHash<quint64, std::shared_ptr<NetworkRequestRunnable>> m_mapRunnable;
     // One-to-one. requestId <---> NetworkReply *
     QHash<quint64, std::shared_ptr<NetworkReply>> m_mapReply;
     // One-to-many. batchId <---> NetworkReply *
     QHash<quint64, std::shared_ptr<NetworkReply>> m_mapBatchReply;
-
     // session
     QMultiMap<quint64, quint64> m_mapSessionIdToRequestId;
     QSet<quint64> m_stoppedSessionIds;
+    
+    // (batchId <---> Total task count)
+    QHash<quint64, size_t> m_mapBatchTotalSize;
+    // (batchId <----> Task completion count)
+    QHash<quint64, size_t> m_mapBatchFinishedSize;
 
     // (<batchId, <requestId, downloaded bytes>>)
     QHash<quint64, QHash<quint64, qint64>> m_mapBatchDCurrentBytes;
@@ -96,16 +100,10 @@ public:
     // (batchId <---> Total upload bytes)
     QHash<quint64, qint64> m_mapBatchUTotalBytes;
 
-public:
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
-    mutable QRecursiveMutex m_mutex;
-#else
-    mutable QMutex m_mutex;
-#endif
-    // (batchId <---> Total task count)
-    QHash<quint64, size_t> m_mapBatchTotalSize;
-    // (batchId <----> Task completion count)
-    QHash<quint64, size_t> m_mapBatchFinishedSize;
+    static std::atomic<quint64> ms_uiRequestId;
+    static std::atomic<quint64> ms_uiBatchId;
+    static std::atomic<quint64> ms_uiSessionId;
+    std::atomic<bool> m_bStopAllFlag;
 };
 std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiRequestId = 0;
 std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiBatchId = 0;
