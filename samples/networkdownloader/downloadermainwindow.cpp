@@ -182,7 +182,11 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onAddTasksClicked()
         return;
     }
 
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+    QStringList urls = urlsText.split('\n', Qt::SkipEmptyParts);
+#else
     QStringList urls = urlsText.split('\n', QString::SkipEmptyParts);
+#endif
     int addedCount = 0;
 
     for (const QString &urlStr : urls)
@@ -716,7 +720,11 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::showNotification(const QStri
     // Calculate appropriate size based on content
     QFontMetrics fm(notification->font());
     int maxWidth = qMin(500, this->width() - 60); // Max 500px or window width minus margins
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 11, 0))
+    int textWidth = fm.horizontalAdvance(message);
+#else
     int textWidth = fm.width(message);
+#endif
 
     // If text is longer than max width, enable word wrap and set fixed width
     if (textWidth > maxWidth - 40)

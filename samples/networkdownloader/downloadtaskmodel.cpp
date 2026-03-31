@@ -37,7 +37,7 @@ QVariant QtNetworkRequest::NetworkDownloadTaskModel::data(const QModelIndex &ind
     
     switch (role) {
     case Qt::DisplayRole:
-        switch (index.column()) {
+        switch (static_cast<Column>(index.column())) {
         case Column::ColumnFileName:
             return task.fileName;
         case Column::ColumnFileSize:
@@ -99,7 +99,7 @@ QVariant QtNetworkRequest::NetworkDownloadTaskModel::headerData(int section, Qt:
     if (orientation != Qt::Horizontal || role != Qt::DisplayRole)
         return QVariant();
     
-    switch (section) {
+    switch (static_cast<Column>(section)) {
     case Column::ColumnFileName:
         return "File Name";
     case Column::ColumnFileSize:
