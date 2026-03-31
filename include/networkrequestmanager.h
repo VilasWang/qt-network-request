@@ -102,7 +102,6 @@ namespace QtNetworkRequest
 		void onResponse(QSharedPointer<QtNetworkRequest::ResponseResult> rsp);
 
 	public:
-		bool startAsRunnable(std::unique_ptr<RequestContext> request);
 		bool event(QEvent *pEvent) Q_DECL_OVERRIDE;
 
 	private:
@@ -113,6 +112,8 @@ namespace QtNetworkRequest
 	private:
 		void init();
 		void fini();
+
+		bool startAsRunnable(std::unique_ptr<RequestContext> request);
 
 		// bDownload(false: upload)
 		void updateProgress(quint64 uiRequestId, quint64 uiBatchId,

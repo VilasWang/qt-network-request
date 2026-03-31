@@ -32,8 +32,10 @@ Q_SIGNALS:
     void batchDownloadProgress(qint64 bytesDownloaded);
     void batchUploadProgress(qint64 bytesUploaded);
 
-public:
-	void replyResult(QSharedPointer<QtNetworkRequest::ResponseResult> rsp, bool bDestroy = false);
+	protected:
+		void replyResult(QSharedPointer<QtNetworkRequest::ResponseResult> rsp, bool bDestroy = false);
+		friend class NetworkRequestManager;
+		friend class NetworkRequestManagerPrivate;
 
 	private:
 		std::unique_ptr<TaskData> m_task;

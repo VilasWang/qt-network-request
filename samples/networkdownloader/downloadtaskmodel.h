@@ -14,7 +14,7 @@ class NetworkDownloadTaskModel : public QAbstractTableModel
     Q_OBJECT
 
 public:
-    enum Column
+    enum class Column : int
     {
         ColumnFileName = 0,
         ColumnFileSize = 1,
