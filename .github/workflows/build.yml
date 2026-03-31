@@ -41,7 +41,7 @@ jobs:
             artifact_name: linux-gcc-release
 
           # macOS configuration
-          - os: macos-12
+          - os: macos-13
             platform: macos
             build_type: Release
             qt_arch: clang_64
