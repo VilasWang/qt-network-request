@@ -25,6 +25,7 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 ## Features
 
 ### 🚀 Core Capabilities
+
 - **Multi-threaded Architecture**: Each request executes in separate threads using a managed thread pool
 - **Concurrent Operations**: Support for both single and batch request modes
 - **Multi-threaded Downloads**: Large file downloads with multiple channels for faster performance (auto-detects CPU cores when threadCount=0)
@@ -33,6 +34,7 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 - **Thread Safety**: All public methods are thread-safe with atomic operations
 
 ### 🛠️ Advanced Features
+
 - **Memory-Mapped Files**: Efficient file I/O for large downloads using platform-specific APIs
 - **Batch Operations**: Group multiple requests with aggregated progress tracking
 - **Error Handling**: Automatic retry mechanisms and comprehensive error reporting
@@ -40,6 +42,7 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 - **Cross-Platform**: Windows, Linux, and macOS support with platform-specific optimizations
 
 ### 📦 Sample Applications
+
 - **QtNetworkRequestTool**: GUI demo application for testing HTTP requests (located in `samples/networkrequesttool/`)
 - **QtNetworkDownloader**: Download manager with intelligent multi-threading support (located in `samples/networkdownloader/`)
 - **Unit Tests**: Comprehensive test suite covering all functionality
@@ -47,6 +50,7 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 ## Requirements
 
 ### Build Requirements
+
 - **C++17 compatible compiler** (MSVC 2017+, GCC 7+, Clang 6+)
 - **Qt 5.6.x+** with Core, Network, Widgets, Xml, Test modules
 - **CMake 3.15+** (recommended) or QMake
@@ -55,15 +59,18 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 ### Platform-Specific Requirements
 
 #### Windows
+
 - Visual Studio 2017+ or MSVC build tools
 - Windows SDK
 - OpenSSL DLLs (included in ThirdParty/)
 
 #### Linux
+
 - GCC 7+ or Clang 6+
 - OpenSSL development packages: `libssl-dev`, `libcrypto-dev`
 
 #### macOS
+
 - Xcode 10+ (Clang)
 - OpenSSL via Homebrew or system packages
 
@@ -206,6 +213,7 @@ if (reply) {
 ## Usage Examples
 
 ### example
+
 Network Request Tool demo
 ![Network Request Tool](./images/request_tool.png)
 
@@ -299,9 +307,11 @@ NetworkRequestManager::globalInstance()->stopAllRequest();
 ### Core Classes
 
 #### NetworkRequestManager
+
 Singleton class that manages the thread pool and request lifecycle.
 
 **Key Methods:**
+
 - `initialize()`: Initialize the manager (must be called in main thread)
 - `unInitialize()`: Cleanup resources (must be called in main thread)
 - `postRequest(RequestContext)`: Execute a single request
@@ -311,15 +321,18 @@ Singleton class that manages the thread pool and request lifecycle.
 - `stopAllRequest()`: Stop all active requests
 
 **Signals:**
+
 - `downloadProgress(quint64, qint64, qint64)`: Download progress for a single request.
 - `uploadProgress(quint64, qint64, qint64)`: Upload progress for a single request.
 - `batchDownloadProgress(quint64, qint64)`: Aggregated download progress for a batch of requests.
 - `batchUploadProgress(quint64, qint64)`: Aggregated upload progress for a batch of requests.
 
 #### RequestContext
+
 Configuration structure for network requests (replaces the old RequestTask).
 
 **Key Properties:**
+
 - `url`: Target URL
 - `type`: Request type (Download, Upload, Get, Post, Put, Delete, Head)
 - `headers`: Request headers (QMap<QByteArray, QByteArray>)
@@ -332,15 +345,19 @@ Configuration structure for network requests (replaces the old RequestTask).
 - `userContext`: User-defined context data
 
 #### NetworkReply
+
 Handles the asynchronous response for a single request or a batch of requests.
 
 **Signals:**
+
 - `requestFinished(QSharedPointer<ResponseResult>)`: Emitted when the request is complete (either successfully or with an error).
 
 #### ResponseResult
+
 Structure containing request response data.
 
 **Key Properties:**
+
 - `success`: Whether the request succeeded
 - `cancelled`: Whether the request was cancelled
 - `errorMessage`: Error message if failed
@@ -352,18 +369,22 @@ Structure containing request response data.
 - `userContext`: User-defined context data
 
 #### DownloadConfig
+
 Configuration structure for download operations.
 
 **Key Properties:**
+
 - `saveFileName`: Custom filename for the downloaded file
 - `saveDir`: Directory to save the downloaded file
 - `overwriteFile`: Whether to overwrite existing files (default: false)
 - `threadCount`: Number of download threads for multi-threaded downloads (default: 0 = auto detect CPU cores)
 
 #### UploadConfig
+
 Configuration structure for upload operations.
 
 **Key Properties:**
+
 - `filePath`: Path to the file to upload
 - `data`: Raw data to upload
 - `usePutMethod`: Use HTTP PUT method instead of POST (default: false)
@@ -382,12 +403,14 @@ The library supports both CMake and QMake build systems with standardized naming
 ### Build Targets
 
 **CMake Targets:**
+
 - `QNetworkRequest`: Core library (DLL)
 - `QtNetworkRequestTool`: GUI demo application (source in `samples/networkrequesttool/`)
 - `QtNetworkDownloader`: Download manager application (source in `samples/networkdownloader/`)
 - `UnitTests`: Test suite
 
 **QMake Targets:**
+
 - `QNetworkRequest`: Core library (DLL)
 - `QtNetworkRequestTool`: GUI demo application (source in `samples/networkrequesttool/`)
 - `QtNetworkDownloader`: Download manager application (source in `samples/networkdownloader/`)
@@ -476,6 +499,7 @@ QtMultiThreadNetwork is designed to work across multiple platforms with proper b
 ### Platform-Specific Implementations
 
 #### Memory-Mapped Files
+
 - **Windows**: Uses `CreateFileMapping` / `MapViewOfFile`
 - **Linux/macOS**: Uses `mmap` / `munmap`
 - **File Size**: Supports large files (>4GB) on all platforms
@@ -483,17 +507,20 @@ QtMultiThreadNetwork is designed to work across multiple platforms with proper b
 #### Build Requirements
 
 #### Windows
+
 - **Compiler**: MSVC 2017+
-- **Qt**: 5.6.x+ 
+- **Qt**: 5.6.x+
 - **OpenSSL**: DLL files (libeay32.dll, ssleay32.dll)
 
 #### Linux
+
 - **Compiler**: GCC 7+ or Clang 6+
 - **Qt**: 5.6.x+
 - **OpenSSL**: Development packages (libssl-dev, libcrypto-dev)
 - **Build**: CMake 3.15+
 
 #### macOS
+
 - **Compiler**: Xcode 10+ (Clang)
 - **Qt**: 5.6.x+
 - **OpenSSL**: Homebrew (`brew install openssl@1.1`)
@@ -545,6 +572,7 @@ ctest -C Release
 ### Test Coverage
 
 The test suite covers:
+
 - Basic request functionality
 - Error handling scenarios
 - Progress reporting
@@ -567,6 +595,7 @@ We welcome contributions! Please follow these guidelines:
 ```bash
 # Clone with submodules
 git clone --recursive https://github.com/lucaswang420/qt-network-request.git
+cd qt-network-request
 
 # Setup development build
 cmake -S . -B build-dev -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
@@ -585,4 +614,4 @@ cmake --build build-dev --config Debug
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-**Copyright © 2025 Lucas Wang. All rights reserved.**
+**Copyright (c) 2025 Lucas Wang. Licensed under the MIT License.**
