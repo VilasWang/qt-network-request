@@ -614,4 +614,4 @@ cmake --build build-dev --config Debug
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-**Copyright (c) 2025 Lucas Wang. Licensed under the MIT License.**
+**Copyright (c) 2025-2026 Lucas Wang. Licensed under the MIT License.**
