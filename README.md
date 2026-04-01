@@ -4,7 +4,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://www.qt.io)
 [![Qt Version](https://img.shields.io/badge/Qt-5.6.3%2B-green.svg)](https://www.qt.io)
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](#)
+[![Build Status](https://github.com/VilasWang/qt-network-request/actions/workflows/build.yml/badge.svg)](https://github.com/VilasWang/qt-network-request/actions)
 
 A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)/FTP networking capabilities built on top of Qt's Network module.
 
@@ -73,7 +73,7 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 
 ```bash
 # Clone the repository
-git clone https://github.com/lucaswang420/qt-network-request.git
+git clone https://github.com/VilasWang/qt-network-request.git
 cd qt-network-request
 
 # Configure and build (Windows)
@@ -548,7 +548,7 @@ We welcome contributions! Please follow these guidelines:
 
 ```bash
 # Clone with submodules
-git clone --recursive https://gitee.com/Lucasj/qt-network-request.git
+git clone --recursive https://github.com/VilasWang/qt-network-request.git
 
 # Setup development build
 cmake -S . -B build-dev -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
@@ -568,4 +568,3 @@ cmake --build build-dev --config Debug
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 **Copyright © 2025 Lucas Wang. All rights reserved.**
-# Test Actions trigger
