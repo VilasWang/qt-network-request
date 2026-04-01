@@ -182,6 +182,7 @@ jobs:
           cmake -S . -B build \
             -G "${{ matrix.cmake_generator }}" \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_OSX_ARCHITECTURES="x86_64" \
             -DCMAKE_PREFIX_PATH="${Qt5_DIR}" \
             -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT_DIR}" \
             -DBUILD_TESTS=ON

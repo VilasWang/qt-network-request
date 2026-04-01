@@ -135,8 +135,8 @@ QString NetworkRequestUtility::getFilePath(const RequestContext* context, QStrin
     // If bOverwriteFile is not set, add suffix to filename, _1, _2, ...
     for (int i = 1; i < 100; ++i)
     {
-        QString strFileName = strFileName + QString("_%1").arg(i);
-        filePath = QDir::toNativeSeparators(saveDir + strFileName);
+        QString newFileName = strFileName + QString("_%1").arg(i);
+        filePath = QDir::toNativeSeparators(saveDir + newFileName);
         if (!QFile::exists(filePath))
             return filePath;
     }
