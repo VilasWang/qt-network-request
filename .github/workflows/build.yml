@@ -230,7 +230,7 @@ jobs:
         if: matrix.platform == 'macos'
         run: |
           mkdir -p artifacts
-          find build/${{ matrix.build_type }} -type f \( -executable -o -name "*.dylib*" \) -exec cp {} artifacts/ \;
+          find build/${{ matrix.build_type }} -type f \( -name "*.dylib*" -o -exec test -x {} \; \) -exec cp {} artifacts/ \;
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
