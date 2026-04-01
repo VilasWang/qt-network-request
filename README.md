@@ -80,8 +80,15 @@ cd qt-network-request
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 
-# Configure and build (Linux/macOS)
+# Configure and build (Linux)
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
+
+# Configure and build (macOS)
+# (Requires Homebrew's OpenSSL 1.1)
+export OPENSSL_ROOT_DIR=$(brew --prefix openssl@1.1)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT_DIR}"
+# Note: If building on Apple Silicon (M1/M2) but using Qt 5.x x86_64 binaries, append: -DCMAKE_OSX_ARCHITECTURES="x86_64"
 cmake --build build --config Release --parallel
 
 # Install (optional)
@@ -123,6 +130,15 @@ chmod +x scripts/build_linux.sh
 
 # Clean build and run tests
 ./scripts/build_linux.sh --clean --tests
+```
+
+#### macOS
+
+```bash
+# MacOS currently prefers building via CMake directly
+export OPENSSL_ROOT_DIR=$(brew --prefix openssl@1.1)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT_DIR}"
+cmake --build build --config Release --parallel
 ```
 
 ## Quick Start
@@ -413,7 +429,8 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 
 # macOS
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+export OPENSSL_ROOT_DIR=$(brew --prefix openssl@1.1)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT_DIR}"
 cmake --build build --config Release
 
 # Windows
@@ -479,8 +496,9 @@ QtMultiThreadNetwork is designed to work across multiple platforms with proper b
 #### macOS
 - **Compiler**: Xcode 10+ (Clang)
 - **Qt**: 5.6.x+
-- **OpenSSL**: Homebrew or system packages
+- **OpenSSL**: Homebrew (`brew install openssl@1.1`)
 - **Build**: CMake 3.15+
+- **Architecture**: Supports both Intel (`x86_64`) and Apple Silicon (`arm64`). Use `-DCMAKE_OSX_ARCHITECTURES` to target a specific architecture if it differs from your Qt binaries.
 
 ### Platform-Specific Notes
 
