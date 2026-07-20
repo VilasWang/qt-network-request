@@ -284,6 +284,10 @@ void NetworkMTDownloadRequest::onSubPartFinished(int index, bool bSuccess, const
                 return;
             }
 
+            m_nBytesReceived = m_nFileSize;
+            if (m_spResult)
+                m_spResult->performance.bytesReceived = m_nBytesReceived;
+
             double speed = (m_nFileSize / 1024.0 / 1024.0) / elapsedSeconds;
             QString msg = QString("The download took %1 seconds in total, with an average speed of %2 MB/s.").arg(elapsedSeconds).arg(speed);
             emit response(ToSuccessResult(msg.toUtf8(), responseHeaders));

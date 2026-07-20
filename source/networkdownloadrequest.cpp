@@ -37,6 +37,8 @@ NetworkDownloadRequest::~NetworkDownloadRequest()
 void NetworkDownloadRequest::start()
 {
     NetworkRequest::start();
+    m_nBytesReceived = 0;
+    m_nBytesWritten = 0;
 
     const QUrl &url = m_url;
     if (!url.isValid())
@@ -160,16 +162,20 @@ void NetworkDownloadRequest::onReadyRead()
     const QByteArray bytesReceived = m_pNetworkReply->readAll();
     if (!bytesReceived.isEmpty())
     {
-        qint64 bytesWritten = m_pFile->write(bytesReceived);
-        if (bytesWritten == -1)
+        qint64 written = m_pFile->write(bytesReceived);
+        if (written == -1)
         {
             qDebug() << "[NetworkDownloadRequest] Write error:" << m_pFile->errorString();
             m_strError = QString("File operation failed: Write operation failed - %1").arg(m_pFile->errorString());
         }
-        else if (bytesWritten != bytesReceived.size())
+        else
         {
-            qDebug() << "[NetworkDownloadRequest] Partial write: expected" << bytesReceived.size()
-                     << "wrote" << bytesWritten;
+            m_nBytesWritten += written;
+            if (written != bytesReceived.size())
+            {
+                qDebug() << "[NetworkDownloadRequest] Partial write: expected" << bytesReceived.size()
+                         << "wrote" << written;
+            }
         }
     }
 }
@@ -254,6 +260,12 @@ void NetworkDownloadRequest::onFinished()
     // Clean up current resources
     m_pNetworkReply->deleteLater();
     m_pNetworkReply = nullptr;
+
+    m_nBytesReceived = m_nBytesWritten;
+    if (m_spResult)
+    {
+        m_spResult->performance.bytesReceived = m_nBytesReceived;
+    }
 
     if (bSuccess)
         emit response(ToSuccessResult({}, responseHeaders));

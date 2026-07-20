@@ -37,6 +37,20 @@ NetworkUploadRequest::~NetworkUploadRequest()
 void NetworkUploadRequest::start()
 {
 	NetworkRequest::start();
+	m_nBytesSent = 0;
+	m_nLastSentBytes = 0;
+
+	// Estimate bytes sent
+	if (m_upContext->uploadConfig)
+	{
+		if (!m_upContext->uploadConfig->filePath.isEmpty())
+		{
+			QFileInfo fi(m_upContext->uploadConfig->filePath);
+			m_nBytesSent = fi.size();
+		}
+		else
+			m_nBytesSent = m_upContext->uploadConfig->data.size();
+	}
 
 	const QUrl& url = m_url;
 	if (!url.isValid())
@@ -282,6 +296,13 @@ void NetworkUploadRequest::onFinished()
 	m_pNetworkReply->deleteLater();
 	m_pNetworkReply = nullptr;
 
+    m_nBytesSent = qMax(m_nBytesSent, m_nLastSentBytes);
+    if (m_spResult)
+    {
+        m_spResult->performance.bytesSent = m_nBytesSent;
+        m_spResult->performance.bytesReceived = body.size();
+    }
+
     if (bSuccess)
         emit response(ToSuccessResult(body, responseHeaders));
     else
@@ -290,6 +311,7 @@ void NetworkUploadRequest::onFinished()
 
 void NetworkUploadRequest::onUploadProgress(qint64 iSent, qint64 iTotal)
 {
+	m_nLastSentBytes = iSent;
 	if (m_bAbortManual || !m_bTimeout || iSent <= 0 || iTotal <= 0)
 		return;
 	m_bTimeout = false;

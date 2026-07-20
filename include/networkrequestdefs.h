@@ -166,8 +166,8 @@ namespace QtNetworkRequest
         struct Performance
         {
             quint64 durationMs{ 0 };
-            qint64 bytesReceived{ 0 };//TODO
-            qint64 bytesSent{ 0 };//TODO
+            qint64 bytesReceived{ 0 };
+            qint64 bytesSent{ 0 };
         } performance;
     };
 

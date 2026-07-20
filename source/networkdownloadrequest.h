@@ -45,5 +45,6 @@ namespace QtNetworkRequest
 		QTimer m_timer;
 		int m_mIntervalMs{ 250 };
 		bool m_bTimeout = false;
+		qint64 m_nBytesWritten{ 0 };
 	};
 }

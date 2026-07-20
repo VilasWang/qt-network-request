@@ -57,6 +57,8 @@ namespace QtNetworkRequest
 		QString m_strError;
 		int m_nProgress;
 		int m_nRetryCount{ 0 };
+		qint64 m_nBytesReceived{ 0 };
+		qint64 m_nBytesSent{ 0 };
 		quint16 m_nRedirectionCount;
 		QNetworkAccessManager *m_pNetworkManager;
 		QNetworkReply *m_pNetworkReply;

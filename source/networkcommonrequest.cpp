@@ -25,6 +25,22 @@ NetworkCommonRequest::~NetworkCommonRequest()
 void NetworkCommonRequest::start()
 {
     NetworkRequest::start();
+    m_nBytesReceived = 0;
+    m_nBytesSent = 0;
+
+    // Estimate bytes sent from request body
+    if (m_upContext->type == RequestType::Post || m_upContext->type == RequestType::Put)
+    {
+        if (m_upContext->uploadConfig && m_upContext->uploadConfig->useFormData)
+            m_nBytesSent = m_upContext->body.toUtf8().size(); // estimate
+        else if (m_upContext->uploadConfig && !m_upContext->uploadConfig->filePath.isEmpty())
+        {
+            QFileInfo fi(m_upContext->uploadConfig->filePath);
+            m_nBytesSent = fi.size();
+        }
+        else
+            m_nBytesSent = m_upContext->body.toUtf8().size();
+    }
 
     const QUrl &url = m_url;
     if (!url.isValid())
@@ -271,6 +287,13 @@ void NetworkCommonRequest::onFinished()
     // Clean up current resources
     m_pNetworkReply->deleteLater();
     m_pNetworkReply = nullptr;
+
+    m_nBytesReceived = body.size();
+    if (m_spResult)
+    {
+        m_spResult->performance.bytesReceived = m_nBytesReceived;
+        m_spResult->performance.bytesSent = m_nBytesSent;
+    }
 
     if (bSuccess)
         emit response(ToSuccessResult(body, responseHeaders));
