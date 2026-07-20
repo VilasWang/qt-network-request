@@ -6,6 +6,9 @@
 #include "networkrequestdefs.h"
 #include <QListWidgetItem>
 #include <QDateTime>
+#include <memory>
+
+class QSyntaxHighlighter;
 
 namespace QtNetworkRequest
 {
@@ -74,6 +77,7 @@ private:
     void clearResponseHeaders();
     void displayResponseHeaders(const QMap<QByteArray, QByteArray> &headers);
     bool isJsonResponse(const QMap<QByteArray, QByteArray> &headers);
+    bool isXmlResponse(const QMap<QByteArray, QByteArray> &headers);
     bool isOctetStreamResponse(const QMap<QByteArray, QByteArray> &headers);
     void displayJsonResponse(const QString &response);
     void saveToHistory();
@@ -93,6 +97,7 @@ private:
     QString currentRawType;
     QList<RequestHistory> requestHistory;
     bool isNewRequest;
+    std::unique_ptr<QSyntaxHighlighter> m_highlighter;
     QString currentBoundary;
     QStringList files;
     QMap<QString, QString> kvPairs;

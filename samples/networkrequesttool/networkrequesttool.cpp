@@ -1,5 +1,7 @@
 #include <QDebug>
 #include <QStandardPaths>
+#include "jsonsyntaxhighlighter.h"
+#include "xmlsyntaxhighlighter.h"
 #include <QPainter>
 #include <QUrlQuery>
 #include <QUuid>
@@ -607,12 +609,19 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
     clearResponse();
     if (rsp->success)
     {
-        // Display response headers
         displayResponseHeaders(rsp->headers);
 
+        // Apply syntax highlighter based on content type
+        m_highlighter.reset();
         if (isJsonResponse(rsp->headers))
         {
+            m_highlighter = std::make_unique<JsonSyntaxHighlighter>(ui.textEdit_response_body->document());
             displayJsonResponse(rsp->body);
+        }
+        else if (isXmlResponse(rsp->headers))
+        {
+            m_highlighter = std::make_unique<XmlSyntaxHighlighter>(ui.textEdit_response_body->document());
+            appendToResponseBody(rsp->body, QColor(16, 124, 16));
         }
         else
         {
@@ -629,6 +638,12 @@ bool NetworkRequestTool::isJsonResponse(const QMap<QByteArray, QByteArray> &head
 {
     QByteArray contentType = headers.value("Content-Type").toLower();
     return contentType.contains("application/json");
+}
+
+bool NetworkRequestTool::isXmlResponse(const QMap<QByteArray, QByteArray> &headers)
+{
+    QByteArray contentType = headers.value("Content-Type").toLower();
+    return contentType.contains("xml");
 }
 
 bool NetworkRequestTool::isOctetStreamResponse(const QMap<QByteArray, QByteArray> &headers)

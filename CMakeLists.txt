@@ -109,9 +109,13 @@ add_executable(QtRequester ${GUI_EXECUTABLE_FLAG}
     # Sources
     samples/networkrequesttool/main.cpp
     samples/networkrequesttool/networkrequesttool.cpp
+    samples/networkrequesttool/jsonsyntaxhighlighter.cpp
+    samples/networkrequesttool/xmlsyntaxhighlighter.cpp
 
     # Headers for AUTOMOC
     samples/networkrequesttool/networkrequesttool.h
+    samples/networkrequesttool/jsonsyntaxhighlighter.h
+    samples/networkrequesttool/xmlsyntaxhighlighter.h
 
     # UI and Resource files
     samples/networkrequesttool/NetworkRequestTool.ui

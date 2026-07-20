@@ -16,9 +16,13 @@ INCLUDEPATH += . \
                 $$PWD/resources
 
 # Input
-HEADERS += networkrequesttool.h
+HEADERS += networkrequesttool.h \
+           jsonsyntaxhighlighter.h \
+           xmlsyntaxhighlighter.h
 FORMS += NetworkRequestTool.ui 
-SOURCES += main.cpp networkrequesttool.cpp
+SOURCES += main.cpp networkrequesttool.cpp \
+           jsonsyntaxhighlighter.cpp \
+           xmlsyntaxhighlighter.cpp
 
 greaterThan(QT_MAJOR_VERSION, 4) {
     TARGET_ARCH=$${QT_ARCH}
