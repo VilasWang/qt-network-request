@@ -136,6 +136,7 @@ namespace QtNetworkRequest
             int retryDelayMs{ 1000 };
             quint16 maxRedirectionCount{ 3 };
             int transferTimeout{ 30000 }; // 30 seconds
+            int priority{ 0 }; // higher = more urgent, default 0
         } behavior;
 
         std::unique_ptr<ProxyConfig> proxyConfig;

@@ -15,6 +15,7 @@ NetworkRequestRunnable::NetworkRequestRunnable(std::unique_ptr<RequestContext> r
     if (m_context)
     {
         m_task = m_context->task;
+        m_nPriority = m_context->behavior.priority;
     }
 }
 

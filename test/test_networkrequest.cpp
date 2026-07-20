@@ -631,3 +631,72 @@ void TestNetworkRequest::testPersistentCookieJar()
     QFile::remove(cookieFile);
     NetworkRequestManager::setCookieStoragePath(QString());
 }
+
+void TestNetworkRequest::testRequestPriority()
+{
+    int savedMax = NetworkRequestManager::globalInstance()->maxThreadCount();
+    // Limit to 1 thread so subsequent requests queue
+    QVERIFY(NetworkRequestManager::globalInstance()->setMaxThreadCount(1));
+
+    // Submit high-priority request (will be queued)
+    std::unique_ptr<RequestContext> highReq = std::make_unique<RequestContext>();
+    highReq->url = QString("https://httpbin.org/get?high=1");
+    highReq->type = RequestType::Get;
+    highReq->behavior.priority = 10;
+
+    std::shared_ptr<NetworkReply> highReply = NetworkRequestManager::globalInstance()->postRequest(std::move(highReq));
+    QVERIFY(highReply != nullptr);
+
+    // Give time for the first request to start
+    QCoreApplication::processEvents();
+    QThread::msleep(50);
+
+    // Submit low-priority request (will be queued behind high-priority)
+    std::unique_ptr<RequestContext> lowReq = std::make_unique<RequestContext>();
+    lowReq->url = QString("https://httpbin.org/get?low=1");
+    lowReq->type = RequestType::Get;
+    lowReq->behavior.priority = 0;
+
+    std::shared_ptr<NetworkReply> lowReply = NetworkRequestManager::globalInstance()->postRequest(std::move(lowReq));
+    QVERIFY(lowReply != nullptr);
+
+    // Both should complete (may fail with 503 from external service)
+    bool highDone = false, lowDone = false;
+    if (highReply)
+    {
+        QObject::connect(highReply.get(), &NetworkReply::requestFinished,
+                         [&highDone](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         {
+                             highDone = true;
+                             QVERIFY(rsp);
+                         });
+    }
+    if (lowReply)
+    {
+        QObject::connect(lowReply.get(), &NetworkReply::requestFinished,
+                         [&lowDone](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         {
+                             lowDone = true;
+                             QVERIFY(rsp);
+                         });
+    }
+
+    // Wait for both (longer timeout since they're sequential)
+    QSignalSpy highSpy(highReply.get(), &NetworkReply::requestFinished);
+    QSignalSpy lowSpy(lowReply.get(), &NetworkReply::requestFinished);
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(60000);
+
+    while (timer.isActive() && (!highDone || !lowDone))
+    {
+        QCoreApplication::processEvents();
+        QThread::msleep(10);
+    }
+
+    QVERIFY(highDone);
+    QVERIFY(lowDone);
+
+    // Restore thread count
+    NetworkRequestManager::globalInstance()->setMaxThreadCount(savedMax);
+}

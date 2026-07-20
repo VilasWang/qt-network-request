@@ -23,6 +23,7 @@ namespace QtNetworkRequest
 		quint64 requestId() const;
 		quint64 batchId() const;
 		quint64 sessionId() const;
+		int priority() const { return m_nPriority; }
 		const TaskData task() const { return m_task; }
 
 		// End event loop to release task thread, make it idle, and automatically end executing request
@@ -36,6 +37,7 @@ namespace QtNetworkRequest
 		Q_DISABLE_COPY(NetworkRequestRunnable);
 		std::unique_ptr<RequestContext> m_context;
 		TaskData m_task;
+		int m_nPriority{ 0 };
 		QMetaObject::Connection m_connect;
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
         mutable QRecursiveMutex m_mutex;

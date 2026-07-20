@@ -35,6 +35,7 @@ private slots:
     void testMTDownload();
     void testFileUpload();
     void testPersistentCookieJar();
+    void testRequestPriority();
 
 private:
     bool waitForFinished(std::shared_ptr<NetworkReply> reply, int timeoutMs = 10000);

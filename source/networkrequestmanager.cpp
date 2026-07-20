@@ -5,6 +5,8 @@
 #include <QMutexLocker>
 #include <QUrl>
 #include <QQueue>
+#include <QSet>
+#include <set>
 #include <QThread>
 #include <QThreadPool>
 #include <QEvent>
@@ -21,6 +23,19 @@
 #define DEFAULT_MAX_THREAD_COUNT 8
 
 namespace QtNetworkRequest {
+struct PriorityRunnable
+{
+    int priority{ 0 };
+    quint64 sequenceId{ 0 };
+    std::shared_ptr<NetworkRequestRunnable> runnable;
+    bool operator<(const PriorityRunnable &other) const
+    {
+        if (priority != other.priority)
+            return priority > other.priority;
+        return sequenceId < other.sequenceId;
+    }
+};
+
 class NetworkRequestManagerPrivate
 {
     Q_DECLARE_PUBLIC(NetworkRequestManager)
@@ -107,6 +122,10 @@ private:
     QHash<quint64, QHash<quint64, qint64>> m_mapBatchUCurrentBytes;
     // (batchId <---> Total upload bytes)
     QHash<quint64, qint64> m_mapBatchUTotalBytes;
+
+    // Priority queue for pending runnables when all threads are busy
+    std::multiset<PriorityRunnable> m_priorityQueue;
+    quint64 m_prioritySeq{ 0 };
 };
 std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiRequestId = 0;
 std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiBatchId = 0;
@@ -218,6 +237,7 @@ void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
         QMutexLocker locker(&m_mutex);
         reply = m_mapReply.take(uiTaskId);
 
+        // Check running map
         if (m_mapRunnable.contains(uiTaskId))
         {
             std::shared_ptr<NetworkRequestRunnable> r = m_mapRunnable.take(uiTaskId);
@@ -235,6 +255,16 @@ void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
                 r->quit();
 #endif
                 r.reset();
+            }
+        }
+        // Check priority queue
+        for (auto it = m_priorityQueue.begin(); it != m_priorityQueue.end(); ++it)
+        {
+            if (it->runnable && it->runnable->requestId() == uiTaskId)
+            {
+                rsp->task = it->runnable->task();
+                m_priorityQueue.erase(it);
+                break;
             }
         }
     }
@@ -285,6 +315,15 @@ void NetworkRequestManagerPrivate::stopBatchRequests(quint64 uiBatchId)
             }
         }
         // qDebug() << "Runnable[After]: " << m_mapRunnable.size();
+
+        // Remove from priority queue
+        for (auto it = m_priorityQueue.begin(); it != m_priorityQueue.end();)
+        {
+            if (it->runnable && it->runnable->batchId() == uiBatchId)
+                it = m_priorityQueue.erase(it);
+            else
+                ++it;
+        }
 
         if (m_mapBatchTotalSize.contains(uiBatchId))
         {
@@ -355,6 +394,15 @@ void NetworkRequestManagerPrivate::stopSessionRequest(quint64 uiSessionId)
         }
     }
 
+    // Remove from priority queue
+    for (auto it = m_priorityQueue.begin(); it != m_priorityQueue.end();)
+    {
+        if (it->runnable && it->runnable->sessionId() == uiSessionId)
+            it = m_priorityQueue.erase(it);
+        else
+            ++it;
+    }
+
     QList<quint64> uiRequestIds = m_mapSessionIdToRequestId.values(uiSessionId);
     for (quint64 &uiRequestId : uiRequestIds)
     {
@@ -393,6 +441,7 @@ void NetworkRequestManagerPrivate::stopAllRequest()
             }
         }
         m_mapRunnable.clear();
+        m_priorityQueue.clear();
     }
     reset();
 }
@@ -495,31 +544,45 @@ quint64 NetworkRequestManagerPrivate::nextSessionId() const
 
 bool NetworkRequestManagerPrivate::startRunnable(std::shared_ptr<NetworkRequestRunnable> r, bool bAddToWaitQueueIfNotStart)
 {
-    if (r.get())
+    if (!r.get())
+        return false;
+
+    try
     {
-        try
+        if (bAddToWaitQueueIfNotStart)
         {
-            if (bAddToWaitQueueIfNotStart)
-                m_pThreadPool->start(r.get());
-            else
-            {
-                if (!m_pThreadPool->tryStart(r.get()))
-                    return false;
-            }
+            if (m_pThreadPool->tryStart(r.get()))
             {
                 QMutexLocker locker(&m_mutex);
                 m_mapRunnable.insert(r->requestId(), r);
+                return true;
             }
+            // All threads busy: add to priority queue
+            QMutexLocker locker(&m_mutex);
+            PriorityRunnable pr;
+            pr.priority = r->priority();
+            pr.sequenceId = ++m_prioritySeq;
+            pr.runnable = r;
+            m_priorityQueue.insert(pr);
+            qDebug() << "[QMultiThreadNetwork] Queued request (priority:" << pr.priority << ")";
             return true;
         }
-        catch (std::exception *e)
+        else
         {
-            qCritical() << "[QMultiThreadNetwork] startRunnable() exception:" << QString::fromUtf8(e->what());
+            if (!m_pThreadPool->tryStart(r.get()))
+                return false;
+            QMutexLocker locker(&m_mutex);
+            m_mapRunnable.insert(r->requestId(), r);
+            return true;
         }
-        catch (...)
-        {
-            qCritical() << "[QMultiThreadNetwork] startRunnable() unknown exception";
-        }
+    }
+    catch (std::exception *e)
+    {
+        qCritical() << "[QMultiThreadNetwork] startRunnable() exception:" << QString::fromUtf8(e->what());
+    }
+    catch (...)
+    {
+        qCritical() << "[QMultiThreadNetwork] startRunnable() unknown exception";
     }
 
     return false;
@@ -669,6 +732,19 @@ bool NetworkRequestManagerPrivate::releaseRequestThread(quint64 uiRequestId)
         {
             r->quit();
         }
+    }
+    // Dequeue next pending runnable from priority queue
+    if (!m_priorityQueue.empty())
+    {
+        auto it = m_priorityQueue.begin();
+        PriorityRunnable pr = *it;
+        m_priorityQueue.erase(it);
+        locker.unlock();
+
+        m_pThreadPool->start(pr.runnable.get());
+        locker.relock();
+        m_mapRunnable.insert(pr.runnable->requestId(), pr.runnable);
+        qDebug() << "[QMultiThreadNetwork] Dequeued request (priority:" << pr.priority << ")";
         return true;
     }
     return false;
