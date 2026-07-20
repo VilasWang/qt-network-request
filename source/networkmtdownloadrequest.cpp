@@ -260,7 +260,13 @@ void NetworkMTDownloadRequest::startMTDownload()
         m_nThreadCount = QThread::idealThreadCount();
         qDebug() << "[QMultiThreadNetwork]" << "Auto-detected thread count:" << m_nThreadCount;
     }
-    m_nThreadCount = qMax(m_nThreadCount, 2);
+    // Enforce a minimum of 2 threads only when the server actually honors
+    // Range requests.  When the range probe returned 200 (not 206), or the
+    // server doesn't advertise Accept-Ranges at all, we already forced
+    // threadCount = 1 and must keep it — splitting into multiple
+    // Range-based parts would re-create the overflow.
+    if (!m_bRangeSupportProbed || m_bRangeSupported)
+        m_nThreadCount = qMax(m_nThreadCount, 2);
     m_bytesTotal = m_nFileSize;
 
     // Divide file into n segments and download asynchronously
@@ -503,6 +509,9 @@ void NetworkMTDownloadRequest::onFinished()
     }
     else
     {
+        // No Accept-Ranges: treat as equivalent to a failed probe
+        m_bRangeSupportProbed = true;
+        m_bRangeSupported = false;
         qDebug() << "[QMultiThreadNetwork] Server does not advertise Accept-Ranges, using single-threaded download";
         m_upContext->downloadConfig->threadCount = 1;
         startMTDownload();
