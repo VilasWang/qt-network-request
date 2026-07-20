@@ -109,6 +109,7 @@ namespace QtNetworkRequest
 
 		QPointer<MemoryMappedFile> m_mappedFile; // Memory mapped file pointer
 		qint64 m_bytesWritten;					 // Bytes written
+		bool m_bOverflowLogged{ false };		 // Only log overflow once per download
 
 		QTimer m_timer;
 		int m_mIntervalMs{ 250 };

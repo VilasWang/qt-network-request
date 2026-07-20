@@ -548,6 +548,7 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
 
     m_bAbortManual = false;
     m_bytesWritten = 0;
+    m_bOverflowLogged = false;
 
     m_url = url;
     m_nStartPoint = startPoint;
@@ -666,7 +667,22 @@ void Downloader::onReadyRead()
             }
             else
             {
-                qWarning() << "[QMultiThreadNetwork] Part" << m_nIndex << "Attempted to write beyond download range";
+                if (!m_bOverflowLogged)
+                {
+                    m_bOverflowLogged = true;
+                    int httpStatus = m_pNetworkReply
+                        ? m_pNetworkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()
+                        : -1;
+                    qint64 contentLength = m_pNetworkReply
+                        ? m_pNetworkReply->header(QNetworkRequest::ContentLengthHeader).toLongLong()
+                        : -1;
+                    qWarning() << "[QMultiThreadNetwork] Part" << m_nIndex
+                               << "Range overflow: expected"
+                               << remainingBytes << "bytes, wrote"
+                               << m_bytesWritten << "bytes, HTTP status"
+                               << httpStatus << "Content-Length"
+                               << contentLength;
+                }
             }
         }
         else
