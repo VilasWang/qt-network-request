@@ -124,6 +124,13 @@ void NetworkRequest::cleanupForRetry()
 {
 }
 
+void NetworkRequest::applyCookieJar(QNetworkAccessManager* mgr)
+{
+    QNetworkCookieJar *jar = NetworkRequestManager::cookieJar();
+    if (jar)
+        mgr->setCookieJar(jar);
+}
+
 bool NetworkRequest::isTransientError(QNetworkReply::NetworkError err)
 {
     switch (err)

@@ -45,6 +45,8 @@ SOFTWARE.
 #include "networkrequestglobal.h"
 #include <memory>
 
+class QNetworkCookieJar;
+
 class QEvent;
 
 namespace QtNetworkRequest
@@ -70,6 +72,11 @@ namespace QtNetworkRequest
 		// Global proxy (applied to all requests unless overridden per-request)
 		static void setGlobalProxy(const ProxyConfig &config);
 		static const ProxyConfig &globalProxy();
+
+		// Persistent cookie jar
+		static void setCookieStoragePath(const QString &path);
+		static QString cookieStoragePath();
+		static QNetworkCookieJar *cookieJar();
 
 	public:
 		// Asynchronously execute single request task (returns nullptr if url is invalid)
@@ -129,5 +136,6 @@ namespace QtNetworkRequest
 		static std::atomic<bool> ms_bIntialized;
 		static std::atomic<bool> ms_bUnIntializing;
 		static ProxyConfig ms_globalProxy;
+		static QScopedPointer<QNetworkCookieJar> ms_spCookieJar;
 	};
 }

@@ -48,6 +48,7 @@ endif()
 add_library(QNetworkRequest SHARED
     # Sources
     source/memorymappedfile.cpp
+    source/networkcookiejar.cpp
     source/networkcommonrequest.cpp
     source/networkdownloadrequest.cpp
     source/networkrequestmanager.cpp
@@ -64,6 +65,7 @@ add_library(QNetworkRequest SHARED
     include/networkrequestdefs.h
     include/networkrequestglobal.h
     source/memorymappedfile.h
+    source/networkcookiejar.h
     source/networkrequestevent.h
     source/networkcommonrequest.h
     source/networkdownloadrequest.h

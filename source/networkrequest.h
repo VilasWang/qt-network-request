@@ -8,6 +8,7 @@
 #include "networkrequestdefs.h"
 #include <QSharedPointer>
 #include <QTimer>
+#include <QNetworkAccessManager>
 
 class QNetworkAccessManager;
 namespace QtNetworkRequest
@@ -29,6 +30,7 @@ namespace QtNetworkRequest
 		QSharedPointer<ResponseResult> ToSuccessResult(const QByteArray& body, const QMap<QByteArray, QByteArray>& headers);
 
 		void applyProxyConfig(QNetworkAccessManager* mgr);
+		void applyCookieJar(QNetworkAccessManager* mgr);
 
 		// 重试: 返回 true 表示重试已调度，调用方应直接 return
 		bool tryRetry();

@@ -7,6 +7,9 @@
 #include <QObject>
 #include <QSharedPointer>
 #include <QElapsedTimer>
+#include <QDir>
+#include <QFileInfo>
+#include <QTemporaryFile>
 
 using namespace QtNetworkRequest;
 
@@ -410,4 +413,221 @@ void TestNetworkRequest::testRetryOnFailure()
     // With retries, the request should take noticeably longer
     // (no-retry should complete faster than the retry case)
     qDebug() << "Retry elapsed:" << elapsed << "ms, No-retry elapsed:" << elapsedNoRetry << "ms";
+}
+
+void TestNetworkRequest::testSingleDownload()
+{
+    QString tmpDir = QDir::tempPath();
+    QString savePath = tmpDir + "/qt_test_download_" + QString::number(QCoreApplication::applicationPid()) + ".dat";
+    QFile::remove(savePath);
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = QString("https://httpbin.org/bytes/2048");
+    req->type = RequestType::Download;
+    req->downloadConfig = std::make_unique<DownloadConfig>();
+    req->downloadConfig->threadCount = 1;
+    req->downloadConfig->saveDir = tmpDir;
+    req->downloadConfig->saveFileName = QFileInfo(savePath).fileName();
+    req->downloadConfig->overwriteFile = true;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    if (reply)
+    {
+        QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                         [&called, savePath](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         {
+                             called = true;
+                             QVERIFY(rsp);
+                             QVERIFY(rsp->success);
+                         });
+    }
+
+    QVERIFY(waitForFinished(reply, 30000));
+    QVERIFY(called);
+
+    QFileInfo fi(savePath);
+    QVERIFY2(fi.exists(), "Downloaded file should exist");
+    QCOMPARE(fi.size(), 2048);
+    QFile::remove(savePath);
+}
+
+void TestNetworkRequest::testMTDownload()
+{
+    QString tmpDir = QDir::tempPath();
+    QString savePath = tmpDir + "/qt_test_mtdownload_" + QString::number(QCoreApplication::applicationPid()) + ".dat";
+    QFile::remove(savePath);
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = QString("https://httpbin.org/bytes/4096");
+    req->type = RequestType::Download;
+    req->downloadConfig = std::make_unique<DownloadConfig>();
+    req->downloadConfig->threadCount = 2;
+    req->downloadConfig->saveDir = tmpDir;
+    req->downloadConfig->saveFileName = QFileInfo(savePath).fileName();
+    req->downloadConfig->overwriteFile = true;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    if (reply)
+    {
+        QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                         [&called, savePath](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         {
+                             called = true;
+                             QVERIFY(rsp);
+                             QVERIFY(rsp->success);
+                         });
+    }
+
+    QVERIFY(waitForFinished(reply, 60000));
+    QVERIFY(called);
+
+    QFileInfo fi(savePath);
+    QVERIFY2(fi.exists(), "Multi-thread downloaded file should exist");
+    QCOMPARE(fi.size(), 4096);
+    QFile::remove(savePath);
+}
+
+void TestNetworkRequest::testFileUpload()
+{
+    // Create a temp file to upload
+    QTemporaryFile tmpFile;
+    QVERIFY(tmpFile.open());
+    QByteArray uploadContent("QtNetworkRequest upload test data - 1234567890");
+    tmpFile.write(uploadContent);
+    tmpFile.flush();
+    QString filePath = tmpFile.fileName();
+    tmpFile.close();
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = QString("https://httpbin.org/put");
+    req->type = RequestType::Put;
+    req->uploadConfig = std::make_unique<UploadConfig>();
+    req->uploadConfig->usePutMethod = true;
+    req->uploadConfig->filePath = filePath;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    if (reply)
+    {
+        QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                         [&called, uploadContent](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         {
+                             called = true;
+                             QVERIFY(rsp);
+                             QVERIFY(rsp->success);
+                             // httpbin should echo back the uploaded data
+                             QVERIFY(rsp->body.contains(uploadContent));
+                         });
+    }
+
+    QVERIFY(waitForFinished(reply, 30000));
+    QVERIFY(called);
+}
+
+void TestNetworkRequest::testPersistentCookieJar()
+{
+    QString cookieFile = QDir::tempPath() + "/qt_test_cookies_" + QString::number(QCoreApplication::applicationPid()) + ".json";
+    QFile::remove(cookieFile);
+
+    NetworkRequestManager::setCookieStoragePath(cookieFile);
+    QCOMPARE(NetworkRequestManager::cookieStoragePath(), cookieFile);
+    QVERIFY(NetworkRequestManager::cookieJar() != nullptr);
+
+    // First request: httpbin.org should set cookies
+    {
+        std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+        req->url = QString("https://httpbin.org/cookies/set?testcookie=hello123");
+        req->type = RequestType::Get;
+
+        std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+        QVERIFY(reply != nullptr);
+
+        bool called = false;
+        if (reply)
+        {
+            QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                             [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                             {
+                                 called = true;
+                                 // httpbin returns 302 for /cookies/set, might follow redirect
+                                 QVERIFY(rsp);
+                             });
+        }
+        QVERIFY(waitForFinished(reply, 30000));
+        QVERIFY(called);
+    }
+
+    // Verify cookie file was saved
+    QVERIFY2(QFile::exists(cookieFile), "Cookie file should exist after request");
+    QFile file(cookieFile);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QByteArray savedData = file.readAll();
+    file.close();
+    QVERIFY2(!savedData.isEmpty(), "Cookie file should not be empty");
+    qDebug() << "Saved cookies:" << savedData;
+
+    // Second request to /cookies to verify cookie is sent
+    {
+        std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+        req->url = QString("https://httpbin.org/cookies");
+        req->type = RequestType::Get;
+
+        std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+        QVERIFY(reply != nullptr);
+
+        bool called = false;
+        if (reply)
+        {
+            QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                             [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                             {
+                                 called = true;
+                                 QVERIFY(rsp);
+                                 QVERIFY(rsp->success);
+                                 // Response should mention our cookie
+                                 QVERIFY(rsp->body.contains("testcookie"));
+                             });
+        }
+        QVERIFY(waitForFinished(reply, 30000));
+        QVERIFY(called);
+    }
+
+    // Now simulate a new session by creating a new jar from the same file
+    NetworkRequestManager::setCookieStoragePath(cookieFile);
+
+    {
+        std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+        req->url = QString("https://httpbin.org/cookies");
+        req->type = RequestType::Get;
+
+        std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+        QVERIFY(reply != nullptr);
+
+        bool called = false;
+        if (reply)
+        {
+            QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                             [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                             {
+                                 called = true;
+                                 QVERIFY(rsp);
+                                 QVERIFY(rsp->success);
+                                 QVERIFY(rsp->body.contains("testcookie"));
+                             });
+        }
+        QVERIFY(waitForFinished(reply, 30000));
+        QVERIFY(called);
+    }
+
+    // Clean up
+    QFile::remove(cookieFile);
+    NetworkRequestManager::setCookieStoragePath(QString());
 }

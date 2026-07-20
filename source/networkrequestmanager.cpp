@@ -16,6 +16,7 @@
 #include "networkrequestrunnable.h"
 #include "networkreply.h"
 #include "networkrequestevent.h"
+#include "networkcookiejar.h"
 
 #define DEFAULT_MAX_THREAD_COUNT 8
 
@@ -677,6 +678,7 @@ bool NetworkRequestManagerPrivate::releaseRequestThread(quint64 uiRequestId)
 std::atomic<bool> NetworkRequestManager::ms_bIntialized = false;
 std::atomic<bool> NetworkRequestManager::ms_bUnIntializing = false;
 ProxyConfig NetworkRequestManager::ms_globalProxy{};
+QScopedPointer<QNetworkCookieJar> NetworkRequestManager::ms_spCookieJar;
 
 NetworkRequestManager::NetworkRequestManager(QObject *parent)
     : QObject(parent), d_ptr(new NetworkRequestManagerPrivate)
@@ -730,6 +732,23 @@ void NetworkRequestManager::setGlobalProxy(const ProxyConfig &config)
 const ProxyConfig &NetworkRequestManager::globalProxy()
 {
     return ms_globalProxy;
+}
+
+void NetworkRequestManager::setCookieStoragePath(const QString &path)
+{
+    PersistentCookieJar *jar = new PersistentCookieJar(path);
+    ms_spCookieJar.reset(jar);
+}
+
+QString NetworkRequestManager::cookieStoragePath()
+{
+    auto *jar = qobject_cast<PersistentCookieJar*>(ms_spCookieJar.data());
+    return jar ? jar->filePath() : QString();
+}
+
+QNetworkCookieJar *NetworkRequestManager::cookieJar()
+{
+    return ms_spCookieJar.data();
 }
 
 void NetworkRequestManager::init()

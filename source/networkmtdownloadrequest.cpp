@@ -73,6 +73,7 @@ bool NetworkMTDownloadRequest::requestFileSize()
     {
         m_pNetworkManager = new QNetworkAccessManager(this);
         applyProxyConfig(m_pNetworkManager);
+        applyCookieJar(m_pNetworkManager);
     }
     QNetworkRequest request(url);
     request.setRawHeader("Accept-Encoding", "gzip,deflate");

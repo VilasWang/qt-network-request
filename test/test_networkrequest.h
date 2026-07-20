@@ -31,6 +31,10 @@ private slots:
     void testGlobalProxyConfig();
     void testRequestProxyConfig();
     void testRetryOnFailure();
+    void testSingleDownload();
+    void testMTDownload();
+    void testFileUpload();
+    void testPersistentCookieJar();
 
 private:
     bool waitForFinished(std::shared_ptr<NetworkReply> reply, int timeoutMs = 10000);

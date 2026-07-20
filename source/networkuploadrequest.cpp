@@ -50,6 +50,7 @@ void NetworkUploadRequest::start()
 	{
 		m_pNetworkManager = new QNetworkAccessManager(this);
 		applyProxyConfig(m_pNetworkManager);
+		applyCookieJar(m_pNetworkManager);
 		// Set timeout
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
 		m_pNetworkManager->setTransferTimeout(m_upContext->behavior.transferTimeout);
