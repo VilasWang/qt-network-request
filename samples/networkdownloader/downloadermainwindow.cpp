@@ -60,6 +60,11 @@ QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidg
 
     ui->tableViewTasks->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tableViewTasks->setSelectionMode(QAbstractItemView::SingleSelection);
+    // Selecting a (full) row otherwise highlights the column header sections,
+    // making the header bar look selected/blue. Disable section highlighting so
+    // only the row is selected.
+    ui->tableViewTasks->horizontalHeader()->setHighlightSections(false);
+    ui->tableViewTasks->verticalHeader()->setHighlightSections(false);
     ui->tableViewTasks->setAlternatingRowColors(true);
     ui->tableViewTasks->setShowGrid(true);
     ui->tableViewTasks->setGridStyle(Qt::DotLine);
