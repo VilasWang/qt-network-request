@@ -17,39 +17,40 @@ target_include_directories(UnitTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
+# Register test with CTest
+add_test(NAME UnitTests COMMAND UnitTests)
+
 # --- Copy OpenSSL binary files to build directory ---
 if(WIN32)
-    # Set OpenSSL binary file path
     if(Qt5_VERSION_MAJOR GREATER_EQUAL 5 AND Qt5_VERSION_MINOR GREATER_EQUAL 12)
         set(OPENSSL_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ThirdParty/openssl/1.1.1/bin")
     else()
         set(OPENSSL_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ThirdParty/openssl/1.0.2/bin")
     endif()
     
-    # Copy OpenSSL DLL files to build directory
     if(Qt5_VERSION_MAJOR GREATER_EQUAL 5 AND Qt5_VERSION_MINOR GREATER_EQUAL 12)
-        add_custom_command(
-            TARGET UnitTests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${OPENSSL_BIN_DIR}/libcrypto-1_1-x64.dll"
-            "${OPENSSL_BIN_DIR}/libssl-1_1-x64.dll"
-            $<TARGET_FILE_DIR:UnitTests>
-        )
+        set(OPENSSL_DLLS libcrypto-1_1-x64.dll libssl-1_1-x64.dll)
     else()
+        set(OPENSSL_DLLS libeay32.dll ssleay32.dll)
+    endif()
+    
+    foreach(dll ${OPENSSL_DLLS})
         add_custom_command(
             TARGET UnitTests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${OPENSSL_BIN_DIR}/libeay32.dll"
-            "${OPENSSL_BIN_DIR}/ssleay32.dll"
+            "${OPENSSL_BIN_DIR}/${dll}"
             $<TARGET_FILE_DIR:UnitTests>
         )
-    endif()
+    endforeach()
 
+    # Copy QNetworkRequest DLL to test directory
     add_custom_command(
         TARGET UnitTests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/../build/$<CONFIG>/QNetworkRequest.dll"
+        "$<TARGET_FILE_DIR:QNetworkRequest>/$<TARGET_FILE_NAME:QNetworkRequest>"
         $<TARGET_FILE_DIR:UnitTests>
     )
 
 endif()
+
+set_tests_properties(UnitTests PROPERTIES TIMEOUT 120)
