@@ -1,0 +1,27 @@
+#ifndef TEST_QTREQUESTER_H
+#define TEST_QTREQUESTER_H
+
+#include <QObject>
+#include <QTemporaryDir>
+#include <QSignalSpy>
+#include "httptestserver.h"
+
+namespace QtNetworkRequest {
+class NetworkRequestTool;
+}
+
+class TestQtRequester : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    void testBuildUrlWithParams();
+    void testGetHeaders();
+    void testGetRequestBody();
+    void testMethodSwitchesBody();
+    void testApplyAuthHeader();
+    void testSaveAndLoadDisk();
+    void testEndToEndGet();
+};
+
+#endif

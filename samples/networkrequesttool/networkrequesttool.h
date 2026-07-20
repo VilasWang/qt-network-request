@@ -10,6 +10,10 @@
 
 class QSyntaxHighlighter;
 
+#ifdef QT_MTNETWORK_UNIT_TEST
+class TestQtRequester;
+#endif
+
 namespace QtNetworkRequest
 {
 
@@ -120,6 +124,9 @@ private:
     void ensureStorageDir();
 
 private:
+#ifdef QT_MTNETWORK_UNIT_TEST
+    friend class ::TestQtRequester;
+#endif
     Ui::networkClass ui;
     QString currentMethod;
     QString currentBodyType;
