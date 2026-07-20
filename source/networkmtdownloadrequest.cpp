@@ -574,7 +574,11 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
         endPoint = fileSize - 1;
         m_nEndPoint = endPoint;
     }
-    QString range = QString::asprintf("Bytes=%lld-%lld", m_nStartPoint, m_nEndPoint);
+    // HTTP Range unit token is case-sensitive and MUST be lowercase "bytes="
+    // (RFC 7233). Using "Bytes=" makes the server ignore the Range header and
+    // return the full file, causing each thread to download the entire file and
+    // the progress to exceed 100%.
+    QString range = QString::asprintf("bytes=%lld-%lld", m_nStartPoint, m_nEndPoint);
     if (range.isEmpty())
     {
         m_strError = QString("Range error: Invalid download range specified");
