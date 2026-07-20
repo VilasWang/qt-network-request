@@ -76,7 +76,6 @@ bool NetworkMTDownloadRequest::requestFileSize()
         applyCookieJar(m_pNetworkManager);
     }
     QNetworkRequest request(url);
-    request.setRawHeader("Accept-Encoding", "gzip,deflate");
 
 #ifndef QT_NO_SSL
     if (url.scheme().toLower() == "https")
@@ -588,9 +587,13 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
     QNetworkRequest request;
     request.setUrl(url);
     request.setRawHeader("Range", range.toLocal8Bit());
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/octet-stream");
-    request.setRawHeader("Accept-Encoding", "gzip,deflate");
-    request.setRawHeader("Connection", "keep-alive");
+    // Force HTTP/1.1 — when HTTP/2 multiplexes concurrent Range requests
+    // onto a single connection, CDNs (Cloudflare, Varnish) may drop the
+    // Range header and return 200 with the full body.
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 13, 0))
+    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+#endif
+    request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
 
 #ifndef QT_NO_SSL
     if (url.scheme().toLower() == "https")
