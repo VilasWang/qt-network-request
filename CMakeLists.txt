@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(QtMultiThreadNetwork LANGUAGES CXX)
+project(QtMultiThreadNetwork VERSION 2.0.0 LANGUAGES CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -87,7 +87,8 @@ target_compile_definitions(QNetworkRequest
 # Set include directories for library
 target_include_directories(QNetworkRequest
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/source
 )
@@ -310,6 +311,55 @@ elseif(APPLE)
         message(WARNING "  brew install openssl")
     endif()
 endif()
+
+# --- Install rules ---
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+# Install library
+install(TARGETS QNetworkRequest
+    EXPORT QtNetworkRequestTargets
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+# Install public headers
+install(DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.h"
+)
+
+# Export targets
+install(EXPORT QtNetworkRequestTargets
+    FILE QtNetworkRequestTargets.cmake
+    NAMESPACE QtNetworkRequest::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/QtNetworkRequest
+)
+
+# Generate and install config version file
+set(PROJECT_VERSION_COMPATIBILITY SameMajorVersion)
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/QtNetworkRequestConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY ${PROJECT_VERSION_COMPATIBILITY}
+)
+
+# Generate and install package config file
+set(INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}")
+set(LIB_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}")
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/QtNetworkRequestConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/QtNetworkRequestConfig.cmake"
+    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/QtNetworkRequest"
+    PATH_VARS INCLUDE_INSTALL_DIR LIB_INSTALL_DIR
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/QtNetworkRequestConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/QtNetworkRequestConfigVersion.cmake"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/QtNetworkRequest"
+)
 
 # --- Build tests ---
 enable_testing()
