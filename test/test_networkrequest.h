@@ -28,6 +28,9 @@ private slots:
     void testHeadRequest();
     void testRequestHeaders();
     void testContentType();
+    void testGlobalProxyConfig();
+    void testRequestProxyConfig();
+    void testRetryOnFailure();
 
 private:
     bool waitForFinished(std::shared_ptr<NetworkReply> reply, int timeoutMs = 10000);

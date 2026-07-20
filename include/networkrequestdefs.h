@@ -45,6 +45,7 @@ SOFTWARE.
 #include <QNetworkCookie>
 #include <QDateTime>
 #include <QSharedPointer>
+#include <QNetworkProxy>
 
 #pragma pack(push, _CRT_PACKING)
 
@@ -89,6 +90,25 @@ namespace QtNetworkRequest
 
     struct DownloadConfig;
     struct UploadConfig;
+    struct ProxyConfig;
+
+    // 代理配置
+    struct ProxyConfig
+    {
+        bool enabled{ false };
+        QNetworkProxy::ProxyType type{ QNetworkProxy::HttpProxy };
+        QString host;
+        quint16 port{ 1080 };
+        QString user;
+        QString password;
+
+        QNetworkProxy toQNetworkProxy() const
+        {
+            if (user.isEmpty())
+                return QNetworkProxy(type, host, port);
+            return QNetworkProxy(type, host, port, user, password);
+        }
+    };
 
     // 请求上下文 (Input)
     struct RequestContext
@@ -111,11 +131,14 @@ namespace QtNetworkRequest
         struct Behavior
         {
             bool showProgress{ false };
-            bool retryOnFailed{ false };//TODO
+            bool retryOnFailed{ false };
+            quint16 maxRetryCount{ 3 };
+            int retryDelayMs{ 1000 };
             quint16 maxRedirectionCount{ 3 };
             int transferTimeout{ 30000 }; // 30 seconds
         } behavior;
 
+        std::unique_ptr<ProxyConfig> proxyConfig;
         std::unique_ptr<DownloadConfig> downloadConfig;
         std::unique_ptr<UploadConfig> uploadConfig;
 

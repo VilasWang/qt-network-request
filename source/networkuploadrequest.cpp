@@ -49,6 +49,7 @@ void NetworkUploadRequest::start()
 	if (nullptr == m_pNetworkManager)
 	{
 		m_pNetworkManager = new QNetworkAccessManager(this);
+		applyProxyConfig(m_pNetworkManager);
 		// Set timeout
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
 		m_pNetworkManager->setTransferTimeout(m_upContext->behavior.transferTimeout);
@@ -225,6 +226,8 @@ void NetworkUploadRequest::onFinished()
 	}
 	if (!bSuccess)
 	{
+		if (tryRetry())
+			return;
 		// Handle redirection
 		if (statusCode == 301 || statusCode == 302)
 		{

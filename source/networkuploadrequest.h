@@ -23,6 +23,9 @@ namespace QtNetworkRequest
 		void onFinished() Q_DECL_OVERRIDE;
 		void onUploadProgress(qint64, qint64);
 
+	protected:
+		void cleanupForRetry() Q_DECL_OVERRIDE { CloseFile(); }
+
 	private:
 		void CloseFile();
 

@@ -72,6 +72,7 @@ bool NetworkMTDownloadRequest::requestFileSize()
     if (nullptr == m_pNetworkManager)
     {
         m_pNetworkManager = new QNetworkAccessManager(this);
+        applyProxyConfig(m_pNetworkManager);
     }
     QNetworkRequest request(url);
     request.setRawHeader("Accept-Encoding", "gzip,deflate");
@@ -376,6 +377,8 @@ void NetworkMTDownloadRequest::onFinished()
             qDebug() << "[NetworkMTDownloadRequest]" << QString("HTTP error: status code %1").arg(statusCode);
         }
 
+        if (tryRetry())
+            return;
         m_strError = QString("HTTP error: Failed to retrieve file size - Status code %1").arg(statusCode);
         qDebug() << "[QMultiThreadNetwork]" << m_strError;
 

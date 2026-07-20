@@ -676,6 +676,7 @@ bool NetworkRequestManagerPrivate::releaseRequestThread(quint64 uiRequestId)
 //////////////////////////////////////////////////////////////////////////
 std::atomic<bool> NetworkRequestManager::ms_bIntialized = false;
 std::atomic<bool> NetworkRequestManager::ms_bUnIntializing = false;
+ProxyConfig NetworkRequestManager::ms_globalProxy{};
 
 NetworkRequestManager::NetworkRequestManager(QObject *parent)
     : QObject(parent), d_ptr(new NetworkRequestManagerPrivate)
@@ -719,6 +720,16 @@ void NetworkRequestManager::unInitialize()
 bool NetworkRequestManager::isInitialized()
 {
     return ms_bIntialized && !ms_bUnIntializing;
+}
+
+void NetworkRequestManager::setGlobalProxy(const ProxyConfig &config)
+{
+    ms_globalProxy = config;
+}
+
+const ProxyConfig &NetworkRequestManager::globalProxy()
+{
+    return ms_globalProxy;
 }
 
 void NetworkRequestManager::init()

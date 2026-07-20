@@ -67,6 +67,10 @@ namespace QtNetworkRequest
 
 		static NetworkRequestManager *globalInstance();
 
+		// Global proxy (applied to all requests unless overridden per-request)
+		static void setGlobalProxy(const ProxyConfig &config);
+		static const ProxyConfig &globalProxy();
+
 	public:
 		// Asynchronously execute single request task (returns nullptr if url is invalid)
 		std::shared_ptr<NetworkReply> postRequest(std::unique_ptr<RequestContext> context);
@@ -124,5 +128,6 @@ namespace QtNetworkRequest
 
 		static std::atomic<bool> ms_bIntialized;
 		static std::atomic<bool> ms_bUnIntializing;
+		static ProxyConfig ms_globalProxy;
 	};
 }

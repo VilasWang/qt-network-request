@@ -14,6 +14,9 @@ namespace QtNetworkRequest
 		explicit NetworkCommonRequest(QObject *parent = 0);
 		~NetworkCommonRequest();
 
+	protected:
+		void cleanupForRetry() Q_DECL_OVERRIDE {}
+
 	public Q_SLOTS:
 		void start() Q_DECL_OVERRIDE;
 		void onFinished() Q_DECL_OVERRIDE;

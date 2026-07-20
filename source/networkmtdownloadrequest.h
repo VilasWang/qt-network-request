@@ -33,6 +33,9 @@ namespace QtNetworkRequest
 		void onSubPartFinished(int index, bool bSuccess, const QString &strErr);
 		void onSubPartDownloadProgress(int index, qint64 bytesReceived, qint64 bytesTotal);
 
+	protected:
+		void cleanupForRetry() Q_DECL_OVERRIDE { clearDownloaders(); clearProgress(); }
+
 	private:
 		bool requestFileSize();
 		void startMTDownload();

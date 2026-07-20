@@ -1,15 +1,17 @@
 ﻿#include "networkrequest.h"
 #include <QDebug>
+#include <QThread>
 #include "networkdownloadrequest.h"
 #include "networkuploadrequest.h"
 #include "networkcommonrequest.h"
 #include "networkmtdownloadrequest.h"
 #include "networkrequestutility.h"
+#include "networkrequestmanager.h"
 
 using namespace QtNetworkRequest;
 
 NetworkRequest::NetworkRequest(QObject *parent)
-    : QObject(parent), m_bAbortManual(false), m_pNetworkManager(nullptr), m_pNetworkReply(nullptr), m_nProgress(0), m_nRedirectionCount(0)
+    : QObject(parent), m_bAbortManual(false), m_pNetworkManager(nullptr), m_pNetworkReply(nullptr), m_nProgress(0), m_nRetryCount(0), m_nRedirectionCount(0)
 {
 }
 
@@ -64,6 +66,81 @@ void NetworkRequest::onAuthenticationRequired(QNetworkReply *r, QAuthenticator *
 {
     Q_UNUSED(a);
     qDebug() << "[QMultiThreadNetwork] Authentication Required." << r->readAll();
+}
+
+void NetworkRequest::applyProxyConfig(QNetworkAccessManager* mgr)
+{
+    if (m_upContext && m_upContext->proxyConfig && m_upContext->proxyConfig->enabled)
+    {
+        mgr->setProxy(m_upContext->proxyConfig->toQNetworkProxy());
+        return;
+    }
+    const ProxyConfig& global = NetworkRequestManager::globalProxy();
+    if (global.enabled)
+    {
+        mgr->setProxy(global.toQNetworkProxy());
+    }
+}
+
+bool NetworkRequest::tryRetry()
+{
+    if (!m_upContext || !m_upContext->behavior.retryOnFailed)
+        return false;
+    if (m_nRetryCount >= m_upContext->behavior.maxRetryCount)
+        return false;
+
+    QNetworkReply::NetworkError code = m_pNetworkReply
+        ? m_pNetworkReply->error() : QNetworkReply::UnknownNetworkError;
+    if (!isTransientError(code))
+        return false;
+
+    m_nRetryCount++;
+
+    qDebug() << "[QMultiThreadNetwork] Retrying" << m_url.toString()
+             << "attempt" << m_nRetryCount << "/" << m_upContext->behavior.maxRetryCount;
+
+    if (m_pNetworkReply)
+    {
+        if (m_pNetworkReply->isRunning())
+            m_pNetworkReply->abort();
+        m_pNetworkReply->deleteLater();
+        m_pNetworkReply = nullptr;
+    }
+    if (m_pNetworkManager)
+    {
+        m_pNetworkManager->deleteLater();
+        m_pNetworkManager = nullptr;
+    }
+
+    cleanupForRetry();
+
+    int delay = qMin(m_upContext->behavior.retryDelayMs * (1 << (m_nRetryCount - 1)), 30000);
+    QTimer::singleShot(delay, this, &NetworkRequest::start);
+
+    return true;
+}
+
+void NetworkRequest::cleanupForRetry()
+{
+}
+
+bool NetworkRequest::isTransientError(QNetworkReply::NetworkError err)
+{
+    switch (err)
+    {
+    case QNetworkReply::ConnectionRefusedError:
+    case QNetworkReply::HostNotFoundError:
+    case QNetworkReply::TimeoutError:
+    case QNetworkReply::OperationCanceledError:
+    case QNetworkReply::SslHandshakeFailedError:
+    case QNetworkReply::TemporaryNetworkFailureError:
+    case QNetworkReply::UnknownNetworkError:
+    case QNetworkReply::RemoteHostClosedError:
+    case QNetworkReply::TooManyRedirectsError:
+        return true;
+    default:
+        return false;
+    }
 }
 
 void NetworkRequest::setRequestContext(std::unique_ptr<RequestContext> context)

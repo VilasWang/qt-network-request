@@ -34,6 +34,9 @@ namespace QtNetworkRequest
 		void onSslErrors(const QList<QSslError> &errors);
 #endif
 
+	protected:
+		void cleanupForRetry() Q_DECL_OVERRIDE { CloseFile(true); }
+
 	private:
 		void CloseFile(bool bRemove);
 

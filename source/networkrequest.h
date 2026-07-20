@@ -7,6 +7,7 @@
 #include <QNetworkReply>
 #include "networkrequestdefs.h"
 #include <QSharedPointer>
+#include <QTimer>
 
 class QNetworkAccessManager;
 namespace QtNetworkRequest
@@ -27,6 +28,15 @@ namespace QtNetworkRequest
 		QSharedPointer<ResponseResult> ToFailedResult(const QByteArray& body = QByteArray(), const QMap<QByteArray, QByteArray>& headers = {});
 		QSharedPointer<ResponseResult> ToSuccessResult(const QByteArray& body, const QMap<QByteArray, QByteArray>& headers);
 
+		void applyProxyConfig(QNetworkAccessManager* mgr);
+
+		// 重试: 返回 true 表示重试已调度，调用方应直接 return
+		bool tryRetry();
+		// 子类重写以清理请求特有资源（如文件句柄）
+		virtual void cleanupForRetry();
+		// 判断错误是否可重试（瞬态错误）
+		bool isTransientError(QNetworkReply::NetworkError err);
+
 	public Q_SLOTS:
 		virtual void start();
 		virtual void abort();
@@ -44,6 +54,7 @@ namespace QtNetworkRequest
 		bool m_bAbortManual;
 		QString m_strError;
 		int m_nProgress;
+		int m_nRetryCount{ 0 };
 		quint16 m_nRedirectionCount;
 		QNetworkAccessManager *m_pNetworkManager;
 		QNetworkReply *m_pNetworkReply;
