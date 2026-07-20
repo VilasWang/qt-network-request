@@ -105,6 +105,91 @@ bool NetworkMTDownloadRequest::requestFileSize()
     return true;
 }
 
+bool NetworkMTDownloadRequest::requestRangeProbe()
+{
+    if (!m_url.isValid() || m_nFileSize <= 0)
+    {
+        // Can't probe — assume Range is unsupported, fall back to single thread
+        m_upContext->downloadConfig->threadCount = 1;
+        startMTDownload();
+        return false;
+    }
+
+    if (nullptr == m_pNetworkManager)
+    {
+        m_pNetworkManager = new QNetworkAccessManager(this);
+        applyProxyConfig(m_pNetworkManager);
+        applyCookieJar(m_pNetworkManager);
+    }
+
+    QNetworkRequest request(m_url);
+    request.setRawHeader("Range", "bytes=0-0");
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 13, 0))
+    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+#endif
+    request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
+
+#ifndef QT_NO_SSL
+    if (m_url.scheme().toLower() == "https")
+    {
+        QSslConfiguration conf = request.sslConfiguration();
+        conf.setPeerVerifyMode(QSslSocket::VerifyNone);
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
+        conf.setProtocol(QSsl::TlsV1_2OrLater);
+#else
+        conf.setProtocol(QSsl::TlsV1_2);
+#endif
+        request.setSslConfiguration(conf);
+    }
+#endif
+
+    qDebug() << "[QMultiThreadNetwork] Probing Range support with bytes=0-0...";
+
+    m_pNetworkReply = m_pNetworkManager->get(request);
+    if (m_pNetworkReply)
+    {
+        connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onRangeProbeFinished()));
+        return true;
+    }
+
+    // Probe request failed — assume Range is unsupported
+    m_upContext->downloadConfig->threadCount = 1;
+    startMTDownload();
+    return false;
+}
+
+void NetworkMTDownloadRequest::onRangeProbeFinished()
+{
+    if (!m_pNetworkReply)
+    {
+        m_upContext->downloadConfig->threadCount = 1;
+        startMTDownload();
+        return;
+    }
+
+    int statusCode = m_pNetworkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    bool probeSuccess = (statusCode == 206);
+
+    m_bRangeSupportProbed = true;
+    m_bRangeSupported = probeSuccess;
+
+    if (probeSuccess)
+    {
+        qDebug() << "[QMultiThreadNetwork] Range probe succeeded (206) — using multi-threaded download";
+    }
+    else
+    {
+        qDebug() << "[QMultiThreadNetwork] Range probe returned" << statusCode
+                 << "instead of 206 — server/CDN does not honor Range, falling back to single-threaded download";
+        m_upContext->downloadConfig->threadCount = 1;
+    }
+
+    m_pNetworkReply->deleteLater();
+    m_pNetworkReply = nullptr;
+
+    startMTDownload();
+}
+
 void NetworkMTDownloadRequest::start()
 {
     NetworkRequest::start();
@@ -402,10 +487,26 @@ void NetworkMTDownloadRequest::onFinished()
     m_bytesTotal = m_nFileSize;
     qDebug() << "[QMultiThreadNetwork] File size:" << m_nFileSize;
 
+    // Check if the server advertises Range support. Some CDNs (Cloudflare,
+    // Varnish) return Accept-Ranges: bytes but ignore the Range header and
+    // return 200 with the full body. A probe GET with "bytes=0-0" verifies
+    // whether the server actually honors range requests.
+    QByteArray acceptRanges = m_pNetworkReply->rawHeader("Accept-Ranges");
+    bool serverClaimsRange = acceptRanges.toLower().contains("bytes");
+
     m_pNetworkReply->deleteLater();
     m_pNetworkReply = nullptr;
 
-    startMTDownload();
+    if (serverClaimsRange && m_nFileSize > 0)
+    {
+        requestRangeProbe();
+    }
+    else
+    {
+        qDebug() << "[QMultiThreadNetwork] Server does not advertise Accept-Ranges, using single-threaded download";
+        m_upContext->downloadConfig->threadCount = 1;
+        startMTDownload();
+    }
 }
 
 void NetworkMTDownloadRequest::clearDownloaders()

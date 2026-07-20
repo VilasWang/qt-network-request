@@ -32,12 +32,14 @@ namespace QtNetworkRequest
 		void onFinished() Q_DECL_OVERRIDE;
 		void onSubPartFinished(int index, bool bSuccess, const QString &strErr);
 		void onSubPartDownloadProgress(int index, qint64 bytesReceived, qint64 bytesTotal);
+		void onRangeProbeFinished();
 
 	protected:
 		void cleanupForRetry() Q_DECL_OVERRIDE { clearDownloaders(); clearProgress(); }
 
 	private:
 		bool requestFileSize();
+		bool requestRangeProbe();
 		void startMTDownload();
 		void clearDownloaders();
 		void clearProgress();
@@ -60,6 +62,9 @@ namespace QtNetworkRequest
 
 		QMap<int, qint64> m_mapBytesReceived;
 		qint64 m_bytesTotal;
+
+		bool m_bRangeSupportProbed{ false };  // Whether we've completed a range probe
+		bool m_bRangeSupported{ false };      // Whether the server actually honors Range requests
 	};
 
 	// Used for downloading files (or part of a file)
