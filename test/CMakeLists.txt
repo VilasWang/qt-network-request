@@ -2,6 +2,7 @@
 add_executable(UnitTests
     main.cpp
     test_networkrequest.cpp
+    httptestserver.cpp
 )
 
 target_link_libraries(UnitTests 

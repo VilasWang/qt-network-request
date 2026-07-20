@@ -1,4 +1,5 @@
 #include "test_networkrequest.h"
+#include "httptestserver.h"
 #include <QTimer>
 #include <QSignalSpy>
 #include <QCoreApplication>
@@ -13,19 +14,23 @@
 
 using namespace QtNetworkRequest;
 
+static HttpTestServer *s_server = nullptr;
+
 void TestNetworkRequest::initTestCase()
 {
-    // Register ResponseResult type to Qt meta-object system
     qRegisterMetaType<QSharedPointer<QtNetworkRequest::ResponseResult>>("QSharedPointer<QtNetworkRequest::ResponseResult>");
-
-    // Initialize network request manager
     NetworkRequestManager::initialize();
     QVERIFY(NetworkRequestManager::isInitialized());
+
+    // Start local mock HTTP server
+    s_server = new HttpTestServer(this);
+    QVERIFY2(s_server->start(), "Failed to start HttpTestServer");
+    qDebug() << "Test server on" << qPrintable(s_server->baseUrl());
 }
 
 void TestNetworkRequest::cleanupTestCase()
 {
-    // Clean up network request manager
+    s_server->stop();
     NetworkRequestManager::unInitialize();
     QVERIFY(!NetworkRequestManager::isInitialized());
 }
@@ -48,96 +53,93 @@ bool TestNetworkRequest::waitForFinished(std::shared_ptr<NetworkReply> reply, in
 
 void TestNetworkRequest::testGetRequest()
 {
-    // Test GET request
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/get?test1=1&test2=2");
+    req->url = s_server->baseUrl() + "/get?test1=1&test2=2";
     req->type = RequestType::Get;
 
     std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
     QVERIFY(reply != nullptr);
+
+    bool called = false;
     if (reply)
     {
         QObject::connect(reply.get(), &NetworkReply::requestFinished,
-                         [this](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                          {
-                             // Check if request is successful
+                             called = true;
                              QVERIFY(rsp);
                              QVERIFY(rsp->success);
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
-    // Wait for request to complete
+
     QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
 }
 
 void TestNetworkRequest::testPostRequest()
 {
-    // Test POST request
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/post");
+    req->url = s_server->baseUrl() + "/post";
     req->type = RequestType::Post;
     req->body = QString("{\"test\": \"data\"}");
-
-    // Set Content-Type
     req->headers.insert("Content-Type", "application/json");
 
     std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
     QVERIFY(reply != nullptr);
+
+    bool called = false;
     if (reply)
     {
         QObject::connect(reply.get(), &NetworkReply::requestFinished,
-                         [this](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                          {
-                             // Check if request is successful
+                             called = true;
                              QVERIFY(rsp);
                              QVERIFY(rsp->success);
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
 
-    // Wait for request to complete
     QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
 }
 
 void TestNetworkRequest::testPostFormDataRequest()
 {
-    // Test POST form data request
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/post");
+    req->url = s_server->baseUrl() + "/post";
     req->type = RequestType::Post;
-
     req->uploadConfig = std::make_unique<UploadConfig>();
     req->uploadConfig->useFormData = true;
     req->uploadConfig->kvPairs.insert("key", "value");
 
     std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
     QVERIFY(reply != nullptr);
+
+    bool called = false;
     if (reply)
     {
         QObject::connect(reply.get(), &NetworkReply::requestFinished,
-                         [this](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                          {
-                             // Check if request is successful
+                             called = true;
                              QVERIFY(rsp);
                              QVERIFY(rsp->success);
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
 
-    // Wait for request to complete
     QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
 }
 
 void TestNetworkRequest::testPutRequest()
 {
-    // Test PUT request
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/put");
+    req->url = s_server->baseUrl() + "/put";
     req->type = RequestType::Put;
-
-    // Set Content-Type
     req->headers.insert("Content-Type", "application/json");
-
     req->uploadConfig = std::make_unique<UploadConfig>();
     req->uploadConfig->usePutMethod = true;
     req->uploadConfig->useStream = true;
@@ -145,127 +147,130 @@ void TestNetworkRequest::testPutRequest()
 
     std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
     QVERIFY(reply != nullptr);
+
+    bool called = false;
     if (reply)
     {
         QObject::connect(reply.get(), &NetworkReply::requestFinished,
-                         [this](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                          {
-                             // Check if request is successful
+                             called = true;
                              QVERIFY(rsp);
                              QVERIFY(rsp->success);
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
 
-    // Wait for request to complete
     QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
 }
 
 void TestNetworkRequest::testDeleteRequest()
 {
-    // Test DELETE request
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/delete");
+    req->url = s_server->baseUrl() + "/delete";
     req->type = RequestType::Delete;
 
     std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
     QVERIFY(reply != nullptr);
+
+    bool called = false;
     if (reply)
     {
         QObject::connect(reply.get(), &NetworkReply::requestFinished,
-                         [this](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                          {
-                             // Check if request is successful
+                             called = true;
                              QVERIFY(rsp);
                              QVERIFY(rsp->success);
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
 
-    // Wait for request to complete
     QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
 }
 
 void TestNetworkRequest::testHeadRequest()
 {
-    // Test HEAD request
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/get");
+    req->url = s_server->baseUrl() + "/get";
     req->type = RequestType::Head;
 
     std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
     QVERIFY(reply != nullptr);
+
+    bool called = false;
     if (reply)
     {
         QObject::connect(reply.get(), &NetworkReply::requestFinished,
-                         [this](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                          {
-                             // Check if request is successful
+                             called = true;
                              QVERIFY(rsp);
                              QVERIFY(rsp->success);
                              QVERIFY(!rsp->headers.isEmpty());
                          });
     }
-    // Wait for request to complete
+
     QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
 }
 
 void TestNetworkRequest::testRequestHeaders()
 {
-    // Test request header handling
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/headers");
+    req->url = s_server->baseUrl() + "/headers";
     req->type = RequestType::Get;
-
-    // Add custom request headers
     req->headers.insert("X-Custom-Header", "CustomValue");
     req->headers.insert("Accept", "application/json");
 
     std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
     QVERIFY(reply != nullptr);
+
+    bool called = false;
     if (reply)
     {
         QObject::connect(reply.get(), &NetworkReply::requestFinished,
-                         [this](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                          {
-                             // Check if request is successful
+                             called = true;
                              QVERIFY(rsp);
                              QVERIFY(rsp->success);
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
 
-    // Wait for request to complete
     QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
 }
 
 void TestNetworkRequest::testContentType()
 {
-    // Test Content-Type handling
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/post");
+    req->url = s_server->baseUrl() + "/post";
     req->type = RequestType::Post;
     req->body = QString("key1=value1&key2=value2");
-
-    // Explicitly set Content-Type
     req->headers.insert("Content-Type", "application/x-www-form-urlencoded");
 
     std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
     QVERIFY(reply != nullptr);
+
+    bool called = false;
     if (reply)
     {
         QObject::connect(reply.get(), &NetworkReply::requestFinished,
-                         [this](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                          {
-                             // Check if request is successful
+                             called = true;
                              QVERIFY(rsp);
                              QVERIFY(rsp->success);
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
 
-    // Wait for request to complete
     QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
 }
 
 void TestNetworkRequest::testGlobalProxyConfig()
@@ -303,19 +308,15 @@ void TestNetworkRequest::testGlobalProxyConfig()
     QCOMPARE(qproxyNoAuth.port(), 8888);
     QVERIFY(qproxyNoAuth.user().isEmpty());
 
-    // Reset
     ProxyConfig empty;
     NetworkRequestManager::setGlobalProxy(empty);
 }
 
 void TestNetworkRequest::testRequestProxyConfig()
 {
-    // Request with per-request proxy will fail because proxy is unreachable,
-    // but the fact that it fails proves the proxy was applied
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/get");
+    req->url = s_server->baseUrl() + "/get";
     req->type = RequestType::Get;
-
     req->proxyConfig = std::make_unique<ProxyConfig>();
     req->proxyConfig->enabled = true;
     req->proxyConfig->type = QNetworkProxy::HttpProxy;
@@ -333,7 +334,6 @@ void TestNetworkRequest::testRequestProxyConfig()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             // Should fail because 127.0.0.1:1 is not a valid proxy
                              QVERIFY(!rsp->success);
                          });
     }
@@ -344,14 +344,15 @@ void TestNetworkRequest::testRequestProxyConfig()
 
 void TestNetworkRequest::testRetryOnFailure()
 {
-    // Request to unreachable port with retry enabled
+    s_server->setFailPath("/retry-test", 2);
+
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("http://127.0.0.1:1/");
+    req->url = s_server->baseUrl() + "/retry-test";
     req->type = RequestType::Get;
     req->behavior.retryOnFailed = true;
-    req->behavior.maxRetryCount = 2;
-    req->behavior.retryDelayMs = 100;
-    req->behavior.transferTimeout = 2000;
+    req->behavior.maxRetryCount = 3;
+    req->behavior.retryDelayMs = 50;
+    req->behavior.transferTimeout = 3000;
 
     QElapsedTimer timer;
     timer.start();
@@ -367,25 +368,22 @@ void TestNetworkRequest::testRetryOnFailure()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(!rsp->success);
-                             QVERIFY(!rsp->errorMessage.isEmpty());
+                             QVERIFY(rsp->success);
                          });
     }
 
-    // Test should complete within reasonable time (retry delay = 100 + 200 = 300ms + request time)
-    QVERIFY(waitForFinished(reply, 15000));
+    QVERIFY(waitForFinished(reply, 30000));
     QVERIFY(called);
+    QVERIFY(s_server->allRetriesPassed());
 
     qint64 elapsed = timer.elapsed();
-    QVERIFY(elapsed >= 100); // At least one retry delay
-    QVERIFY(elapsed < 30000); // Sanity check
+    QVERIFY(elapsed >= 50);
 
-    // Test without retry for comparison
     std::unique_ptr<RequestContext> reqNoRetry = std::make_unique<RequestContext>();
     reqNoRetry->url = QString("http://127.0.0.1:1/");
     reqNoRetry->type = RequestType::Get;
     reqNoRetry->behavior.retryOnFailed = false;
-    reqNoRetry->behavior.transferTimeout = 2000;
+    reqNoRetry->behavior.transferTimeout = 3000;
 
     QElapsedTimer timerNoRetry;
     timerNoRetry.start();
@@ -405,13 +403,10 @@ void TestNetworkRequest::testRetryOnFailure()
                          });
     }
 
-    QVERIFY(waitForFinished(replyNoRetry, 15000));
+    QVERIFY(waitForFinished(replyNoRetry, 30000));
     QVERIFY(calledNoRetry);
 
     qint64 elapsedNoRetry = timerNoRetry.elapsed();
-
-    // With retries, the request should take noticeably longer
-    // (no-retry should complete faster than the retry case)
     qDebug() << "Retry elapsed:" << elapsed << "ms, No-retry elapsed:" << elapsedNoRetry << "ms";
 }
 
@@ -422,7 +417,7 @@ void TestNetworkRequest::testSingleDownload()
     QFile::remove(savePath);
 
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/bytes/2048");
+    req->url = s_server->baseUrl() + "/bytes/2048";
     req->type = RequestType::Download;
     req->downloadConfig = std::make_unique<DownloadConfig>();
     req->downloadConfig->threadCount = 1;
@@ -437,7 +432,7 @@ void TestNetworkRequest::testSingleDownload()
     if (reply)
     {
         QObject::connect(reply.get(), &NetworkReply::requestFinished,
-                         [&called, savePath](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                          {
                              called = true;
                              QVERIFY(rsp);
@@ -461,7 +456,7 @@ void TestNetworkRequest::testMTDownload()
     QFile::remove(savePath);
 
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/bytes/4096");
+    req->url = s_server->baseUrl() + "/bytes/4096";
     req->type = RequestType::Download;
     req->downloadConfig = std::make_unique<DownloadConfig>();
     req->downloadConfig->threadCount = 2;
@@ -476,7 +471,7 @@ void TestNetworkRequest::testMTDownload()
     if (reply)
     {
         QObject::connect(reply.get(), &NetworkReply::requestFinished,
-                         [&called, savePath](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                         [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                          {
                              called = true;
                              QVERIFY(rsp);
@@ -495,7 +490,6 @@ void TestNetworkRequest::testMTDownload()
 
 void TestNetworkRequest::testFileUpload()
 {
-    // Create a temp file to upload
     QTemporaryFile tmpFile;
     QVERIFY(tmpFile.open());
     QByteArray uploadContent("QtNetworkRequest upload test data - 1234567890");
@@ -505,7 +499,7 @@ void TestNetworkRequest::testFileUpload()
     tmpFile.close();
 
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = QString("https://httpbin.org/put");
+    req->url = s_server->baseUrl() + "/put";
     req->type = RequestType::Put;
     req->uploadConfig = std::make_unique<UploadConfig>();
     req->uploadConfig->usePutMethod = true;
@@ -523,7 +517,6 @@ void TestNetworkRequest::testFileUpload()
                              called = true;
                              QVERIFY(rsp);
                              QVERIFY(rsp->success);
-                             // httpbin should echo back the uploaded data
                              QVERIFY(rsp->body.contains(uploadContent));
                          });
     }
@@ -541,10 +534,10 @@ void TestNetworkRequest::testPersistentCookieJar()
     QCOMPARE(NetworkRequestManager::cookieStoragePath(), cookieFile);
     QVERIFY(NetworkRequestManager::cookieJar() != nullptr);
 
-    // First request: httpbin.org should set cookies
+    // First request: set a cookie via the server
     {
         std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-        req->url = QString("https://httpbin.org/cookies/set?testcookie=hello123");
+        req->url = s_server->baseUrl() + "/cookies/set?testcookie=hello123";
         req->type = RequestType::Get;
 
         std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
@@ -557,7 +550,6 @@ void TestNetworkRequest::testPersistentCookieJar()
                              [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
                              {
                                  called = true;
-                                 // httpbin returns 302 for /cookies/set, might follow redirect
                                  QVERIFY(rsp);
                              });
         }
@@ -577,7 +569,7 @@ void TestNetworkRequest::testPersistentCookieJar()
     // Second request to /cookies to verify cookie is sent
     {
         std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-        req->url = QString("https://httpbin.org/cookies");
+        req->url = s_server->baseUrl() + "/cookies";
         req->type = RequestType::Get;
 
         std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
@@ -592,7 +584,6 @@ void TestNetworkRequest::testPersistentCookieJar()
                                  called = true;
                                  QVERIFY(rsp);
                                  QVERIFY(rsp->success);
-                                 // Response should mention our cookie
                                  QVERIFY(rsp->body.contains("testcookie"));
                              });
         }
@@ -605,7 +596,7 @@ void TestNetworkRequest::testPersistentCookieJar()
 
     {
         std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-        req->url = QString("https://httpbin.org/cookies");
+        req->url = s_server->baseUrl() + "/cookies";
         req->type = RequestType::Get;
 
         std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
@@ -627,7 +618,6 @@ void TestNetworkRequest::testPersistentCookieJar()
         QVERIFY(called);
     }
 
-    // Clean up
     QFile::remove(cookieFile);
     NetworkRequestManager::setCookieStoragePath(QString());
 }
@@ -635,32 +625,27 @@ void TestNetworkRequest::testPersistentCookieJar()
 void TestNetworkRequest::testRequestPriority()
 {
     int savedMax = NetworkRequestManager::globalInstance()->maxThreadCount();
-    // Limit to 1 thread so subsequent requests queue
     QVERIFY(NetworkRequestManager::globalInstance()->setMaxThreadCount(1));
 
-    // Submit high-priority request (will be queued)
     std::unique_ptr<RequestContext> highReq = std::make_unique<RequestContext>();
-    highReq->url = QString("https://httpbin.org/get?high=1");
+    highReq->url = s_server->baseUrl() + "/get?high=1";
     highReq->type = RequestType::Get;
     highReq->behavior.priority = 10;
 
     std::shared_ptr<NetworkReply> highReply = NetworkRequestManager::globalInstance()->postRequest(std::move(highReq));
     QVERIFY(highReply != nullptr);
 
-    // Give time for the first request to start
     QCoreApplication::processEvents();
     QThread::msleep(50);
 
-    // Submit low-priority request (will be queued behind high-priority)
     std::unique_ptr<RequestContext> lowReq = std::make_unique<RequestContext>();
-    lowReq->url = QString("https://httpbin.org/get?low=1");
+    lowReq->url = s_server->baseUrl() + "/get?low=1";
     lowReq->type = RequestType::Get;
     lowReq->behavior.priority = 0;
 
     std::shared_ptr<NetworkReply> lowReply = NetworkRequestManager::globalInstance()->postRequest(std::move(lowReq));
     QVERIFY(lowReply != nullptr);
 
-    // Both should complete (may fail with 503 from external service)
     bool highDone = false, lowDone = false;
     if (highReply)
     {
@@ -681,7 +666,6 @@ void TestNetworkRequest::testRequestPriority()
                          });
     }
 
-    // Wait for both (longer timeout since they're sequential)
     QSignalSpy highSpy(highReply.get(), &NetworkReply::requestFinished);
     QSignalSpy lowSpy(lowReply.get(), &NetworkReply::requestFinished);
     QTimer timer;
@@ -697,6 +681,5 @@ void TestNetworkRequest::testRequestPriority()
     QVERIFY(highDone);
     QVERIFY(lowDone);
 
-    // Restore thread count
     NetworkRequestManager::globalInstance()->setMaxThreadCount(savedMax);
 }

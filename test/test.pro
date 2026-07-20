@@ -8,10 +8,12 @@ QT += core network testlib
 # Add test source files
 SOURCES += \
     main.cpp \
-    test_networkrequest.cpp
+    test_networkrequest.cpp \
+    httptestserver.cpp
 
 HEADERS += \
-    test_networkrequest.h
+    test_networkrequest.h \
+    httptestserver.h
 
 # Include network request library header file paths
 INCLUDEPATH += ../include ../source
