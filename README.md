@@ -37,7 +37,10 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 
 - **Memory-Mapped Files**: Efficient file I/O for large downloads using platform-specific APIs
 - **Batch Operations**: Group multiple requests with aggregated progress tracking
-- **Error Handling**: Automatic retry mechanisms and comprehensive error reporting
+- **Retry with Exponential Backoff**: Automatic retry of transient failures (connection refused, timeout, SSL errors)
+- **Proxy Support**: Per-request proxy or global proxy with two-level cascade
+- **Persistent Cookie Jar**: File-backed cookie storage shared across all requests
+- **Request Priority Queue**: Higher-priority requests execute first when threads are saturated
 - **Progress Tracking**: Real-time progress updates for downloads, uploads, and batch operations
 - **Cross-Platform**: Windows, Linux, and macOS support with platform-specific optimizations
 
@@ -293,6 +296,68 @@ if (reply) {
 }
 ```
 
+### Proxy Configuration
+
+```cpp
+// Global proxy (applied to all requests unless overridden)
+QtNetworkRequest::ProxyConfig proxy;
+proxy.enabled = true;
+proxy.host = "proxy.example.com";
+proxy.port = 3128;
+proxy.user = "username";
+proxy.password = "password";
+NetworkRequestManager::setGlobalProxy(proxy);
+
+// Per-request proxy (overrides global)
+auto req = std::make_unique<QtNetworkRequest::RequestContext>();
+req->url = "https://httpbin.org/get";
+req->type = QtNetworkRequest::RequestType::Get;
+req->proxyConfig = std::make_unique<QtNetworkRequest::ProxyConfig>();
+req->proxyConfig->enabled = true;
+req->proxyConfig->host = "127.0.0.1";
+req->proxyConfig->port = 8080;
+```
+
+### Persistent Cookie Jar
+
+```cpp
+// Enable file-backed cookie storage (in main thread before requests)
+NetworkRequestManager::setCookieStoragePath("cookies.json");
+
+// Cookies are automatically saved after each response
+// and reloaded on next application start
+
+// Disable (in-memory only)
+NetworkRequestManager::setCookieStoragePath(QString());
+```
+
+### Request Priority
+
+```cpp
+auto highReq = std::make_unique<QtNetworkRequest::RequestContext>();
+highReq->url = "https://httpbin.org/get";
+highReq->type = QtNetworkRequest::RequestType::Get;
+highReq->behavior.priority = 10; // higher = more urgent
+
+auto lowReq = std::make_unique<QtNetworkRequest::RequestContext>();
+lowReq->url = "https://httpbin.org/get";
+lowReq->type = QtNetworkRequest::RequestType::Get;
+lowReq->behavior.priority = 0; // default priority
+
+// When threads are saturated, priority 10 executes before priority 0
+```
+
+### Retry on Failure
+
+```cpp
+auto req = std::make_unique<QtNetworkRequest::RequestContext>();
+req->url = "https://httpbin.org/get";
+req->type = QtNetworkRequest::RequestType::Get;
+req->behavior.retryOnFailed = true;
+req->behavior.maxRetryCount = 3;    // up to 3 retries
+req->behavior.retryDelayMs = 1000;  // 1s, then 2s, then 4s (exponential)
+```
+
 ### Request Management
 
 ```cpp
@@ -325,6 +390,9 @@ Singleton class that manages the thread pool and request lifecycle.
 - `stopRequest(quint64)`: Stop a specific request
 - `stopBatchRequests(quint64)`: Stop batch requests
 - `stopAllRequest()`: Stop all active requests
+- `setGlobalProxy(ProxyConfig)`: Set global proxy (applied to all requests)
+- `setCookieStoragePath(path)`: Enable persistent cookie jar with file path
+- `setMaxThreadCount(int)`: Set thread pool size (1-100)
 
 **Signals:**
 
@@ -344,10 +412,15 @@ Configuration structure for network requests (replaces the old RequestTask).
 - `headers`: Request headers (QMap<QByteArray, QByteArray>)
 - `body`: Request body for POST/PUT
 - `behavior.showProgress`: Enable progress reporting
-- `behavior.retryOnFailed`: Enable retry mechanism
-- `behavior.maxRedirectionCount`: Maximum redirect limit
+- `behavior.retryOnFailed`: Enable retry on transient failures
+- `behavior.maxRetryCount`: Maximum retry attempts (default: 3)
+- `behavior.retryDelayMs`: Base retry delay in ms (doubles each attempt, default: 1000)
+- `behavior.maxRedirectionCount`: Maximum redirect limit (default: 3)
+- `behavior.priority`: Request priority (higher = more urgent, default: 0)
+- `behavior.transferTimeout`: Transfer timeout in ms (default: 30000)
+- `proxyConfig`: Per-request proxy override (overrides global proxy)
 - `downloadConfig`: Download configuration (saveDir, overwriteFile, threadCount)
-- `uploadConfig`: Upload configuration (filePath, usePutMethod, useFormData)
+- `uploadConfig`: Upload configuration (filePath, usePutMethod, useFormData, useStream)
 - `userContext`: User-defined context data
 
 #### NetworkReply
@@ -578,7 +651,13 @@ ctest -C Release
 
 The test suite covers:
 
-- Basic request functionality
+- Basic request functionality (GET, POST, PUT, DELETE, HEAD, form data)
+- File download (single-threaded and multi-threaded)
+- File upload (PUT with file)
+- Proxy configuration (global and per-request)
+- Retry behavior (retry on transient failures, disabled retries)
+- Persistent cookie jar (save, reload, cross-request cookie sharing)
+- Request priority queue (thread pool saturation with priority ordering)
 - Error handling scenarios
 - Progress reporting
 - Thread safety
