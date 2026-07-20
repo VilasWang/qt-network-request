@@ -5,6 +5,9 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#else
+#include <cerrno>
+#include <cstring>
 #endif
 #include <QDebug>
 #include <QDir>
@@ -735,6 +738,12 @@ void Downloader::onFinished()
         if (error != 0)
         {
             m_strError = QString("Download error: Unknown downloader exception (System error: %1)").arg(error);
+        }
+#else
+        int error = errno;
+        if (error != 0)
+        {
+            m_strError = QString("Download error: Unknown downloader exception (errno: %1 - %2)").arg(error).arg(QString::fromLatin1(strerror(error)));
         }
 #endif
         qCritical() << "[QMultiThreadNetwork] Part" << m_nIndex << "Downloader::onFinished() exception:" << m_strError;

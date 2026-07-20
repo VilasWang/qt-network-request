@@ -246,7 +246,7 @@ print_status "Library file: $BUILD_DIR/$BUILD_TYPE/libQNetworkRequest.so"
 
 if [[ "$BUILD_TYPE" == "Release" ]]; then
     print_status "Sample applications:"
-    print_status "  - GUI demo: $BUILD_DIR/$BUILD_TYPE/NetworkRequestTool"
+    print_status "  - GUI demo: $BUILD_DIR/$BUILD_TYPE/QtRequester"
     print_status "  - Download manager: $BUILD_DIR/$BUILD_TYPE/QtDownloader"
 fi
 

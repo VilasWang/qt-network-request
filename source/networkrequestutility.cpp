@@ -225,9 +225,9 @@ QString NetworkRequestUtility::getDownloadFileSaveDir(const RequestContext* cont
         qWarning() << strError;
         return QString();
     }
-    if (!saveDir.endsWith("\\"))
+    if (!saveDir.endsWith(QDir::separator()))
     {
-        saveDir.append("\\");
+        saveDir.append(QDir::separator());
     }
     return saveDir;
 }

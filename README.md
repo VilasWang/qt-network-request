@@ -43,8 +43,8 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 
 ### 📦 Sample Applications
 
-- **QtNetworkRequestTool**: GUI demo application for testing HTTP requests (located in `samples/networkrequesttool/`)
-- **QtNetworkDownloader**: Download manager with intelligent multi-threading support (located in `samples/networkdownloader/`)
+- **QtRequester**: GUI demo application for testing HTTP requests (located in `samples/networkrequesttool/`)
+- **QtDownloader**: Download manager with intelligent multi-threading support (located in `samples/networkdownloader/`)
 - **Unit Tests**: Comprehensive test suite covering all functionality
 
 ## Requirements
@@ -142,7 +142,13 @@ chmod +x scripts/build_linux.sh
 #### macOS
 
 ```bash
-# MacOS currently prefers building via CMake directly
+# Build using the provided script (run from scripts/ directory)
+./build_macos.sh --release
+
+# With tests and explicit architecture
+./build_macos.sh --release --tests --arch x86_64
+
+# Or build directly via CMake
 export OPENSSL_ROOT_DIR=$(brew --prefix openssl@1.1)
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT_DIR}"
 cmake --build build --config Release --parallel
@@ -405,15 +411,15 @@ The library supports both CMake and QMake build systems with standardized naming
 **CMake Targets:**
 
 - `QNetworkRequest`: Core library (DLL)
-- `QtNetworkRequestTool`: GUI demo application (source in `samples/networkrequesttool/`)
-- `QtNetworkDownloader`: Download manager application (source in `samples/networkdownloader/`)
+- `QtRequester`: GUI demo application (source in `samples/networkrequesttool/`)
+- `QtDownloader`: Download manager application (source in `samples/networkdownloader/`)
 - `UnitTests`: Test suite
 
 **QMake Targets:**
 
 - `QNetworkRequest`: Core library (DLL)
-- `QtNetworkRequestTool`: GUI demo application (source in `samples/networkrequesttool/`)
-- `QtNetworkDownloader`: Download manager application (source in `samples/networkdownloader/`)
+- `QtRequester`: GUI demo application (source in `samples/networkrequesttool/`)
+- `QtDownloader`: Download manager application (source in `samples/networkdownloader/`)
 
 ### Build Types
 
@@ -529,9 +535,8 @@ QtMultiThreadNetwork is designed to work across multiple platforms with proper b
 
 ### Platform-Specific Notes
 
-1. **DLL Entry Point**: `dllmain.cpp` is Windows-only and conditionally compiled
-2. **OpenSSL Handling**: Platform-specific dynamic library linking (Windows DLLs, Unix dynamic libraries)
-3. **Build System**: CMake automatically detects and configures platform-specific settings
+1. **OpenSSL Handling**: Platform-specific dynamic library linking (Windows DLLs, Unix dynamic libraries)
+2. **Build System**: CMake automatically detects and configures platform-specific settings
 
 ### Cross-Platform Build Instructions
 

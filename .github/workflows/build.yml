@@ -190,6 +190,41 @@ jobs:
       - name: Build project
         run: cmake --build build --config ${{ matrix.build_type }} --parallel
 
+      # ============ Target Verification ============
+
+      - name: Verify all targets built (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          $buildDir = "build\${{ matrix.build_type }}"
+          $missing = @()
+          @("QNetworkRequest.dll", "QtRequester.exe", "QtDownloader.exe", "UnitTests.exe") | ForEach-Object {
+            if (-not (Test-Path "$buildDir\$_")) { $missing += $_ }
+          }
+          if ($missing.Count -gt 0) {
+            Write-Host "Missing targets: $($missing -join ', ')"
+            exit 1
+          }
+          Write-Host "All targets built successfully"
+
+      - name: Verify all targets built (Linux/macOS)
+        if: matrix.platform != 'windows'
+        run: |
+          buildDir="build/${{ matrix.build_type }}"
+          missing=""
+          for f in "libQNetworkRequest.so" "libQNetworkRequest.dylib" "QtRequester" "QtDownloader" "test/UnitTests"; do
+            if [ ! -f "$buildDir/$f" ] && [ ! -x "$buildDir/$f" ] 2>/dev/null; then
+              # Try without config subdir
+              if [ ! -f "build/$f" ] && [ ! -x "build/$f" ] 2>/dev/null; then
+                missing="$missing $f"
+              fi
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "Missing targets:$missing"
+            exit 1
+          fi
+          echo "All targets built successfully"
+
       # ============ Testing ============
 
       - name: Run unit tests (Windows)
@@ -215,22 +250,32 @@ jobs:
       - name: Prepare artifacts (Windows)
         if: matrix.platform == 'windows'
         run: |
-          mkdir -p artifacts
-          copy build\${{ matrix.build_type }}\*.dll artifacts\
-          copy build\${{ matrix.build_type }}\*.exe artifacts\
-          copy ThirdParty\openssl\1.1.1\bin\*.dll artifacts\
+          mkdir -p artifacts\library artifacts\requester artifacts\downloader artifacts\tests
+          copy "build\${{ matrix.build_type }}\QNetworkRequest.dll" artifacts\library\
+          copy "build\${{ matrix.build_type }}\QNetworkRequest.pdb" artifacts\library\
+          copy "build\${{ matrix.build_type }}\QtRequester.exe" artifacts\requester\
+          copy "build\${{ matrix.build_type }}\QtDownloader.exe" artifacts\downloader\
+          copy "build\test\${{ matrix.build_type }}\UnitTests.exe" artifacts\tests\
+          copy "ThirdParty\openssl\1.1.1\bin\libcrypto-1_1-x64.dll" artifacts\library\
+          copy "ThirdParty\openssl\1.1.1\bin\libssl-1_1-x64.dll" artifacts\library\
 
       - name: Prepare artifacts (Linux)
         if: matrix.platform == 'linux'
         run: |
-          mkdir -p artifacts
-          find build/${{ matrix.build_type }} -type f \( -executable -o -name "*.so*" \) -exec cp {} artifacts/ \;
+          mkdir -p artifacts/library artifacts/requester artifacts/downloader artifacts/tests
+          cp "build/${{ matrix.build_type }}/libQNetworkRequest.so" artifacts/library/ 2>/dev/null || true
+          cp "build/${{ matrix.build_type }}/QtRequester" artifacts/requester/ 2>/dev/null || true
+          cp "build/${{ matrix.build_type }}/QtDownloader" artifacts/downloader/ 2>/dev/null || true
+          cp "build/test/${{ matrix.build_type }}/UnitTests" artifacts/tests/ 2>/dev/null || true
 
       - name: Prepare artifacts (macOS)
         if: matrix.platform == 'macos'
         run: |
-          mkdir -p artifacts
-          find build/${{ matrix.build_type }} -type f \( -name "*.dylib*" -o -exec test -x {} \; \) -exec cp {} artifacts/ \;
+          mkdir -p artifacts/library artifacts/requester artifacts/downloader artifacts/tests
+          cp "build/${{ matrix.build_type }}/libQNetworkRequest.dylib" artifacts/library/ 2>/dev/null || true
+          cp -R "build/${{ matrix.build_type }}/QtRequester.app" artifacts/requester/ 2>/dev/null || true
+          cp -R "build/${{ matrix.build_type }}/QtDownloader.app" artifacts/downloader/ 2>/dev/null || true
+          cp "build/test/${{ matrix.build_type }}/UnitTests" artifacts/tests/ 2>/dev/null || true
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

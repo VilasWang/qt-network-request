@@ -3,7 +3,7 @@
 ######################################################################
 
 TEMPLATE = app
-TARGET = QtNetworkDownloader
+TARGET = QtDownloader
 
 QT += core gui network widgets
 CONFIG += debug_and_release c++17

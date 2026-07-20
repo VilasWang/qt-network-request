@@ -78,13 +78,13 @@ if errorlevel 1 (
 
 REM 5) Verify essential files exist
 echo Verifying essential files...
-if not exist install\QtNetworkRequestTool.exe (
-    echo ERROR: QtNetworkRequestTool.exe not found in install directory
+if not exist install\QtRequester.exe (
+    echo ERROR: QtRequester.exe not found in install directory
     pause
     exit /b 1
 )
-if not exist install\QtNetworkDownloader.exe (
-    echo ERROR: QtNetworkDownloader.exe not found in install directory
+if not exist install\QtDownloader.exe (
+    echo ERROR: QtDownloader.exe not found in install directory
     pause
     exit /b 1
 )
@@ -96,20 +96,20 @@ if not exist install\QNetworkRequest.dll (
 
 echo Files copied to install directory successfully.
 
-rem Collect Qt runtime for QtNetworkRequestTool
-echo Deploying Qt dependencies for QtNetworkRequestTool...
-windeployqt --release --no-translations --no-system-d3d-compiler --compiler-runtime install\QtNetworkRequestTool.exe
+rem Collect Qt runtime for QtRequester
+echo Deploying Qt dependencies for QtRequester...
+windeployqt --release --no-translations --no-system-d3d-compiler --compiler-runtime install\QtRequester.exe
 if errorlevel 1 (
-    echo windeployqt failed for QtNetworkRequestTool!
+    echo windeployqt failed for QtRequester!
     pause
     exit /b 1
 )
 
-rem Collect Qt runtime for QtNetworkDownloader
-echo Deploying Qt dependencies for QtNetworkDownloader...
-windeployqt --release --no-translations --no-system-d3d-compiler --compiler-runtime install\QtNetworkDownloader.exe
+rem Collect Qt runtime for QtDownloader
+echo Deploying Qt dependencies for QtDownloader...
+windeployqt --release --no-translations --no-system-d3d-compiler --compiler-runtime install\QtDownloader.exe
 if errorlevel 1 (
-    echo windeployqt failed for QtNetworkDownloader!
+    echo windeployqt failed for QtDownloader!
     pause
     exit /b 1
 )
@@ -140,37 +140,37 @@ if errorlevel 1 (
 )
 
 REM 8) Build MSI packages using WiX v4 syntax with OpenSSL configuration
-echo Building QtNetworkRequestTool MSI package with OpenSSL DLLs...
-wix build scripts\Package.wxs -o installer\QtNetworkRequestTool-1.0.0.msi ^
+echo Building QtRequester MSI package with OpenSSL DLLs...
+wix build scripts\Package.wxs -o installer\QtRequester-1.0.0.msi ^
     -d USE_OPENSSL_11=%USE_OPENSSL_11% ^
     -d OPENSSL_CRYPTO_DLL=%OPENSSL_CRYPTO_DLL% ^
     -d OPENSSL_SSL_DLL=%OPENSSL_SSL_DLL%
 if errorlevel 1 (
-    echo ERROR: Failed to build QtNetworkRequestTool MSI package
+    echo ERROR: Failed to build QtRequester MSI package
     pause
     exit /b 1
 )
 
-echo Building QtNetworkDownloader MSI package with OpenSSL DLLs...
-wix build scripts\Package_QtDownloader.wxs -o installer\QtNetworkDownloader-1.0.0.msi ^
+echo Building QtDownloader MSI package with OpenSSL DLLs...
+wix build scripts\Package_QtDownloader.wxs -o installer\QtDownloader-1.0.0.msi ^
     -d USE_OPENSSL_11=%USE_OPENSSL_11% ^
     -d OPENSSL_CRYPTO_DLL=%OPENSSL_CRYPTO_DLL% ^
     -d OPENSSL_SSL_DLL=%OPENSSL_SSL_DLL%
 if errorlevel 1 (
-    echo ERROR: Failed to build QtNetworkDownloader MSI package
+    echo ERROR: Failed to build QtDownloader MSI package
     pause
     exit /b 1
 )
 
 REM 9) Verify MSI packages were created
-if not exist installer\QtNetworkRequestTool-1.0.0.msi (
-    echo ERROR: QtNetworkRequestTool MSI package was not created
+if not exist installer\QtRequester-1.0.0.msi (
+    echo ERROR: QtRequester MSI package was not created
     pause
     exit /b 1
 )
 
-if not exist installer\QtNetworkDownloader-1.0.0.msi (
-    echo ERROR: QtNetworkDownloader MSI package was not created
+if not exist installer\QtDownloader-1.0.0.msi (
+    echo ERROR: QtDownloader MSI package was not created
     pause
     exit /b 1
 )
@@ -178,8 +178,8 @@ if not exist installer\QtNetworkDownloader-1.0.0.msi (
 echo.
 echo Packaging completed successfully!
 echo MSI packages created:
-echo - QtNetworkRequestTool-1.0.0.msi
-echo - QtNetworkDownloader-1.0.0.msi
+echo - QtRequester-1.0.0.msi
+echo - QtDownloader-1.0.0.msi
 
 endlocal
 exit /b 0

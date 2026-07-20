@@ -102,7 +102,7 @@ else()
 endif()
 
 # --- Build executable: NetworkRequestTool ---
-add_executable(QtNetworkRequestTool ${GUI_EXECUTABLE_FLAG}
+add_executable(QtRequester ${GUI_EXECUTABLE_FLAG}
     # Sources
     samples/networkrequesttool/main.cpp
     samples/networkrequesttool/networkrequesttool.cpp
@@ -116,13 +116,13 @@ add_executable(QtNetworkRequestTool ${GUI_EXECUTABLE_FLAG}
 )
 
 # Link NetworkRequestTool to our library and Qt modules
-target_link_libraries(QtNetworkRequestTool PRIVATE QNetworkRequest Qt5::Widgets Qt5::Xml Qt5::Network)
+target_link_libraries(QtRequester PRIVATE QNetworkRequest Qt5::Widgets Qt5::Xml Qt5::Network)
 
 # Set include directories for executable
-target_include_directories(QtNetworkRequestTool PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/samples/networkrequesttool)
+target_include_directories(QtRequester PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/samples/networkrequesttool)
 
 # --- Build executable: NetworkDownloader ---
-add_executable(QtNetworkDownloader ${GUI_EXECUTABLE_FLAG}
+add_executable(QtDownloader ${GUI_EXECUTABLE_FLAG}
     # Sources
     samples/networkdownloader/main.cpp
     samples/networkdownloader/downloadermainwindow.cpp
@@ -140,23 +140,23 @@ add_executable(QtNetworkDownloader ${GUI_EXECUTABLE_FLAG}
     samples/networkdownloader/NetworkDownloader.qrc
 )
 
-# Add additional debug settings for QtNetworkDownloader
+# Add additional debug settings for QtDownloader
 if(MSVC AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_options(QtNetworkDownloader PRIVATE /ZI /Od /RTC1 /Ob0)
-    set_target_properties(QtNetworkDownloader PROPERTIES
+    target_compile_options(QtDownloader PRIVATE /ZI /Od /RTC1 /Ob0)
+    set_target_properties(QtDownloader PROPERTIES
         LINK_FLAGS "/DEBUG /INCREMENTAL"
         COMPILE_DEFINITIONS "_DEBUG"
         MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL"
     )
     # Ensure debug information is generated
-    target_compile_definitions(QtNetworkDownloader PRIVATE _DEBUG)
+    target_compile_definitions(QtDownloader PRIVATE _DEBUG)
 endif()
 
 # Link downloader to our library and Qt modules
-target_link_libraries(QtNetworkDownloader PRIVATE QNetworkRequest Qt5::Widgets Qt5::Network)
+target_link_libraries(QtDownloader PRIVATE QNetworkRequest Qt5::Widgets Qt5::Network)
 
 # Set include directories for executable
-target_include_directories(QtNetworkDownloader PRIVATE
+target_include_directories(QtDownloader PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/samples/networkdownloader
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
@@ -177,8 +177,8 @@ set_target_properties(QNetworkRequest PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_CURRENT_SOURCE_DIR}/build/MinSizeRel"
 )
 
-# Set output directories - QtNetworkDownloader
-set_target_properties(QtNetworkDownloader PROPERTIES
+# Set output directories - QtDownloader
+set_target_properties(QtDownloader PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/build/Debug"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/build/Release"
     RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_CURRENT_SOURCE_DIR}/build/RelWithDebInfo"
@@ -193,8 +193,8 @@ set_target_properties(QtNetworkDownloader PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_CURRENT_SOURCE_DIR}/build/MinSizeRel"
 )
 
-# Set output directories - QtNetworkRequestTool
-set_target_properties(QtNetworkRequestTool PROPERTIES
+# Set output directories - QtRequester
+set_target_properties(QtRequester PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/build/Debug"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/build/Release"
     RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_CURRENT_SOURCE_DIR}/build/RelWithDebInfo"
@@ -229,19 +229,19 @@ if(WIN32)
         )
         
         add_custom_command(
-            TARGET QtNetworkRequestTool POST_BUILD
+            TARGET QtRequester POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${OPENSSL_BIN_DIR}/libcrypto-1_1-x64.dll"
             "${OPENSSL_BIN_DIR}/libssl-1_1-x64.dll"
-            $<TARGET_FILE_DIR:QtNetworkRequestTool>
+            $<TARGET_FILE_DIR:QtRequester>
         )
         
         add_custom_command(
-            TARGET QtNetworkDownloader POST_BUILD
+            TARGET QtDownloader POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${OPENSSL_BIN_DIR}/libcrypto-1_1-x64.dll"
             "${OPENSSL_BIN_DIR}/libssl-1_1-x64.dll"
-            $<TARGET_FILE_DIR:QtNetworkDownloader>
+            $<TARGET_FILE_DIR:QtDownloader>
         )
     else()
         add_custom_command(
@@ -253,19 +253,19 @@ if(WIN32)
         )
         
         add_custom_command(
-            TARGET QtNetworkRequestTool POST_BUILD
+            TARGET QtRequester POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${OPENSSL_BIN_DIR}/libeay32.dll"
             "${OPENSSL_BIN_DIR}/ssleay32.dll"
-            $<TARGET_FILE_DIR:QtNetworkRequestTool>
+            $<TARGET_FILE_DIR:QtRequester>
         )
         
         add_custom_command(
-            TARGET QtNetworkDownloader POST_BUILD
+            TARGET QtDownloader POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${OPENSSL_BIN_DIR}/libeay32.dll"
             "${OPENSSL_BIN_DIR}/ssleay32.dll"
-            $<TARGET_FILE_DIR:QtNetworkDownloader>
+            $<TARGET_FILE_DIR:QtDownloader>
         )
     endif()
 endif()
