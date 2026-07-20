@@ -9,8 +9,22 @@
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QTableWidgetItem>
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QDialogButtonBox>
+#include <QtWidgets/QFormLayout>
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QGroupBox>
+#include <QtWidgets/QCheckBox>
+#include <QtWidgets/QSpinBox>
+#include <QtWidgets/QComboBox>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QLineEdit>
 #include <QtCore/QFileInfo>
 #include <QtCore/QJsonDocument>
+#include <QtCore/QJsonObject>
+#include <QtCore/QJsonArray>
+#include <QtCore/QDir>
+#include <QtCore/QFile>
 #include <QtGui/QTextCursor>
 #include <QtGui/QTextCharFormat>
 #include "networkrequestmanager.h"
@@ -81,6 +95,17 @@ void NetworkRequestTool::initializeUI()
     ui.splitter_request->setStretchFactor(0, 1); // Request area
     ui.splitter_request->setStretchFactor(1, 1); // Response area
 
+    // Response info bar
+    m_labelResponseInfo = new QLabel("Status: -- | Time: -- | Received: -- | Sent: --");
+    m_labelResponseInfo->setStyleSheet("color: #969696; padding: 4px 8px; background: #252526;");
+    auto *respPage = ui.tabWidget_response->widget(0);
+    if (respPage)
+    {
+        auto *respLayout = qobject_cast<QVBoxLayout*>(respPage->layout());
+        if (respLayout)
+            respLayout->insertWidget(0, m_labelResponseInfo);
+    }
+
     ui.table_body->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     ui.stackedWidget_body->setCurrentWidget(ui.page_raw);
 
@@ -98,6 +123,7 @@ void NetworkRequestTool::initializeConnections()
     connect(ui.cmb_raw_type, &QComboBox::currentTextChanged, this, &NetworkRequestTool::onRawTypeChanged);
     connect(ui.btn_send, &QPushButton::clicked, this, &NetworkRequestTool::onSendRequest);
     connect(ui.btn_save, &QPushButton::clicked, this, &NetworkRequestTool::onSaveRequest);
+    connect(ui.btn_settings, &QPushButton::clicked, this, &NetworkRequestTool::onSettingsClicked);
     connect(ui.btn_new_request, &QPushButton::clicked, this, &NetworkRequestTool::onNewRequest);
 
     // Parameters and request headers
@@ -179,8 +205,7 @@ void NetworkRequestTool::onMethodChanged(const QString &method)
 {
     currentMethod = method;
 
-    // Enable/disable request body related controls based on HTTP method
-    bool enableBody = (method != "GET" && method != "HEAD");
+    bool enableBody = (method != "GET" && method != "HEAD" && method != "OPTIONS");
     ui.cmb_body_type->setEnabled(enableBody);
     ui.textEdit_body->setEnabled(enableBody && currentBodyType != "none");
 
@@ -227,20 +252,17 @@ void NetworkRequestTool::updateDefaultHeadersForMethod(const QString &method)
 
     // Define default headers for different HTTP methods
     QMap<QString, QString> defaultHeaders;
-    if (method == "GET" || method == "HEAD")
+    if (method == "GET" || method == "HEAD" || method == "OPTIONS")
     {
-        // GET and HEAD methods do not need Content-Type because they have no request body
         defaultHeaders["Accept"] = "*/*";
         defaultHeaders["Accept-Encoding"] = "gzip, deflate";
         defaultHeaders["User-Agent"] = "QtNetworkTool/1.0";
     }
     else
     {
-        // Other methods
         defaultHeaders["Accept"] = "*/*";
         defaultHeaders["Accept-Encoding"] = "gzip, deflate";
         defaultHeaders["User-Agent"] = "QtNetworkTool/1.0";
-        // Note: Do not set Content-Type here as it should be set by updateContentTypeHeader() or user manually
     }
 
     // Add default headers only if they don't already exist
@@ -421,13 +443,15 @@ void NetworkRequestTool::onSendRequest()
         return;
     }
 
-    // Build request task
+    applyAuthHeader();
+
     std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
     req->url = url;
     req->type = getRequestType();
     req->headers = getHeaders();
     req->body = getRequestBody();
     req->behavior.maxRedirectionCount = 3;
+    applyRequestSettings(req);
     if (req->type == RequestType::Download || req->type == RequestType::MTDownload)
     {
         // 示例代码，此工具无这两种type
@@ -470,16 +494,13 @@ void NetworkRequestTool::onSendRequest()
 
 RequestType NetworkRequestTool::getRequestType()
 {
-    if (currentMethod == "GET")
-        return RequestType::Get;
-    if (currentMethod == "POST")
-        return RequestType::Post;
-    if (currentMethod == "PUT")
-        return RequestType::Put;
-    if (currentMethod == "DELETE")
-        return RequestType::Delete;
-    if (currentMethod == "HEAD")
-        return RequestType::Head;
+    if (currentMethod == "GET")     return RequestType::Get;
+    if (currentMethod == "POST")    return RequestType::Post;
+    if (currentMethod == "PUT")     return RequestType::Put;
+    if (currentMethod == "PATCH")   return RequestType::Patch;
+    if (currentMethod == "DELETE")  return RequestType::Delete;
+    if (currentMethod == "HEAD")    return RequestType::Head;
+    if (currentMethod == "OPTIONS") return RequestType::Options;
     return RequestType::Get;
 }
 
@@ -536,7 +557,7 @@ QMap<QByteArray, QByteArray> NetworkRequestTool::getHeaders()
 
 QString NetworkRequestTool::getRequestBody()
 {
-    if (currentBodyType == "none" || currentMethod == "GET" || currentMethod == "HEAD")
+    if (currentBodyType == "none" || currentMethod == "GET" || currentMethod == "HEAD" || currentMethod == "OPTIONS")
     {
         return QString();
     }
@@ -611,7 +632,6 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
     {
         displayResponseHeaders(rsp->headers);
 
-        // Apply syntax highlighter based on content type
         m_highlighter.reset();
         if (isJsonResponse(rsp->headers))
         {
@@ -632,6 +652,14 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
     {
         appendToResponseBody("Error: \n" + rsp->errorMessage, QColor(232, 17, 35));
     }
+
+    // Item 2: show status code, time, size
+    QString info = QString("Status: %1 | Time: %2 ms | Received: %3 | Sent: %4")
+                       .arg(rsp->statusCode)
+                       .arg(rsp->performance.durationMs)
+                       .arg(bytesToString(rsp->performance.bytesReceived))
+                       .arg(bytesToString(rsp->performance.bytesSent));
+    m_labelResponseInfo->setText(info);
 }
 
 bool NetworkRequestTool::isJsonResponse(const QMap<QByteArray, QByteArray> &headers)
@@ -862,11 +890,11 @@ void NetworkRequestTool::onNewRequest()
     ui.table_headers->setRowCount(0);
     addDefaultHeaders();
 
-    // Clear response
     clearResponse();
 
-    // Reset current state
     isNewRequest = true;
+    if (m_labelResponseInfo)
+        m_labelResponseInfo->setText("Status: -- | Time: -- | Received: -- | Sent: --");
 }
 
 void NetworkRequestTool::onSaveRequest()
@@ -877,6 +905,11 @@ void NetworkRequestTool::onSaveRequest()
         return;
     }
     saveToHistory();
+
+    ensureStorageDir();
+    QString fileName = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".json";
+    QString filePath = storageDir() + "/" + fileName;
+    saveToDisk(filePath);
 }
 
 void NetworkRequestTool::saveToHistory()
@@ -1166,31 +1199,277 @@ void NetworkRequestTool::onBodyTextChanged()
     {
         QTextCursor cursor = ui.textEdit_body->textCursor();
         int cursorPosition = cursor.position();
-
-        // Get current text
         QString text = ui.textEdit_body->toPlainText();
-
-        // Try to format JSON
         QJsonParseError parseError;
         QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8(), &parseError);
-
         if (parseError.error == QJsonParseError::NoError && !doc.isNull())
         {
-            // Format JSON
             QString formattedJson = doc.toJson(QJsonDocument::Indented);
-
-            // Temporarily disconnect signal to prevent recursive calls
             disconnect(ui.textEdit_body, &QTextEdit::textChanged, this, &NetworkRequestTool::onBodyTextChanged);
-
-            // Update text while preserving cursor position
             ui.textEdit_body->setPlainText(formattedJson);
-
-            // Restore cursor position (adjust if needed due to formatting)
             cursor.setPosition(qMin(cursorPosition, formattedJson.length()));
             ui.textEdit_body->setTextCursor(cursor);
-
-            // Reconnect signal
             connect(ui.textEdit_body, &QTextEdit::textChanged, this, &NetworkRequestTool::onBodyTextChanged, Qt::UniqueConnection);
         }
     }
+}
+
+// --- Settings dialog (items 3, 5) ---
+void NetworkRequestTool::onSettingsClicked()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle("Request Settings");
+    dlg.setMinimumWidth(420);
+
+    auto *mainLayout = new QVBoxLayout(&dlg);
+
+    // -- Auth group --
+    auto *authGroup = new QGroupBox("Authorization");
+    auto *authLayout = new QFormLayout(authGroup);
+    auto *authTypeCombo = new QComboBox();
+    authTypeCombo->addItems({"None", "Basic", "Bearer"});
+    authTypeCombo->setCurrentText(m_settings.authType);
+    auto *authUserEdit = new QLineEdit(m_settings.authUsername);
+    authUserEdit->setPlaceholderText("Username");
+    auto *authPassEdit = new QLineEdit(m_settings.authPassword);
+    authPassEdit->setPlaceholderText("Password");
+    authPassEdit->setEchoMode(QLineEdit::Password);
+    auto *authTokenEdit = new QLineEdit(m_settings.authToken);
+    authTokenEdit->setPlaceholderText("Token");
+
+    authLayout->addRow("Type:", authTypeCombo);
+    authLayout->addRow("User:", authUserEdit);
+    authLayout->addRow("Password:", authPassEdit);
+    authLayout->addRow("Token:", authTokenEdit);
+
+    auto onAuthTypeChanged = [=](const QString &type) {
+        bool isBasic = (type == "Basic");
+        bool isBearer = (type == "Bearer");
+        authUserEdit->setVisible(isBasic);
+        authPassEdit->setVisible(isBasic);
+        authTokenEdit->setVisible(isBearer);
+    };
+    connect(authTypeCombo, &QComboBox::currentTextChanged, onAuthTypeChanged);
+    onAuthTypeChanged(authTypeCombo->currentText());
+
+    mainLayout->addWidget(authGroup);
+
+    // -- Proxy group --
+    auto *proxyGroup = new QGroupBox("Proxy");
+    auto *proxyLayout = new QFormLayout(proxyGroup);
+    auto *proxyCheck = new QCheckBox("Enable proxy");
+    proxyCheck->setChecked(m_settings.proxyEnabled);
+    auto *proxyHostEdit = new QLineEdit(m_settings.proxyHost);
+    proxyHostEdit->setPlaceholderText("host");
+    auto *proxyPortSpin = new QSpinBox();
+    proxyPortSpin->setRange(1, 65535);
+    proxyPortSpin->setValue(m_settings.proxyPort);
+    auto *proxyUserEdit = new QLineEdit(m_settings.proxyUser);
+    proxyUserEdit->setPlaceholderText("User (optional)");
+    auto *proxyPassEdit = new QLineEdit(m_settings.proxyPass);
+    proxyPassEdit->setPlaceholderText("Password (optional)");
+    proxyPassEdit->setEchoMode(QLineEdit::Password);
+
+    proxyLayout->addRow(proxyCheck);
+    proxyLayout->addRow("Host:", proxyHostEdit);
+    proxyLayout->addRow("Port:", proxyPortSpin);
+    proxyLayout->addRow("User:", proxyUserEdit);
+    proxyLayout->addRow("Password:", proxyPassEdit);
+
+    connect(proxyCheck, &QCheckBox::toggled, [=](bool checked) {
+        proxyHostEdit->setEnabled(checked);
+        proxyPortSpin->setEnabled(checked);
+        proxyUserEdit->setEnabled(checked);
+        proxyPassEdit->setEnabled(checked);
+    });
+    bool pc = m_settings.proxyEnabled;
+    proxyHostEdit->setEnabled(pc);
+    proxyPortSpin->setEnabled(pc);
+    proxyUserEdit->setEnabled(pc);
+    proxyPassEdit->setEnabled(pc);
+
+    mainLayout->addWidget(proxyGroup);
+
+    // -- Timeout & Retry group --
+    auto *trGroup = new QGroupBox("Timeout & Retry");
+    auto *trLayout = new QFormLayout(trGroup);
+    auto *timeoutSpin = new QSpinBox();
+    timeoutSpin->setRange(1000, 300000);
+    timeoutSpin->setSingleStep(1000);
+    timeoutSpin->setValue(m_settings.transferTimeoutMs);
+    timeoutSpin->setSuffix(" ms");
+    auto *retryCheck = new QCheckBox("Enable retry on failure");
+    retryCheck->setChecked(m_settings.retryEnabled);
+    auto *retryCountSpin = new QSpinBox();
+    retryCountSpin->setRange(1, 10);
+    retryCountSpin->setValue(m_settings.maxRetryCount);
+    auto *retryDelaySpin = new QSpinBox();
+    retryDelaySpin->setRange(100, 30000);
+    retryDelaySpin->setSingleStep(100);
+    retryDelaySpin->setValue(m_settings.retryDelayMs);
+    retryDelaySpin->setSuffix(" ms");
+
+    trLayout->addRow("Timeout:", timeoutSpin);
+    trLayout->addRow(retryCheck);
+    trLayout->addRow("Max retries:", retryCountSpin);
+    trLayout->addRow("Base delay:", retryDelaySpin);
+
+    connect(retryCheck, &QCheckBox::toggled, [=](bool checked) {
+        retryCountSpin->setEnabled(checked);
+        retryDelaySpin->setEnabled(checked);
+    });
+    retryCountSpin->setEnabled(m_settings.retryEnabled);
+    retryDelaySpin->setEnabled(m_settings.retryEnabled);
+
+    mainLayout->addWidget(trGroup);
+
+    // -- Buttons --
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    mainLayout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    if (dlg.exec() == QDialog::Accepted)
+    {
+        m_settings.authType = authTypeCombo->currentText();
+        m_settings.authUsername = authUserEdit->text();
+        m_settings.authPassword = authPassEdit->text();
+        m_settings.authToken = authTokenEdit->text();
+        m_settings.proxyEnabled = proxyCheck->isChecked();
+        m_settings.proxyHost = proxyHostEdit->text();
+        m_settings.proxyPort = static_cast<quint16>(proxyPortSpin->value());
+        m_settings.proxyUser = proxyUserEdit->text();
+        m_settings.proxyPass = proxyPassEdit->text();
+        m_settings.transferTimeoutMs = timeoutSpin->value();
+        m_settings.retryEnabled = retryCheck->isChecked();
+        m_settings.maxRetryCount = retryCountSpin->value();
+        m_settings.retryDelayMs = retryDelaySpin->value();
+    }
+}
+
+void NetworkRequestTool::applyAuthHeader()
+{
+    if (m_settings.authType == "Basic" && !m_settings.authUsername.isEmpty())
+    {
+        QString creds = m_settings.authUsername + ":" + m_settings.authPassword;
+        QString encoded = creds.toUtf8().toBase64();
+        updateHeader("Authorization", "Basic " + encoded);
+    }
+    else if (m_settings.authType == "Bearer" && !m_settings.authToken.isEmpty())
+    {
+        updateHeader("Authorization", "Bearer " + m_settings.authToken);
+    }
+}
+
+void NetworkRequestTool::applyRequestSettings(std::unique_ptr<RequestContext> &req)
+{
+    req->behavior.transferTimeout = m_settings.transferTimeoutMs;
+    req->behavior.retryOnFailed = m_settings.retryEnabled;
+    req->behavior.maxRetryCount = m_settings.maxRetryCount;
+    req->behavior.retryDelayMs = m_settings.retryDelayMs;
+
+    if (m_settings.proxyEnabled && !m_settings.proxyHost.isEmpty())
+    {
+        req->proxyConfig = std::make_unique<ProxyConfig>();
+        req->proxyConfig->enabled = true;
+        req->proxyConfig->host = m_settings.proxyHost;
+        req->proxyConfig->port = m_settings.proxyPort;
+        req->proxyConfig->user = m_settings.proxyUser;
+        req->proxyConfig->password = m_settings.proxyPass;
+    }
+}
+
+// --- Persistent storage (item 4) ---
+QString NetworkRequestTool::storageDir()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/requests";
+}
+
+void NetworkRequestTool::ensureStorageDir()
+{
+    QDir dir(storageDir());
+    if (!dir.exists())
+        dir.mkpath(".");
+}
+
+void NetworkRequestTool::saveToDisk(const QString &filePath)
+{
+    QJsonObject obj;
+    obj["method"] = currentMethod;
+    obj["url"] = ui.lineEdit_url->text();
+    obj["body"] = ui.textEdit_body->toPlainText();
+    obj["bodyType"] = currentBodyType;
+    obj["rawType"] = currentRawType;
+    obj["timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+
+    QJsonArray paramsArr;
+    for (int i = 0; i < ui.table_params->rowCount(); ++i)
+    {
+        auto *k = ui.table_params->item(i, 0);
+        auto *v = ui.table_params->item(i, 1);
+        if (k && v && !k->text().isEmpty())
+        {
+            QJsonObject p;
+            p["key"] = k->text();
+            p["value"] = v->text();
+            paramsArr.append(p);
+        }
+    }
+    obj["params"] = paramsArr;
+
+    QJsonArray headersArr;
+    for (int i = 0; i < ui.table_headers->rowCount(); ++i)
+    {
+        auto *k = ui.table_headers->item(i, 0);
+        auto *v = ui.table_headers->item(i, 1);
+        if (k && v && !k->text().isEmpty())
+        {
+            QJsonObject h;
+            h["key"] = k->text();
+            h["value"] = v->text();
+            headersArr.append(h);
+        }
+    }
+    obj["headers"] = headersArr;
+
+    QFile file(filePath);
+    if (file.open(QIODevice::WriteOnly))
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+}
+
+void NetworkRequestTool::loadFromDisk(const QString &filePath)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    QJsonObject obj = doc.object();
+
+    ui.cmb_method->setCurrentText(obj["method"].toString());
+    ui.lineEdit_url->setText(obj["url"].toString());
+    ui.cmb_body_type->setCurrentText(obj["bodyType"].toString("none"));
+    ui.cmb_raw_type->setCurrentText(obj["rawType"].toString("Text"));
+    ui.textEdit_body->setText(obj["body"].toString());
+
+    ui.table_params->setRowCount(0);
+    for (const auto &p : obj["params"].toArray())
+    {
+        QJsonObject po = p.toObject();
+        int row = ui.table_params->rowCount();
+        ui.table_params->insertRow(row);
+        ui.table_params->setItem(row, 0, new QTableWidgetItem(po["key"].toString()));
+        ui.table_params->setItem(row, 1, new QTableWidgetItem(po["value"].toString()));
+    }
+
+    ui.table_headers->setRowCount(0);
+    for (const auto &h : obj["headers"].toArray())
+    {
+        QJsonObject ho = h.toObject();
+        int row = ui.table_headers->rowCount();
+        ui.table_headers->insertRow(row);
+        ui.table_headers->setItem(row, 0, new QTableWidgetItem(ho["key"].toString()));
+        ui.table_headers->setItem(row, 1, new QTableWidgetItem(ho["value"].toString()));
+    }
+    clearResponse();
 }

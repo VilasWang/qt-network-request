@@ -26,9 +26,9 @@ namespace QtNetworkRequest
 		void setRequestContext(std::unique_ptr<RequestContext> context);
 
 	protected:
-		QSharedPointer<ResponseResult> ToFailedResult(const QByteArray& body = QByteArray(), const QMap<QByteArray, QByteArray>& headers = {});
-		QSharedPointer<ResponseResult> ToSuccessResult(const QByteArray& body, const QMap<QByteArray, QByteArray>& headers);
+		QSharedPointer<ResponseResult> ToFailedResult(int statusCode = 0, const QByteArray& body = QByteArray(), const QMap<QByteArray, QByteArray>& headers = {});
 
+		QSharedPointer<ResponseResult> ToSuccessResult(const QByteArray& body, const QMap<QByteArray, QByteArray>& headers, int statusCode = 0);
 		void applyProxyConfig(QNetworkAccessManager* mgr);
 		void applyCookieJar(QNetworkAccessManager* mgr);
 

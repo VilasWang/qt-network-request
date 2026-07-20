@@ -25,6 +25,28 @@ struct RequestHistory
     QDateTime timestamp;
 };
 
+struct RequestSettings
+{
+    // Proxy
+    bool proxyEnabled = false;
+    QString proxyHost;
+    quint16 proxyPort = 8080;
+    QString proxyUser;
+    QString proxyPass;
+
+    // Timeout & Retry
+    int transferTimeoutMs = 30000;
+    bool retryEnabled = false;
+    int maxRetryCount = 3;
+    int retryDelayMs = 1000;
+
+    // Auth
+    QString authType; // "None", "Basic", "Bearer"
+    QString authUsername;
+    QString authPassword;
+    QString authToken;
+};
+
 class NetworkRequestTool : public QMainWindow
 {
     Q_OBJECT
@@ -45,6 +67,7 @@ private slots:
     void onRemoveParam();
     void onAddHeader();
     void onRemoveHeader();
+    void onSettingsClicked();
     void onResponse(QSharedPointer<QtNetworkRequest::ResponseResult> rsp);
     void onHistoryItemClicked(QListWidgetItem *item);
     void onSearchHistory(const QString &text);
@@ -68,6 +91,8 @@ private:
     QString buildUrlWithParams();
     QMap<QByteArray, QByteArray> getHeaders();
     QString getRequestBody();
+    void applyAuthHeader();
+    void applyRequestSettings(std::unique_ptr<RequestContext> &req);
     RequestType getRequestType();
     void clearResponse();
     void appendToResponse(const QString &text, const QColor &color);
@@ -81,6 +106,8 @@ private:
     bool isOctetStreamResponse(const QMap<QByteArray, QByteArray> &headers);
     void displayJsonResponse(const QString &response);
     void saveToHistory();
+    void saveToDisk(const QString &filePath);
+    void loadFromDisk(const QString &filePath);
     void loadFromHistory(const RequestHistory &history);
     void updateHistoryList();
     void clearRequestForm();
@@ -89,6 +116,8 @@ private:
     QString bytesToString(qint64 bytes);
     void updateDefaultHeadersForMethod(const QString &method);
     bool isDefaultHeader(const QString &strHeader);
+    QString storageDir();
+    void ensureStorageDir();
 
 private:
     Ui::networkClass ui;
@@ -102,6 +131,8 @@ private:
     QStringList files;
     QMap<QString, QString> kvPairs;
     QListWidgetItem *currentHistoryItem;
+    RequestSettings m_settings;
+    QLabel *m_labelResponseInfo;
 };
 
 } // namespace QtNetworkRequest

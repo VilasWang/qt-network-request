@@ -72,6 +72,10 @@ namespace QtNetworkRequest
         Delete = 0x006,
         // HEAD method (supports HTTP(S))
         Head = 0x007,
+        // PATCH method (supports HTTP(S))
+        Patch = 0x008,
+        // OPTIONS method (supports HTTP(S))
+        Options = 0x009,
 
         Unknown = -1,
     };
@@ -153,6 +157,7 @@ namespace QtNetworkRequest
     {
         bool success{ false };
         bool cancelled{ false };
+        int statusCode{ 0 };
         QString errorMessage;
         QByteArray body;
         QMap<QByteArray, QByteArray> headers;

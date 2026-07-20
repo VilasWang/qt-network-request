@@ -268,9 +268,9 @@ void NetworkDownloadRequest::onFinished()
     }
 
     if (bSuccess)
-        emit response(ToSuccessResult({}, responseHeaders));
+        emit response(ToSuccessResult({}, responseHeaders, statusCode));
     else
-        emit response(ToFailedResult());
+        emit response(ToFailedResult(statusCode));
 }
 
 void NetworkDownloadRequest::onDownloadProgress(qint64 iReceived, qint64 iTotal)

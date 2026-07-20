@@ -159,13 +159,14 @@ void NetworkRequest::setRequestContext(std::unique_ptr<RequestContext> context)
     }
 }
 
-QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToFailedResult(const QByteArray& body, const QMap<QByteArray, QByteArray>& headers)
+QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToFailedResult(int statusCode, const QByteArray& body, const QMap<QByteArray, QByteArray>& headers)
 {
     if (!m_spResult)
     {
         m_spResult = QSharedPointer<ResponseResult>::create();
     }
     m_spResult->success = false;
+    m_spResult->statusCode = statusCode;
     m_spResult->errorMessage = m_strError;
     m_spResult->body = body;
     m_spResult->headers = headers;
@@ -174,13 +175,14 @@ QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToFailedResult(
     return m_spResult;
 }
 
-QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToSuccessResult(const QByteArray& body, const QMap<QByteArray, QByteArray>& headers)
+QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToSuccessResult(const QByteArray& body, const QMap<QByteArray, QByteArray>& headers, int statusCode)
 {
     if (!m_spResult)
     {
         m_spResult = QSharedPointer<ResponseResult>::create();
     }
     m_spResult->success = true;
+    m_spResult->statusCode = statusCode;
     m_spResult->errorMessage.clear();
     m_spResult->body = body;
     m_spResult->headers = headers;
@@ -225,6 +227,8 @@ std::unique_ptr<NetworkRequest> NetworkRequestFactory::create(std::unique_ptr<Re
     case RequestType::Put:
     case RequestType::Delete:
     case RequestType::Head:
+    case RequestType::Patch:
+    case RequestType::Options:
     {
         pRequest = std::make_unique<NetworkCommonRequest>();
     }

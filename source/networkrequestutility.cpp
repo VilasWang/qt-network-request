@@ -302,6 +302,16 @@ const QString NetworkRequestUtility::getRequestTypeString(const RequestType eTyp
         strType = QString("HEAD");
     }
     break;
+    case RequestType::Patch:
+    {
+        strType = QString("PATCH");
+    }
+    break;
+    case RequestType::Options:
+    {
+        strType = QString("OPTIONS");
+    }
+    break;
     default:
         break;
     }

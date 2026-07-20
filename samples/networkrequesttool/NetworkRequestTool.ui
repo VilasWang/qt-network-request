@@ -1025,12 +1025,17 @@ QComboBox#cmb_method {
                <string>PATCH</string>
               </property>
              </item>
-             <item>
-              <property name="text">
-               <string>HEAD</string>
-              </property>
-             </item>
-            </widget>
+              <item>
+               <property name="text">
+                <string>HEAD</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>OPTIONS</string>
+               </property>
+              </item>
+             </widget>
            </item>
            <item>
             <widget class="QLineEdit" name="lineEdit_url">
@@ -1046,14 +1051,21 @@ QComboBox#cmb_method {
              </property>
             </widget>
            </item>
-           <item>
-            <widget class="QPushButton" name="btn_save">
-             <property name="text">
-              <string>Save</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
+            <item>
+             <widget class="QPushButton" name="btn_save">
+              <property name="text">
+               <string>Save</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_settings">
+              <property name="text">
+               <string>Settings</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
          </widget>
         </item>
         <item>

@@ -303,10 +303,10 @@ void NetworkUploadRequest::onFinished()
         m_spResult->performance.bytesReceived = body.size();
     }
 
-    if (bSuccess)
-        emit response(ToSuccessResult(body, responseHeaders));
-    else
-        emit response(ToFailedResult());
+	if (bSuccess)
+		emit response(ToSuccessResult(body, responseHeaders, statusCode));
+	else
+		emit response(ToFailedResult(statusCode));
 }
 
 void NetworkUploadRequest::onUploadProgress(qint64 iSent, qint64 iTotal)

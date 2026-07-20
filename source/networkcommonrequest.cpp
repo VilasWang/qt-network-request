@@ -114,6 +114,15 @@ void NetworkCommonRequest::start()
     {
         m_pNetworkReply = m_pNetworkManager->get(request);
     }
+    else if (m_upContext->type == RequestType::Patch)
+    {
+        const QByteArray &bytes = m_upContext->body.toUtf8();
+        m_pNetworkReply = m_pNetworkManager->sendCustomRequest(request, "PATCH", bytes);
+    }
+    else if (m_upContext->type == RequestType::Options)
+    {
+        m_pNetworkReply = m_pNetworkManager->sendCustomRequest(request, "OPTIONS");
+    }
     else if (m_upContext->type == RequestType::Post)
     {
         bool bFormData = m_upContext->uploadConfig && m_upContext->uploadConfig->useFormData && !m_upContext->uploadConfig->files.isEmpty();
@@ -296,7 +305,7 @@ void NetworkCommonRequest::onFinished()
     }
 
     if (bSuccess)
-        emit response(ToSuccessResult(body, responseHeaders));
+        emit response(ToSuccessResult(body, responseHeaders, statusCode));
     else
-        emit response(ToFailedResult());
+        emit response(ToFailedResult(statusCode));
 }
