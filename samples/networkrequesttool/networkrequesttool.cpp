@@ -19,6 +19,7 @@
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
+#include <QtWidgets/QStyledItemDelegate>
 #include <QtCore/QFileInfo>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
@@ -44,6 +45,41 @@ namespace
         return QLatin1String("gzip, deflate");
 #endif
     }
+
+    // Delegate for table cells. The window-level stylesheet styles QLineEdit with
+    // generous padding (8px) intended for the standalone inputs; applied to the
+    // short in-cell editor it clips the text vertically. Setting the stylesheet
+    // directly on the editor widget guarantees precedence over the window sheet
+    // (a widget's own stylesheet wins), so the text stays fully visible.
+    class CompactCellDelegate : public QStyledItemDelegate
+    {
+    public:
+        using QStyledItemDelegate::QStyledItemDelegate;
+
+        QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option,
+                              const QModelIndex &index) const override
+        {
+            QWidget *editor = QStyledItemDelegate::createEditor(parent, option, index);
+            if (editor)
+                editor->setStyleSheet(QStringLiteral(
+                    "QLineEdit {"
+                    " padding: 1px 4px; margin: 0px;"
+                    " min-height: 0px;"
+                    " border: 1px solid #0078d4;"
+                    " border-radius: 0px; }"));
+            return editor;
+        }
+
+        void updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option,
+                                  const QModelIndex &index) const override
+        {
+            QStyledItemDelegate::updateEditorGeometry(editor, option, index);
+            // Force the editor to fill the whole cell rect so it is not shrunk to
+            // a shorter size-hint and bottom-aligned inside the row.
+            if (editor)
+                editor->setGeometry(option.rect);
+        }
+    };
 }
 NetworkRequestTool::NetworkRequestTool(QWidget *parent)
     : QMainWindow(parent), currentMethod("GET"), currentBodyType("none"), currentRawType("Text"), isNewRequest(true)
@@ -113,6 +149,30 @@ void NetworkRequestTool::initializeUI()
     ui.table_params->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui.table_headers->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui.table_body->setSelectionBehavior(QAbstractItemView::SelectRows);
+
+    // The window-level stylesheet gives QLineEdit/QComboBox generous padding and
+    // a min-width meant for the standalone inputs. Inside a table cell that clips
+    // the double-click edit text and makes the form-data type combo overflow the
+    // short row. Give the tables a comfortable row height, a compact style for
+    // cell widgets (e.g. the form-data type combo), and a delegate that styles
+    // the transient in-cell editor on the editor itself (see CompactCellDelegate)
+    // so the window sheet cannot override it and clip the text.
+    const QString cellWidgetStyle = QStringLiteral(
+        "QComboBox, QComboBox:focus, QComboBox:hover, QComboBox:focus:hover {"
+        " padding: 1px 4px; margin: 0px;"
+        " min-width: 0px; min-height: 0px;"
+        " border-width: 1px; border-radius: 0px; }");
+    for (QTableWidget *table : {ui.table_params, ui.table_headers, ui.table_body})
+    {
+        table->setStyleSheet(cellWidgetStyle);
+        table->verticalHeader()->setDefaultSectionSize(32);
+        table->setItemDelegate(new CompactCellDelegate(table));
+        // Selecting a (full) row otherwise highlights the column header sections,
+        // making the header bar look selected/blue (most obvious with a single
+        // row). Disable section highlighting so only the row is selected.
+        table->horizontalHeader()->setHighlightSections(false);
+        table->verticalHeader()->setHighlightSections(false);
+    }
 }
 
 void NetworkRequestTool::initializeConnections()
