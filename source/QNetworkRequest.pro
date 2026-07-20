@@ -30,7 +30,8 @@ HEADERS += $$PWD/../include/networkrequestglobal.h \
            networkuploadrequest.h \
            networkcommonrequest.h \
            networkrequestrunnable.h \
-           networkrequestutility.h
+           networkrequestutility.h \
+           networkcookiejar.h
 
 SOURCES += networkrequest.cpp \
            networkcommonrequest.cpp \
@@ -41,7 +42,8 @@ SOURCES += networkrequest.cpp \
            networkreply.cpp \
            networkrequestmanager.cpp \
            networkrequestutility.cpp \
-           memorymappedfile.cpp
+           memorymappedfile.cpp \
+           networkcookiejar.cpp
 
 # Qt version compatibility
 greaterThan(QT_MAJOR_VERSION, 4) {
