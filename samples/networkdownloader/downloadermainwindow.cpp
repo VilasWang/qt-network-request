@@ -366,7 +366,12 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onTaskCompleted(const QStrin
 {
     if (success)
     {
-        QtNetworkRequest::NetworkDownloadTask task = m_taskModel->getTask(taskId);
+        QtNetworkRequest::NetworkDownloadTask task = m_downloadManager->getDownloadTask(taskId);
+        // The download manager may have renamed the file based on
+        // Content-Disposition / final URL. Refresh the model's fileName
+        // directly here as a reliable fallback in case the
+        // taskFileNameChanged signal didn't propagate.
+        m_taskModel->updateTaskFileName(taskId, task.fileName);
         m_taskModel->updateTaskTotalSpeed(taskId);
         showNotification(QString("'%1' downloaded successfully").arg(task.fileName), "success", 4000);
     }

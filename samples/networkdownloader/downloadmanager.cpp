@@ -320,6 +320,14 @@ QtNetworkRequest::NetworkDownloadTask::State QtNetworkRequest::NetworkDownloadMa
     return QtNetworkRequest::NetworkDownloadTask::State::Waiting;
 }
 
+QtNetworkRequest::NetworkDownloadTask QtNetworkRequest::NetworkDownloadManager::getDownloadTask(const QString &taskId) const
+{
+    auto it = m_downloads.find(taskId);
+    if (it != m_downloads.end())
+        return it->task;
+    return QtNetworkRequest::NetworkDownloadTask();
+}
+
 void QtNetworkRequest::NetworkDownloadManager::saveSettings()
 {
     m_settings.setValue("DownloadDirectory", m_downloadDir);

@@ -37,6 +37,7 @@ public:
 
     bool isDownloading(const QString &taskId) const;
     NetworkDownloadTask::State getTaskState(const QString &taskId) const;
+    NetworkDownloadTask getDownloadTask(const QString &taskId) const;
 
     void saveSettings();
     void loadSettings();

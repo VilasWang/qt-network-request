@@ -191,7 +191,7 @@ void QtNetworkRequest::NetworkDownloadTaskModel::updateTaskFileName(const QStrin
     if (index >= 0) {
         m_tasks[index].fileName = fileName;
         const QModelIndex cellIdx = createIndex(index, static_cast<int>(Column::ColumnFileName));
-        emit dataChanged(cellIdx, cellIdx, QVector<int>{ Qt::DisplayRole });
+        emit dataChanged(cellIdx, cellIdx);
     }
 }
 
