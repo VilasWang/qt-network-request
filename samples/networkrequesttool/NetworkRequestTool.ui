@@ -769,6 +769,172 @@ QMessageBox QTextEdit {
 }
 
 /* ========================================
+   QDIALOG STYLING
+   ======================================== */
+
+QDialog {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-size: 13px;
+}
+
+/* ========================================
+   GROUP BOX STYLING  (matches QFrame)
+   ======================================== */
+
+QGroupBox {
+    background-color: #252526;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    margin-top: 14px;
+    padding: 10px 12px 10px 12px;
+    font-size: 13px;
+    font-weight: 400;
+    color: #cccccc;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 12px;
+    top: 0px;
+    padding: 3px 12px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    background-color: #252526;
+    border-radius: 4px;
+}
+
+/* ========================================
+   CHECKBOX STYLING
+   ======================================== */
+
+QCheckBox {
+    color: #cccccc;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    spacing: 8px;
+    background-color: transparent;
+    padding: 2px 0;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 1px solid #3e3e42;
+    border-radius: 3px;
+    background-color: #1e1e1e;
+}
+
+QCheckBox::indicator:hover {
+    border-color: #4e4e52;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #0078d4;
+    border-color: #0078d4;
+}
+
+QCheckBox::indicator:checked:hover {
+    background-color: #106ebe;
+}
+
+QCheckBox::indicator:disabled {
+    background-color: #2d2d30;
+    border-color: #3e3e42;
+}
+
+/* ========================================
+   SPINBOX STYLING  (matches QLineEdit)
+   ======================================== */
+
+QSpinBox {
+    border: 1px solid #3e3e42;
+    border-radius: 4px;
+    padding: 8px 12px;
+    background-color: #1e1e1e;
+    color: #cccccc;
+    font-size: 13px;
+    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Consolas', 'Courier New', monospace;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+    min-height: 20px;
+}
+
+QSpinBox:focus {
+    border: 2px solid #0078d4;
+    padding: 7px 11px;
+}
+
+QSpinBox:hover {
+    border-color: #4e4e52;
+}
+
+QSpinBox:disabled {
+    background-color: #2d2d30;
+    color: #6a6a6a;
+    border-color: #3e3e42;
+}
+
+QSpinBox::up-button, QSpinBox::down-button {
+    border: none;
+    background-color: #2d2d30;
+    width: 20px;
+    border-radius: 2px;
+    margin: 1px;
+}
+
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+    background-color: #3e3e42;
+}
+
+QSpinBox::up-button:pressed {
+    background-color: #0078d4;
+}
+
+QSpinBox::down-button:pressed {
+    background-color: #0078d4;
+}
+
+QSpinBox::up-arrow {
+    image: none;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid #cccccc;
+}
+
+QSpinBox::down-arrow {
+    image: none;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #cccccc;
+}
+
+QSpinBox::up-arrow:hover, QSpinBox::down-arrow:hover {
+    /* Simplified for Qt5 — changed border-color is sufficient */
+}
+
+/* ========================================
+   DIALOG BUTTON BOX STYLING
+   ======================================== */
+
+QDialogButtonBox {
+    background-color: transparent;
+    button-layout: 2; /* Qt::WindowsLayout */
+}
+
+QDialogButtonBox QPushButton {
+    min-width: 90px;
+}
+
+/* ========================================
    RESPONSE TEXT EDITORS STYLING
    ======================================== */
 

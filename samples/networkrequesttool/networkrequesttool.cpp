@@ -1279,13 +1279,22 @@ void NetworkRequestTool::onSettingsClicked()
 {
     QDialog dlg(this);
     dlg.setWindowTitle("Request Settings");
-    dlg.setMinimumWidth(420);
+    dlg.setMinimumWidth(440);
+    // The dialog inherits the main-window stylesheet which covers QDialog,
+    // QGroupBox, QCheckBox, QSpinBox, QPushButton, and QDialogButtonBox with
+    // the VSCode-inspired dark theme, ensuring visual consistency.
 
     auto *mainLayout = new QVBoxLayout(&dlg);
+    mainLayout->setSpacing(12);
+    mainLayout->setContentsMargins(16, 14, 16, 14);
 
-    // -- Auth group --
+    // ---------- Authorization ----------
     auto *authGroup = new QGroupBox("Authorization");
     auto *authLayout = new QFormLayout(authGroup);
+    authLayout->setSpacing(5);
+    authLayout->setContentsMargins(12, 10, 12, 10);
+    authLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+
     auto *authTypeCombo = new QComboBox();
     authTypeCombo->addItems({"None", "Basic", "Bearer"});
     authTypeCombo->setCurrentText(m_settings.authType);
@@ -1308,15 +1317,23 @@ void NetworkRequestTool::onSettingsClicked()
         authUserEdit->setVisible(isBasic);
         authPassEdit->setVisible(isBasic);
         authTokenEdit->setVisible(isBearer);
+        // Hide the label row when the field is hidden so the layout collapses
+        authLayout->labelForField(authUserEdit)->setVisible(isBasic);
+        authLayout->labelForField(authPassEdit)->setVisible(isBasic);
+        authLayout->labelForField(authTokenEdit)->setVisible(isBearer);
     };
     connect(authTypeCombo, &QComboBox::currentTextChanged, onAuthTypeChanged);
     onAuthTypeChanged(authTypeCombo->currentText());
 
     mainLayout->addWidget(authGroup);
 
-    // -- Proxy group --
+    // ---------- Proxy ----------
     auto *proxyGroup = new QGroupBox("Proxy");
     auto *proxyLayout = new QFormLayout(proxyGroup);
+    proxyLayout->setSpacing(5);
+    proxyLayout->setContentsMargins(12, 10, 12, 10);
+    proxyLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+
     auto *proxyCheck = new QCheckBox("Enable proxy");
     proxyCheck->setChecked(m_settings.proxyEnabled);
     auto *proxyHostEdit = new QLineEdit(m_settings.proxyHost);
@@ -1336,23 +1353,24 @@ void NetworkRequestTool::onSettingsClicked()
     proxyLayout->addRow("User:", proxyUserEdit);
     proxyLayout->addRow("Password:", proxyPassEdit);
 
-    connect(proxyCheck, &QCheckBox::toggled, [=](bool checked) {
+    auto onProxyToggled = [=](bool checked) {
         proxyHostEdit->setEnabled(checked);
         proxyPortSpin->setEnabled(checked);
         proxyUserEdit->setEnabled(checked);
         proxyPassEdit->setEnabled(checked);
-    });
-    bool pc = m_settings.proxyEnabled;
-    proxyHostEdit->setEnabled(pc);
-    proxyPortSpin->setEnabled(pc);
-    proxyUserEdit->setEnabled(pc);
-    proxyPassEdit->setEnabled(pc);
+    };
+    connect(proxyCheck, &QCheckBox::toggled, onProxyToggled);
+    onProxyToggled(m_settings.proxyEnabled);
 
     mainLayout->addWidget(proxyGroup);
 
-    // -- Timeout & Retry group --
+    // ---------- Timeout & Retry ----------
     auto *trGroup = new QGroupBox("Timeout & Retry");
     auto *trLayout = new QFormLayout(trGroup);
+    trLayout->setSpacing(5);
+    trLayout->setContentsMargins(12, 10, 12, 10);
+    trLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+
     auto *timeoutSpin = new QSpinBox();
     timeoutSpin->setRange(1000, 300000);
     timeoutSpin->setSingleStep(1000);
@@ -1374,17 +1392,18 @@ void NetworkRequestTool::onSettingsClicked()
     trLayout->addRow("Max retries:", retryCountSpin);
     trLayout->addRow("Base delay:", retryDelaySpin);
 
-    connect(retryCheck, &QCheckBox::toggled, [=](bool checked) {
+    auto onRetryToggled = [=](bool checked) {
         retryCountSpin->setEnabled(checked);
         retryDelaySpin->setEnabled(checked);
-    });
-    retryCountSpin->setEnabled(m_settings.retryEnabled);
-    retryDelaySpin->setEnabled(m_settings.retryEnabled);
+    };
+    connect(retryCheck, &QCheckBox::toggled, onRetryToggled);
+    onRetryToggled(m_settings.retryEnabled);
 
     mainLayout->addWidget(trGroup);
 
     // -- Buttons --
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    mainLayout->addSpacing(2);
     mainLayout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
