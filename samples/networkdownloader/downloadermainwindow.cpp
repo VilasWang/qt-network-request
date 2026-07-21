@@ -15,6 +15,8 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QGroupBox>
+#include <QFormLayout>
 #include <QDialogButtonBox>
 
 QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidget *parent)
@@ -464,168 +466,69 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::showSettingsDialog()
 {
     QDialog dialog(this);
     dialog.setWindowTitle("Settings");
-    dialog.setModal(true);
-    dialog.setMinimumSize(500, 300);
+    dialog.setMinimumWidth(440);
+    // The dialog inherits the main-window stylesheet which covers QDialog,
+    // QGroupBox, QLineEdit, QSpinBox, QPushButton, and QDialogButtonBox with
+    // the VSCode-inspired dark theme, ensuring visual consistency.
 
-    // Apply modern dark theme styling to dialog
-    dialog.setStyleSheet(R"(
-        QDialog {
-            background-color: #1a1a1a;
-            color: #ffffff;
-            font-family: 'Segoe UI', Arial, sans-serif;
-        }
-        QLabel {
-            color: #ffffff;
-            font-size: 13px;
-            font-weight: 600;
-        }
-        QLineEdit {
-            border: 2px solid #404040;
-            border-radius: 8px;
-            padding: 12px;
-            background-color: #2d2d2d;
-            color: #ffffff;
-            font-size: 13px;
-            font-family: 'Segoe UI', Arial, sans-serif;
-        }
-        QLineEdit:focus {
-            border: 2px solid #4a9eff;
-            outline: none;
-        }
-        QSpinBox {
-            border: 2px solid #404040;
-            border-radius: 8px;
-            padding: 12px;
-            background-color: #2d2d2d;
-            color: #ffffff;
-            font-size: 13px;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            min-width: 100px;
-            min-height: 36px;
-        }
-        QFrame {
-            background-color: #2d2d2d;
-            border: 1px solid #404040;
-            border-radius: 12px;
-        }
-        QPushButton {
-            background-color: #4a9eff;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-size: 13px;
-            font-weight: 600;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            min-width: 100px;
-            min-height: 36px;
-        }
-        QPushButton:hover {
-            background-color: #357abd;
-            border: 1px solid #5aafff;
-        }
-        QPushButton:pressed {
-            background-color: #2968a3;
-            border: 1px solid #4a9eff;
-        }
-        QPushButton#cancelButton {
-            background-color: #ff4757;
-        }
-        QPushButton#cancelButton:hover {
-            background-color: #ff3838;
-            border: 1px solid #ff6b7a;
-        }
-        QPushButton#cancelButton:pressed {
-            background-color: #ff2727;
-            border: 1px solid #ff4757;
-        }
-    )");
+    auto *mainLayout = new QVBoxLayout(&dialog);
+    mainLayout->setSpacing(12);
+    mainLayout->setContentsMargins(16, 14, 16, 14);
 
-    QVBoxLayout *layout = new QVBoxLayout(&dialog);
-    layout->setSpacing(16);
-    layout->setMargin(20);
+    // ---------- Download Directory ----------
+    auto *dirGroup = new QGroupBox("Download Directory");
+    auto *dirLayout = new QFormLayout(dirGroup);
+    dirLayout->setSpacing(5);
+    dirLayout->setContentsMargins(12, 10, 12, 10);
+    dirLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
-    // Download directory
-    QFrame *dirFrame = new QFrame();
-    dirFrame->setFrameStyle(QFrame::StyledPanel);
-    dirFrame->setStyleSheet("QFrame { border-radius: 12px; }");
-    QVBoxLayout *dirFrameLayout = new QVBoxLayout(dirFrame);
-    dirFrameLayout->setMargin(16);
+    auto *dirEdit = new QLineEdit(m_downloadManager->getDownloadDirectory());
+    auto *dirButton = new QPushButton("Browse...");
+    dirButton->setObjectName("btnBrowse");
 
-    QLabel *dirLabel = new QLabel("Download Directory:");
-    QHBoxLayout *dirLayout = new QHBoxLayout();
-    QLineEdit *dirEdit = new QLineEdit(m_downloadManager->getDownloadDirectory());
-    QPushButton *dirButton = new QPushButton("Browse...");
+    auto *dirRow = new QHBoxLayout();
+    dirRow->addWidget(dirEdit);
+    dirRow->addWidget(dirButton);
+    dirLayout->addRow("Path:", dirRow);
 
-    dirLayout->addWidget(dirEdit);
-    dirLayout->addWidget(dirButton);
-    dirFrameLayout->addWidget(dirLabel);
-    dirFrameLayout->addLayout(dirLayout);
+    mainLayout->addWidget(dirGroup);
 
-    // Max threads
-    QFrame *threadFrame = new QFrame();
-    threadFrame->setFrameStyle(QFrame::StyledPanel);
-    threadFrame->setStyleSheet("QFrame { border-radius: 12px; }");
-    QVBoxLayout *threadFrameLayout = new QVBoxLayout(threadFrame);
-    threadFrameLayout->setMargin(16);
+    // ---------- Download Options ----------
+    auto *dlGroup = new QGroupBox("Download Options");
+    auto *dlLayout = new QFormLayout(dlGroup);
+    dlLayout->setSpacing(5);
+    dlLayout->setContentsMargins(12, 10, 12, 10);
+    dlLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
-    QLabel *threadLabel = new QLabel("Max Threads per Download:");
-    QHBoxLayout *threadLayout = new QHBoxLayout();
-    QSpinBox *threadSpinBox = new QSpinBox();
+    auto *threadSpinBox = new QSpinBox();
     threadSpinBox->setRange(1, 64);
     threadSpinBox->setValue(m_downloadManager->getMaxThreads());
     threadSpinBox->setToolTip("Number of threads to use for each download (1-64)");
 
-    threadLayout->addWidget(threadSpinBox);
-    threadLayout->addStretch();
-    threadFrameLayout->addWidget(threadLabel);
-    threadFrameLayout->addLayout(threadLayout);
-
-    // Max concurrent downloads
-    QFrame *concurrentFrame = new QFrame();
-    concurrentFrame->setFrameStyle(QFrame::StyledPanel);
-    concurrentFrame->setStyleSheet("QFrame { border-radius: 12px; }");
-    QVBoxLayout *concurrentFrameLayout = new QVBoxLayout(concurrentFrame);
-    concurrentFrameLayout->setMargin(16);
-
-    QLabel *concurrentLabel = new QLabel("Max Concurrent Downloads:");
-    QHBoxLayout *concurrentLayout = new QHBoxLayout();
-    QSpinBox *concurrentSpinBox = new QSpinBox();
+    auto *concurrentSpinBox = new QSpinBox();
     concurrentSpinBox->setRange(1, 20);
     concurrentSpinBox->setValue(m_downloadManager->getMaxConcurrentDownloads());
     concurrentSpinBox->setToolTip("Maximum number of downloads running at the same time (1-20)");
 
-    concurrentLayout->addWidget(concurrentSpinBox);
-    concurrentLayout->addStretch();
-    concurrentFrameLayout->addWidget(concurrentLabel);
-    concurrentFrameLayout->addLayout(concurrentLayout);
+    dlLayout->addRow("Max threads:", threadSpinBox);
+    dlLayout->addRow("Max concurrent:", concurrentSpinBox);
 
-    // Buttons
-    QHBoxLayout *buttonLayout = new QHBoxLayout();
-    QPushButton *okButton = new QPushButton("OK");
-    QPushButton *cancelButton = new QPushButton("Cancel");
-    cancelButton->setObjectName("cancelButton");
+    mainLayout->addWidget(dlGroup);
 
-    buttonLayout->addStretch();
-    buttonLayout->addWidget(okButton);
-    buttonLayout->addWidget(cancelButton);
-
-    layout->addWidget(dirFrame);
-    layout->addWidget(threadFrame);
-    layout->addWidget(concurrentFrame);
-    layout->addStretch();
-    layout->addLayout(buttonLayout);
+    // -- Buttons --
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    mainLayout->addSpacing(2);
+    mainLayout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
     // Connections
-    connect(dirButton, &QPushButton::clicked, [=]()
+    connect(dirButton, &QPushButton::clicked, [&]()
             {
-        QString dir = QFileDialog::getExistingDirectory(nullptr, "Select Download Directory", dirEdit->text());
+        QString dir = QFileDialog::getExistingDirectory(&dialog, "Select Download Directory", dirEdit->text());
         if (!dir.isEmpty()) {
             dirEdit->setText(dir);
         } });
-
-    connect(okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
-    connect(cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
 
     if (dialog.exec() == QDialog::Accepted)
     {
