@@ -1,4 +1,6 @@
 #include "httptestserver.h"
+#include <QPointer>
+#include <QTimer>
 #include <QRegularExpression>
 
 HttpTestServer::HttpTestServer(QObject *parent)
@@ -110,6 +112,31 @@ void HttpTestServer::processRequest(QTcpSocket *s, const HttpRequest &req)
         return;
     }
 
+    // Handle delayed responses: defer actual reply until timer fires
+    if (req.path.startsWith("/delay/"))
+    {
+        QStringList parts = req.path.split('/');
+        if (parts.size() >= 3)
+        {
+            bool ok = false;
+            int delayMs = parts[2].toInt(&ok);
+            if (ok && delayMs > 0)
+            {
+                HttpResponse resp = handleDelay(req);
+                QPointer<QTcpSocket> sockPtr(s);
+                QTimer::singleShot(delayMs, this, [this, sockPtr, resp]() {
+                    if (sockPtr && sockPtr->state() == QAbstractSocket::ConnectedState)
+                    {
+                        sockPtr->write(buildResponse(resp));
+                        sockPtr->flush();
+                        sockPtr->disconnectFromHost();
+                    }
+                });
+            }
+            return;
+        }
+    }
+
     HttpResponse resp = routeRequest(req);
     s->write(buildResponse(resp));
     s->flush();
@@ -122,6 +149,8 @@ HttpTestServer::HttpResponse HttpTestServer::routeRequest(const HttpRequest &req
         return handleCookiesSet(req);
     if (req.method == "GET" && req.path == "/cookies")
         return handleCookies(req);
+    if (req.method == "GET" && req.path.startsWith("/delay/"))
+        return handleDelay(req);
     if (req.method == "GET" && req.path.startsWith("/bytes/"))
         return handleBytes(req);
     if (req.method == "GET")
@@ -309,6 +338,17 @@ HttpTestServer::HttpResponse HttpTestServer::handleCookiesSet(const HttpRequest 
     HttpResponse resp;
     resp.headers["Set-Cookie"] = setCookieHeaders.join(", ");
     resp.setJsonBody(QJsonObject{{"status", "ok"}});
+    return resp;
+}
+
+HttpTestServer::HttpResponse HttpTestServer::handleDelay(const HttpRequest &req)
+{
+    // The actual response is sent asynchronously via onDelayResponse().
+    // Return an empty placeholder — processRequest() intercepts /delay/
+    // before calling buildResponse(), so this is only used as a fallback.
+    Q_UNUSED(req);
+    HttpResponse resp;
+    resp.setJsonBody(QJsonObject{{"status", "delayed"}});
     return resp;
 }
 

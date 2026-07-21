@@ -37,6 +37,12 @@ private slots:
     void testPersistentCookieJar();
     void testRequestPriority();
 
+    // P0/P1 regression tests
+    void testStopRunningRequest();
+    void testStopBatchRequest();
+    void testStopAllRequests();
+    void testRapidCancelStress();
+
 private:
     bool waitForFinished(std::shared_ptr<NetworkReply> reply, int timeoutMs = 10000);
 };

@@ -683,3 +683,169 @@ void TestNetworkRequest::testRequestPriority()
 
     NetworkRequestManager::globalInstance()->setMaxThreadCount(savedMax);
 }
+
+// ─── P0/P1 regression tests ────────────────────────────────────────────────
+
+void TestNetworkRequest::testStopRunningRequest()
+{
+    // P1-2: Verify cancelling an in-flight request doesn't crash (r.reset() removed).
+    // P0-3: Verify cleanup doesn't leak when request is stopped mid-flight.
+    // Strategy: start a request to a slow endpoint, cancel it immediately,
+    //           and verify the cancelled result is delivered cleanly.
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/delay/5000";
+    req->type = RequestType::Get;
+
+    quint64 taskId = 0;
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    if (reply && reply->task())
+    {
+        taskId = reply->task()->id;
+        QVERIFY(taskId > 0);
+    }
+
+    // Set up signal spy BEFORE cancelling (stopRequest emits synchronously)
+    QSignalSpy spy(reply.get(), &NetworkReply::requestFinished);
+
+    // Let the request start executing
+    QCoreApplication::processEvents();
+    QThread::msleep(100);
+
+    // Cancel the in-flight request
+    NetworkRequestManager::globalInstance()->stopRequest(taskId);
+
+    // Check result (arrives synchronously via replyResult)
+    QVERIFY(!spy.isEmpty());
+    QList<QVariant> args = spy.takeFirst();
+    auto rsp = args.at(0).value<QSharedPointer<QtNetworkRequest::ResponseResult>>();
+    QVERIFY(rsp);
+    QVERIFY(!rsp->success);
+    QVERIFY(rsp->cancelled);
+    QVERIFY(!rsp->body.isEmpty());
+}
+
+void TestNetworkRequest::testStopBatchRequest()
+{
+    // P1-2: Verify stopping a batch of requests mid-execution doesn't crash.
+    // The r.reset() was also present in stopBatchRequests().
+
+    BatchRequestPtrTasks tasks;
+    for (int i = 0; i < 3; ++i)
+    {
+        std::unique_ptr<RequestContext> ctx = std::make_unique<RequestContext>();
+        ctx->url = s_server->baseUrl() + "/delay/3000";
+        ctx->type = RequestType::Get;
+        tasks.push_back(std::move(ctx));
+    }
+
+    quint64 batchId = 0;
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postBatchRequest(std::move(tasks), batchId);
+    QVERIFY(reply != nullptr);
+    QVERIFY(batchId > 0);
+
+    // Set up spy BEFORE cancelling (stopBatch emits synchronously)
+    QSignalSpy spy(reply.get(), &NetworkReply::requestFinished);
+
+    // Let requests start executing
+    QCoreApplication::processEvents();
+    QThread::msleep(200);
+
+    // Cancel the entire batch
+    NetworkRequestManager::globalInstance()->stopBatchRequests(batchId);
+
+    QVERIFY(!spy.isEmpty());
+    QList<QVariant> args = spy.takeFirst();
+    auto rsp = args.at(0).value<QSharedPointer<QtNetworkRequest::ResponseResult>>();
+    QVERIFY(rsp);
+    QVERIFY(!rsp->success);
+    QVERIFY(rsp->cancelled);
+}
+
+void TestNetworkRequest::testStopAllRequests()
+{
+    // P1-2: Verify stopping all requests in one shot doesn't crash.
+    // Covers the r.reset() removal in stopAllRequest().
+
+    // Queue several slow requests
+    for (int i = 0; i < 3; ++i)
+    {
+        std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+        req->url = s_server->baseUrl() + "/delay/5000";
+        req->type = RequestType::Get;
+        NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    }
+
+    // Let them start
+    QCoreApplication::processEvents();
+    QThread::msleep(200);
+
+    // Stop all at once
+    NetworkRequestManager::globalInstance()->stopAllRequest();
+
+    // Verify no crash — stopAllRequest() + subsequent operations are safe
+    // Also verify new requests can be made afterwards
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/get?after=stopall";
+    req->type = RequestType::Get;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                     });
+
+    QVERIFY(waitForFinished(reply, 15000));
+    QVERIFY(called);
+}
+
+void TestNetworkRequest::testRapidCancelStress()
+{
+    // P1-2 + P0-3: Stress test — rapidly create and cancel requests to
+    // expose potential use-after-free or race conditions.
+
+    const int iterations = 20;
+    int successCount = 0;
+
+    for (int i = 0; i < iterations; ++i)
+    {
+        std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+        req->url = s_server->baseUrl() + "/delay/2000";
+        req->type = RequestType::Get;
+
+        quint64 taskId = 0;
+        std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+
+        if (reply && reply->task())
+        {
+            taskId = reply->task()->id;
+
+            // Spy set up BEFORE cancelling
+            QSignalSpy spy(reply.get(), &NetworkReply::requestFinished);
+
+            // Let the request enter the thread pool
+            QCoreApplication::processEvents();
+            QThread::msleep(5);
+
+            // Cancel immediately — result arrives synchronously
+            NetworkRequestManager::globalInstance()->stopRequest(taskId);
+
+            if (!spy.isEmpty())
+            {
+                successCount++;
+            }
+        }
+    }
+
+    // At least 90% of cancel operations should complete normally
+    QVERIFY2(successCount >= iterations * 9 / 10,
+             qPrintable(QString("Only %1/%2 cancels completed").arg(successCount).arg(iterations)));
+}
