@@ -391,6 +391,8 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onActiveDownloadsChanged(int
 {
     Q_UNUSED(count);
     updateUI();
+    updateGlobalSpeed();
+    updateTimeRemaining();
 }
 
 void QtNetworkRequest::NetworkDownloaderMainWindow::onActionSettings()

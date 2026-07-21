@@ -238,7 +238,7 @@ void QtNetworkRequest::NetworkDownloadTaskModel::updateTaskTotalSpeed(const QStr
 	if (index >= 0) {
 		QtNetworkRequest::NetworkDownloadTask& task = m_tasks[index];
         if (task.elapsedMillis > 0)
-            task.speed = task.totalBytes / task.elapsedMillis;
+            task.speed = task.totalBytes * 1000 / task.elapsedMillis;
         else
             task.speed = 0;
 

@@ -1,8 +1,10 @@
 #include "downloadmanager.h"
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QRegularExpression>
 #include <QDebug>
 
 QtNetworkRequest::NetworkDownloadManager::NetworkDownloadManager(QObject *parent)
@@ -442,7 +444,46 @@ void QtNetworkRequest::NetworkDownloadManager::onResponse(QSharedPointer<QtNetwo
                 info.task.state = QtNetworkRequest::NetworkDownloadTask::State::Completed;
                 info.task.progress = 100;
                 info.task.elapsedMillis = info.downloadTimer.elapsed();
-                info.task.speed = info.task.totalBytes / info.task.elapsedMillis;
+                info.task.speed = info.task.totalBytes * 1000 / info.task.elapsedMillis;
+
+                // ---- Content-Disposition filename fixup ----
+                // If the server provides a real filename via the Content-Disposition
+                // header (e.g. "attachment; filename=RealName.exe"),
+                // rename the downloaded file so it matches what a browser would save.
+                auto cdIt = rsp->headers.find("content-disposition");
+                if (cdIt == rsp->headers.end())
+                    cdIt = rsp->headers.find("Content-Disposition");
+                if (cdIt != rsp->headers.end() && !cdIt->isEmpty())
+                {
+                    QString cdValue = QString::fromUtf8(cdIt->trimmed());
+                    // Match: filename="..." or filename=... (quoted or unquoted)
+                    QRegularExpression re("filename\\s*=\\s*(?:\"([^\"]*)\"|([^\\s;]+))",
+                                          QRegularExpression::CaseInsensitiveOption);
+                    QRegularExpressionMatch m = re.match(cdValue);
+                    if (m.hasMatch())
+                    {
+                        QString realName = m.captured(1);
+                        if (realName.isEmpty())
+                            realName = m.captured(2);
+                        realName = realName.trimmed();
+                        // URL-decode if needed (e.g. %20 -> space)
+                        realName = QUrl::fromPercentEncoding(realName.toUtf8());
+
+                        if (!realName.isEmpty() && realName != info.task.fileName)
+                        {
+                            QString oldPath = QDir(m_downloadDir).filePath(info.task.fileName);
+                            QString newPath = QDir(m_downloadDir).filePath(realName);
+
+                            // If newPath already exists, remove it so rename works
+                            if (QFile::exists(newPath))
+                                QFile::remove(newPath);
+
+                            if (QFile::rename(oldPath, newPath))
+                                info.task.fileName = realName;
+                        }
+                    }
+                }
+
                 emit taskStateChanged(info.task.id, QtNetworkRequest::NetworkDownloadTask::State::Completed);
                 emit taskElapsedTimeChanged(info.task.id, info.task.elapsedMillis);
                 emit taskCompleted(info.task.id, true);
@@ -508,8 +549,13 @@ void QtNetworkRequest::NetworkDownloadManager::updateDownloadSpeed(const QString
 
     // Exponential moving average keeps the displayed speed smooth and avoids
     // sudden drops to 0 during brief idle gaps.
+    // Bootstrap: on the first sample (or after a reset), jump directly to the
+    // instantaneous speed so the displayed value does not slowly climb from 0.
     const double alpha = 0.35;
-    info.smoothSpeed = alpha * instant + (1.0 - alpha) * info.smoothSpeed;
+    if (info.smoothSpeed <= 0.0)
+        info.smoothSpeed = instant;
+    else
+        info.smoothSpeed = alpha * instant + (1.0 - alpha) * info.smoothSpeed;
     info.currentSpeed = static_cast<qint64>(info.smoothSpeed);
     info.lastSampleElapsed = now;
     info.lastDownloadedBytes = info.task.downloadedBytes;
