@@ -450,12 +450,20 @@ void QtNetworkRequest::NetworkDownloadManager::onResponse(QSharedPointer<QtNetwo
                 // If the server provides a real filename via the Content-Disposition
                 // header (e.g. "attachment; filename=RealName.exe"),
                 // rename the downloaded file so it matches what a browser would save.
-                auto cdIt = rsp->headers.find("content-disposition");
-                if (cdIt == rsp->headers.end())
-                    cdIt = rsp->headers.find("Content-Disposition");
-                if (cdIt != rsp->headers.end() && !cdIt->isEmpty())
+                // Search case-insensitively because servers use different casing
+                // ("Content-Disposition", "content-disposition", etc.).
+                QByteArray cdValueRaw;
+                for (auto hdrIt = rsp->headers.cbegin(); hdrIt != rsp->headers.cend(); ++hdrIt)
                 {
-                    QString cdValue = QString::fromUtf8(cdIt->trimmed());
+                    if (hdrIt.key().compare("content-disposition", Qt::CaseInsensitive) == 0)
+                    {
+                        cdValueRaw = hdrIt.value();
+                        break;
+                    }
+                }
+                if (!cdValueRaw.isEmpty())
+                {
+                    QString cdValue = QString::fromUtf8(cdValueRaw.trimmed());
                     // Match: filename="..." or filename=... (quoted or unquoted)
                     QRegularExpression re("filename\\s*=\\s*(?:\"([^\"]*)\"|([^\\s;]+))",
                                           QRegularExpression::CaseInsensitiveOption);

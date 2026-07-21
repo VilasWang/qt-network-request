@@ -62,6 +62,7 @@ namespace QtNetworkRequest
 
 		QMap<int, qint64> m_mapBytesReceived;
 		qint64 m_bytesTotal;
+		QMap<QByteArray, QByteArray> m_responseHeaders;  // Cached HEAD response headers
 
 		bool m_bRangeSupportProbed{ false };  // Whether we've completed a range probe
 		bool m_bRangeSupported{ false };      // Whether the server actually honors Range requests

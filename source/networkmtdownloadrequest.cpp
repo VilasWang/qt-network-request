@@ -350,15 +350,11 @@ void NetworkMTDownloadRequest::onSubPartFinished(int index, bool bSuccess, const
             qint64 elapsedMs = m_downloadTimer.elapsed();
             double elapsedSeconds = elapsedMs / 1000.0;
 
-            // Get response header information (headers from HEAD request)
-            QMap<QByteArray, QByteArray> responseHeaders;
-            if (m_pNetworkReply)
-            {
-                foreach(const QByteArray & header, m_pNetworkReply->rawHeaderList())
-                {
-                    responseHeaders[header] = m_pNetworkReply->rawHeader(header);
-                }
-            }
+            // Get response header information from the saved HEAD response
+            // (m_pNetworkReply is already nullptr at this point because the
+            //  HEAD reply was deleted in onFinished() and range-probe reply
+            //  was deleted in onRangeProbeFinished()).
+            QMap<QByteArray, QByteArray> responseHeaders = m_responseHeaders;
             // Close memory mapped file before rename operation
             if (m_mappedFile)
             {
@@ -499,6 +495,13 @@ void NetworkMTDownloadRequest::onFinished()
     // whether the server actually honors range requests.
     QByteArray acceptRanges = m_pNetworkReply->rawHeader("Accept-Ranges");
     bool serverClaimsRange = acceptRanges.toLower().contains("bytes");
+
+    // Preserve response headers before the reply is destroyed — the
+    // Content-Disposition filename (among others) is needed later when
+    // onSubPartDownloadFinished constructs the final response.
+    m_responseHeaders.clear();
+    foreach (const QByteArray &header, m_pNetworkReply->rawHeaderList())
+        m_responseHeaders[header] = m_pNetworkReply->rawHeader(header);
 
     m_pNetworkReply->deleteLater();
     m_pNetworkReply = nullptr;
