@@ -44,7 +44,7 @@ namespace QtNetworkRequest
 		std::unique_ptr<QFile> m_pFile;
 		QTimer m_timer;
 		int m_mIntervalMs{ 250 };
-		bool m_bTimeout = false;
+		bool m_readyToEmitProgress = false;  // throttle flag: true when timer fired, ready to send progress
 		qint64 m_nBytesWritten{ 0 };
 	};
 }

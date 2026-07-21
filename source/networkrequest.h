@@ -8,6 +8,7 @@
 #include "networkrequestdefs.h"
 #include <QSharedPointer>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QNetworkAccessManager>
 
 class QNetworkAccessManager;
@@ -63,6 +64,17 @@ namespace QtNetworkRequest
 		QNetworkAccessManager *m_pNetworkManager;
 		QNetworkReply *m_pNetworkReply;
         QUrl m_url;
+
+		// Layer3: Idle/stall timeout (heartbeat-based)
+		QTimer m_heartbeatTimer;          // 250ms periodic heartbeat
+		int m_idleTimeoutCount{ 0 };      // consecutive idle periods
+		int m_idleThreshold{ 0 };         // threshold = idleTimeoutMs / 250
+		void resetIdleTimer();            // call on data arrival to reset idle counter
+		virtual void onHeartbeat();       // heartbeat callback (Layer3 idle + Layer2b transfer)
+
+#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
+		QElapsedTimer m_transferElapsed;  // Layer2b: transfer timeout timer for Qt < 5.15
+#endif
 	};
 
 	// Factory class

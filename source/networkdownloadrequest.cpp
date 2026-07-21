@@ -19,7 +19,7 @@ NetworkDownloadRequest::NetworkDownloadRequest(QObject *parent)
 	m_timer.setInterval(m_mIntervalMs);
 	connect(&m_timer, &QTimer::timeout, this, [this]()
 		{
-			m_bTimeout = true;
+			m_readyToEmitProgress = true;
 		});
 }
 
@@ -144,10 +144,21 @@ void NetworkDownloadRequest::start()
     connect(m_pNetworkReply, SIGNAL(sslErrors(QList<QSslError>)),
             this, SLOT(onSslErrors(QList<QSslError>)));
 #endif
+
+#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
+    // Layer2b: Qt < 5.15 transfer timeout via elapsed timer
+    if (m_upContext->behavior.transferTimeout > 0)
+    {
+        m_transferElapsed.start();
+    }
+#endif
 }
 
 void NetworkDownloadRequest::onReadyRead()
 {
+    // Reset idle timeout on data arrival
+    resetIdleTimer();
+
     if (!m_pNetworkReply || m_pNetworkReply->error() != QNetworkReply::NoError || !m_pNetworkReply->isOpen())
     {
         return;
@@ -275,13 +286,17 @@ void NetworkDownloadRequest::onFinished()
 
 void NetworkDownloadRequest::onDownloadProgress(qint64 iReceived, qint64 iTotal)
 {
-    if (m_bAbortManual || !m_bTimeout || iReceived <= 0 || iTotal <= 0)
+    // Reset idle timeout on data arrival
+    if (iReceived > 0)
+        resetIdleTimer();
+
+    if (m_bAbortManual || !m_readyToEmitProgress || iReceived <= 0 || iTotal <= 0)
         return;
 
     int progress = static_cast<int>(iReceived * 100 / iTotal);
     if (m_nProgress < progress)
     {
-        m_bTimeout = false;
+        m_readyToEmitProgress = false;
 
         m_nProgress = progress;
         NetworkProgressEvent *event = new NetworkProgressEvent;

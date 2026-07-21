@@ -849,3 +849,59 @@ void TestNetworkRequest::testRapidCancelStress()
     QVERIFY2(successCount >= iterations * 9 / 10,
              qPrintable(QString("Only %1/%2 cancels completed").arg(successCount).arg(iterations)));
 }
+
+// ─── Timeout mechanism tests ─────────────────────────────────────────────────
+
+void TestNetworkRequest::testTotalTimeout()
+{
+    // Layer1: Total request timeout.
+    // Verify that a fast request with totalTimeoutMs set still completes normally.
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/get?fast=1";
+    req->type = RequestType::Get;
+    req->behavior.totalTimeoutMs = 30000;  // 30s timeout, request will finish fast
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                     });
+
+    QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
+}
+
+void TestNetworkRequest::testIdleTimeout()
+{
+    // Layer3: Idle/stall timeout — verify configuration is accepted
+    // (The actual timeout behavior requires a real stalled connection,
+    //  which is hard to simulate reliably in a unit test environment.)
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/get?idle=1";
+    req->type = RequestType::Get;
+    req->behavior.idleTimeoutMs = 5000;  // 5s idle timeout
+
+    // Verify the request completes normally when data flows
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                     });
+
+    QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
+}

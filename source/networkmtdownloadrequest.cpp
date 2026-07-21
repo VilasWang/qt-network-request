@@ -74,6 +74,9 @@ bool NetworkMTDownloadRequest::requestFileSize()
         m_pNetworkManager = new QNetworkAccessManager(this);
         applyProxyConfig(m_pNetworkManager);
         applyCookieJar(m_pNetworkManager);
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+        m_pNetworkManager->setTransferTimeout(m_upContext->behavior.transferTimeout);
+#endif
     }
     QNetworkRequest request(url);
 
@@ -102,6 +105,14 @@ bool NetworkMTDownloadRequest::requestFileSize()
         connect(m_pNetworkReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
 #endif
     }
+
+#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
+    // Layer2b: Qt < 5.15 transfer timeout via elapsed timer
+    if (m_upContext->behavior.transferTimeout > 0)
+    {
+        m_transferElapsed.start();
+    }
+#endif
     return true;
 }
 
@@ -297,6 +308,9 @@ void NetworkMTDownloadRequest::startMTDownload()
                 this, SLOT(onSubPartFinished(int, bool, const QString &)));
         connect(downloader.get(), SIGNAL(downloadProgress(int, qint64, qint64)),
                 this, SLOT(onSubPartDownloadProgress(int, qint64, qint64)));
+        // N6: Forward Downloader data arrival to Layer3 idle timeout
+        connect(downloader.get(), &Downloader::dataReceived,
+                this, &NetworkMTDownloadRequest::resetIdleTimer);
         if (downloader->start(m_upContext->url, start, end))
         {
             m_mapDownloader[i] = std::move(downloader);
@@ -393,6 +407,10 @@ void NetworkMTDownloadRequest::onSubPartFinished(int index, bool bSuccess, const
 
 void NetworkMTDownloadRequest::onSubPartDownloadProgress(int index, qint64 bytesReceived, qint64 bytesTotal)
 {
+    // Reset idle timeout on any sub-part data arrival
+    if (bytesReceived > 0)
+        resetIdleTimer();
+
     if (m_bAbortManual || bytesReceived <= 0 || bytesTotal <= 0)
         return;
 
@@ -626,7 +644,7 @@ Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessMa
 	m_timer.setInterval(m_mIntervalMs);
 	connect(&m_timer, &QTimer::timeout, this, [this]()
 		{
-			m_bTimeout = true;
+			m_readyToEmitProgress = true;
 		});
 }
 
@@ -740,12 +758,15 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
         connect(m_pNetworkReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
 #endif
         
-        connect(m_pNetworkReply, &QNetworkReply::downloadProgress, this, [=](qint64 bytesReceived, qint64 bytesTotal)
+        connect(m_pNetworkReply, &QNetworkReply::downloadProgress, this, [this](qint64 bytesReceived, qint64 bytesTotal)
             {
-                if (!m_bAbortManual && m_bTimeout && bytesReceived > 0 && bytesTotal > 0)
+                if (!m_bAbortManual && m_readyToEmitProgress && bytesReceived > 0 && bytesTotal > 0)
                 {
-                    m_bTimeout = false;
+                    m_readyToEmitProgress = false;
                 }
+                // N6: Forward data arrival for Layer3 idle timeout
+                if (bytesReceived > 0)
+                    emit dataReceived();
                 emit downloadProgress(m_nIndex, bytesReceived, bytesTotal); 
             });
     }
@@ -755,6 +776,9 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
 
 void Downloader::onReadyRead()
 {
+    // N6: Forward data arrival for Layer3 idle timeout via parent NetworkMTDownloadRequest
+    emit dataReceived();
+
     if (m_pNetworkReply && m_pNetworkReply->error() == QNetworkReply::NoError && m_pNetworkReply->isOpen())
     {
         const QByteArray &bytesRev = m_pNetworkReply->readAll();

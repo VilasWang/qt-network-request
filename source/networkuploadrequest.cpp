@@ -19,7 +19,7 @@ NetworkUploadRequest::NetworkUploadRequest(QObject *parent /* = nullptr */)
 	m_timer.setInterval(m_mIntervalMs);
 	connect(&m_timer, &QTimer::timeout, this, [this]()
 		{
-			m_bTimeout = true;
+			m_readyToEmitProgress = true;
 		});
 }
 
@@ -215,6 +215,14 @@ void NetworkUploadRequest::start()
 	{
 		connect(m_pNetworkReply, SIGNAL(uploadProgress(qint64, qint64)), this, SLOT(onUploadProgress(qint64, qint64)));
 	}
+
+#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
+    // Layer2b: Qt < 5.15 transfer timeout via elapsed timer
+    if (m_upContext->behavior.transferTimeout > 0)
+    {
+        m_transferElapsed.start();
+    }
+#endif
 	m_timer.start();
 }
 
@@ -312,9 +320,14 @@ void NetworkUploadRequest::onFinished()
 void NetworkUploadRequest::onUploadProgress(qint64 iSent, qint64 iTotal)
 {
 	m_nLastSentBytes = iSent;
-	if (m_bAbortManual || !m_bTimeout || iSent <= 0 || iTotal <= 0)
+
+    // Reset idle timeout on data sent
+    if (iSent > 0)
+        resetIdleTimer();
+
+	if (m_bAbortManual || !m_readyToEmitProgress || iSent <= 0 || iTotal <= 0)
 		return;
-	m_bTimeout = false;
+	m_readyToEmitProgress = false;
 
 	int progress = iSent * 100 / iTotal;
 	if (m_nProgress < progress)

@@ -220,6 +220,7 @@ void NetworkCommonRequest::start()
     }
 
     connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
+    connect(m_pNetworkReply, &QNetworkReply::readyRead, this, [this]() { resetIdleTimer(); });
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
     connect(m_pNetworkReply, SIGNAL(errorOccurred(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
 #else
@@ -227,6 +228,14 @@ void NetworkCommonRequest::start()
 #endif
     connect(m_pNetworkManager, SIGNAL(authenticationRequired(QNetworkReply *, QAuthenticator *)),
             SLOT(onAuthenticationRequired(QNetworkReply *, QAuthenticator *)));
+
+#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
+    // Layer2b: Qt < 5.15 transfer timeout via elapsed timer
+    if (m_upContext->behavior.transferTimeout > 0)
+    {
+        m_transferElapsed.start();
+    }
+#endif
 }
 
 void NetworkCommonRequest::onFinished()

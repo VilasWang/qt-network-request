@@ -139,7 +139,9 @@ namespace QtNetworkRequest
             quint16 maxRetryCount{ 3 };
             int retryDelayMs{ 1000 };
             quint16 maxRedirectionCount{ 3 };
-            int transferTimeout{ 30000 }; // 30 seconds
+            int transferTimeout{ 30000 }; // 30 seconds (transfer timeout)
+            int idleTimeoutMs{ 0 };       // Idle/stall timeout (ms), 0=disabled. If no data received for this duration, abort.
+            int totalTimeoutMs{ 0 };      // Total request timeout (ms), 0=disabled. The entire request lifecycle must not exceed this.
             int priority{ 0 }; // higher = more urgent, default 0
         } behavior;
 
@@ -157,7 +159,9 @@ namespace QtNetworkRequest
     {
         bool success{ false };
         bool cancelled{ false };
+        bool timeout{ false };  // true if request terminated due to timeout (not cancellation)
         int statusCode{ 0 };
+        int errorCode{ 0 };     // QNetworkReply::NetworkError when failed
         QString errorMessage;
         QByteArray body;
         QMap<QByteArray, QByteArray> headers;

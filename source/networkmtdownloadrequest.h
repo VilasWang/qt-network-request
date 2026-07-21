@@ -92,6 +92,7 @@ namespace QtNetworkRequest
 	Q_SIGNALS:
 		void downloadFinished(int index, bool bSuccess, const QString &strErr);
 		void downloadProgress(int index, qint64 bytesReceived, qint64 bytesTotal);
+		void dataReceived();  // N6: fired on readyRead/downloadProgress for Layer3 idle timeout forwarding
 
 	public Q_SLOTS:
 		void onFinished();
@@ -119,7 +120,7 @@ namespace QtNetworkRequest
 
 		QTimer m_timer;
 		int m_mIntervalMs{ 250 };
-		bool m_bTimeout = false;
+		bool m_readyToEmitProgress = false;  // throttle flag: true when timer fired, ready to send progress
 	};
 }
 

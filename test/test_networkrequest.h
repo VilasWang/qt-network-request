@@ -43,6 +43,10 @@ private slots:
     void testStopAllRequests();
     void testRapidCancelStress();
 
+    // Timeout mechanism tests
+    void testTotalTimeout();
+    void testIdleTimeout();
+
 private:
     bool waitForFinished(std::shared_ptr<NetworkReply> reply, int timeoutMs = 10000);
 };

@@ -39,6 +39,7 @@ NetworkRequest::~NetworkRequest()
 void NetworkRequest::abort()
 {
     m_bAbortManual = true;
+    m_heartbeatTimer.stop();
     if (m_pNetworkReply)
     {
         if (m_pNetworkReply->isRunning())
@@ -55,6 +56,52 @@ void NetworkRequest::start()
     m_bAbortManual = false;
     m_nProgress = 0;
     m_spResult = QSharedPointer<ResponseResult>::create();
+
+    // Layer3: Idle/stall timeout
+    m_heartbeatTimer.stop();
+    m_heartbeatTimer.disconnect();
+    int idleMs = m_upContext ? m_upContext->behavior.idleTimeoutMs : 0;
+    if (idleMs > 0)
+    {
+        m_idleThreshold = qMax(1, idleMs / 250);
+        m_idleTimeoutCount = 0;
+        connect(&m_heartbeatTimer, &QTimer::timeout, this, &NetworkRequest::onHeartbeat);
+        m_heartbeatTimer.start(250);
+    }
+}
+
+void NetworkRequest::onHeartbeat()
+{
+    // Layer3: Idle/stall detection
+    if (m_idleThreshold > 0)
+    {
+        m_idleTimeoutCount++;
+        if (m_idleTimeoutCount >= m_idleThreshold)
+        {
+            qWarning() << "[QMultiThreadNetwork] Request idle timeout, taskId:" << m_upContext->task.id;
+            abort();
+            return;
+        }
+    }
+
+    // Layer2b: Transfer timeout for Qt < 5.15 (reuses heartbeat timer)
+#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
+    if (m_transferElapsed.isValid() &&
+        m_upContext &&
+        m_transferElapsed.elapsed() > m_upContext->behavior.transferTimeout)
+    {
+        qWarning() << "[QMultiThreadNetwork] Request transfer timeout (legacy), taskId:" << m_upContext->task.id;
+        if (m_pNetworkReply)
+        {
+            m_pNetworkReply->abort();
+        }
+    }
+#endif
+}
+
+void NetworkRequest::resetIdleTimer()
+{
+    m_idleTimeoutCount = 0;
 }
 
 void NetworkRequest::onError(QNetworkReply::NetworkError code)
@@ -87,6 +134,10 @@ void NetworkRequest::applyProxyConfig(QNetworkAccessManager* mgr)
 
 bool NetworkRequest::tryRetry()
 {
+    // N3 fix: Do not retry if abort was triggered by timeout/cancellation
+    if (m_bAbortManual)
+        return false;
+
     if (!m_upContext || !m_upContext->behavior.retryOnFailed)
         return false;
     if (m_nRetryCount >= m_upContext->behavior.maxRetryCount)
