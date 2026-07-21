@@ -112,23 +112,40 @@ struct NetworkDownloadTask
         return formatFileSize(speed) + "/s";
     }
 
+    // Format a duration (in seconds) as "Xh Ym Zs" / "Ym Zs" / "Zs".
+    static QString formatDuration(qint64 totalSec)
+    {
+        if (totalSec < 0)
+            totalSec = 0;
+        const qint64 seconds = totalSec % 60;
+        const qint64 minutes = (totalSec / 60) % 60;
+        const qint64 hours = totalSec / 3600;
+        if (hours > 0)
+            return QString("%1h %2m %3s").arg(hours).arg(minutes).arg(seconds);
+        if (minutes > 0)
+            return QString("%1m %2s").arg(minutes).arg(seconds);
+        return QString("%1s").arg(seconds);
+    }
+
+    // While running, show estimated remaining time (ETA) based on the live
+    // speed; once finished, show the total elapsed time.
     QString formatTime() const
     {
+        if (state == State::Running)
+        {
+            if (speed <= 0 || totalBytes <= 0 || downloadedBytes <= 0)
+                return "--";
+            const qint64 remaining = totalBytes - downloadedBytes;
+            if (remaining <= 0)
+                return "0s";
+            const double bytesPerSec = static_cast<double>(speed);
+            return formatDuration(static_cast<qint64>(remaining / bytesPerSec));
+        }
+
         if (elapsedMillis <= 0)
             return "--";
 
-        qint64 seconds = elapsedMillis / 1000;
-        if (seconds < 60)
-            return QString("%1s").arg(seconds);
-
-        qint64 minutes = seconds / 60;
-        seconds = seconds % 60;
-        if (minutes < 60)
-            return QString("%1m %2s").arg(minutes).arg(seconds);
-
-        qint64 hours = minutes / 60;
-        minutes = minutes % 60;
-        return QString("%1h %2m %3s").arg(hours).arg(minutes).arg(seconds);
+        return formatDuration(elapsedMillis / 1000);
     }
 
     bool isValid() const

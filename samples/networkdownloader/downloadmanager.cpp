@@ -93,6 +93,8 @@ void QtNetworkRequest::NetworkDownloadManager::addDownloadTask(const QtNetworkRe
     info.speedTimer = nullptr;
     info.lastDownloadedBytes = 0;
     info.currentSpeed = 0;
+    info.lastSampleElapsed = 0;
+    info.smoothSpeed = 0.0;
     info.isActive = false;
 
     m_downloads[task.id] = std::move(info);
@@ -159,7 +161,8 @@ void QtNetworkRequest::NetworkDownloadManager::startDownload(const QString &task
         info.isActive = true;
         info.task.state = QtNetworkRequest::NetworkDownloadTask::State::Running;
         info.requestId = task->id;
-        info.lastTime = QDateTime::currentDateTime();
+        info.lastSampleElapsed = 0;
+        info.smoothSpeed = 0.0;
         info.downloadTimer.start();
         m_activeDownloadCount++;
 
@@ -409,9 +412,6 @@ void QtNetworkRequest::NetworkDownloadManager::onDownloadProgress(const QString 
                 info.task.progress = static_cast<int>((bytesDownloaded * 100) / bytesTotal);
             }
 
-            // Update download speed
-            updateDownloadSpeed(info.task.id);
-
             emit taskProgress(info.task.id, bytesDownloaded, bytesTotal, info.task.speed);
         }
     }
@@ -492,16 +492,26 @@ void QtNetworkRequest::NetworkDownloadManager::updateDownloadSpeed(const QString
         return;
 
     DownloadInfo &info = m_downloads[taskId];
-    if (!info.isActive)
+    if (!info.isActive || info.task.state != QtNetworkRequest::NetworkDownloadTask::State::Running)
         return;
 
-    QDateTime now = QDateTime::currentDateTime();
-    qint64 ms = info.lastTime.msecsTo(now);
-    if (ms <= 0)
+    // Fixed sampling window based on the download timer, decoupled from the
+    // sparse progress events emitted by multi-threaded downloads, so the speed
+    // no longer collapses to 0 between events.
+    const qint64 now = info.downloadTimer.elapsed();       // ms since start
+    const qint64 interval = now - info.lastSampleElapsed;   // ms since last sample
+    if (interval < 1)
         return;
-    info.lastTime = now;
-    qint64 bytesDiff = info.task.downloadedBytes - info.lastDownloadedBytes;
-    info.currentSpeed = bytesDiff * 1000 / ms; // Speed in bytes per second
+
+    const qint64 bytesDiff = info.task.downloadedBytes - info.lastDownloadedBytes;
+    const double instant = static_cast<double>(bytesDiff) * 1000.0 / static_cast<double>(interval);
+
+    // Exponential moving average keeps the displayed speed smooth and avoids
+    // sudden drops to 0 during brief idle gaps.
+    const double alpha = 0.35;
+    info.smoothSpeed = alpha * instant + (1.0 - alpha) * info.smoothSpeed;
+    info.currentSpeed = static_cast<qint64>(info.smoothSpeed);
+    info.lastSampleElapsed = now;
     info.lastDownloadedBytes = info.task.downloadedBytes;
 
     info.task.speed = info.currentSpeed;

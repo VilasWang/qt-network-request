@@ -66,11 +66,13 @@ private:
         qint64 lastDownloadedBytes;
         qint64 currentSpeed;
         QElapsedTimer downloadTimer;
-        QDateTime lastTime;
+        qint64 lastSampleElapsed;   // ms since download start at last speed sample
+        double smoothSpeed;         // EMA smoothed speed (bytes/sec)
         bool isActive;
 
         DownloadInfo() : reply(nullptr), requestId(0), speedTimer(nullptr),
-                         lastDownloadedBytes(0), currentSpeed(0), isActive(false) {}
+                         lastDownloadedBytes(0), currentSpeed(0),
+                         lastSampleElapsed(0), smoothSpeed(0.0), isActive(false) {}
         ~DownloadInfo()
         {
             if (speedTimer)
