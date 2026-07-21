@@ -168,6 +168,7 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::setupConnections()
     // Download manager connections
     connect(m_downloadManager, &QtNetworkRequest::NetworkDownloadManager::taskAdded, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onTaskAdded);
     connect(m_downloadManager, &QtNetworkRequest::NetworkDownloadManager::taskProgress, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onTaskProgress);
+    connect(m_downloadManager, &QtNetworkRequest::NetworkDownloadManager::taskFileNameChanged, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onTaskFileNameChanged);
     connect(m_downloadManager, &QtNetworkRequest::NetworkDownloadManager::taskElapsedTimeChanged, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onTaskElapsedTimeChanged);
     connect(m_downloadManager, &QtNetworkRequest::NetworkDownloadManager::taskStateChanged, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onTaskStateChanged);
     connect(m_downloadManager, &QtNetworkRequest::NetworkDownloadManager::taskCompleted, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onTaskCompleted);
@@ -337,6 +338,11 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onTaskProgress(const QString
     m_taskModel->updateTaskProgress(taskId, downloaded, total, speed);
     updateGlobalSpeed();
     updateTimeRemaining();
+}
+
+void QtNetworkRequest::NetworkDownloaderMainWindow::onTaskFileNameChanged(const QString &taskId, const QString &fileName)
+{
+    m_taskModel->updateTaskFileName(taskId, fileName);
 }
 
 void QtNetworkRequest::NetworkDownloaderMainWindow::onTaskElapsedTimeChanged(const QString &taskId, qint64 elapsedMillis)

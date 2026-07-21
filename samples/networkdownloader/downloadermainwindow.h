@@ -40,6 +40,7 @@ private slots:
     void onTaskSelectionChanged();
     void onTaskAdded(const NetworkDownloadTask &task);
     void onTaskProgress(const QString &taskId, qint64 downloaded, qint64 total, qint64 speed);
+    void onTaskFileNameChanged(const QString &taskId, const QString &fileName);
     void onTaskElapsedTimeChanged(const QString &taskId, qint64 elapsedMillis);
     void onTaskStateChanged(const QString &taskId, NetworkDownloadTask::State state, const QString &error = QString());
     void onTaskCompleted(const QString &taskId, bool success);

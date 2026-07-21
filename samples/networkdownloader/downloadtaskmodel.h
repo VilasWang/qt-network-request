@@ -42,6 +42,7 @@ public:
     NetworkDownloadTask getTask(int row) const;
     QVector<NetworkDownloadTask> getAllTasks() const;
     void updateTask(const NetworkDownloadTask &task);
+    void updateTaskFileName(const QString &id, const QString &fileName);
     void updateTaskProgress(const QString &id, qint64 downloadedBytes, qint64 totalBytes, qint64 speed);
     void updateTaskElapsedTime(const QString &id, qint64 elapsedMillis);
     void updateTaskTotalSpeed(const QString &id);

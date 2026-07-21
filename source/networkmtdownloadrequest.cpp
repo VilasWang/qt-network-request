@@ -502,6 +502,9 @@ void NetworkMTDownloadRequest::onFinished()
     m_responseHeaders.clear();
     foreach (const QByteArray &header, m_pNetworkReply->rawHeaderList())
         m_responseHeaders[header] = m_pNetworkReply->rawHeader(header);
+    // Expose the final URL (after redirects) so the app layer can extract the
+    // real filename from the path basename when Content-Disposition is missing.
+    m_responseHeaders["X-Final-Url"] = m_url.toString().toUtf8();
 
     m_pNetworkReply->deleteLater();
     m_pNetworkReply = nullptr;

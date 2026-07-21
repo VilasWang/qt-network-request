@@ -46,6 +46,7 @@ public:
 Q_SIGNALS:
     void taskAdded(const NetworkDownloadTask &task);
     void taskProgress(const QString &taskId, qint64 downloaded, qint64 total, qint64 speed);
+    void taskFileNameChanged(const QString &taskId, const QString &fileName);
     void taskElapsedTimeChanged(const QString &taskId, qint64 elapsedMillis);
     void taskStateChanged(const QString &taskId, NetworkDownloadTask::State state, const QString &error = QString());
     void taskCompleted(const QString &taskId, bool success);

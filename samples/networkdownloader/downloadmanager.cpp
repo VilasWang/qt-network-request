@@ -446,49 +446,64 @@ void QtNetworkRequest::NetworkDownloadManager::onResponse(QSharedPointer<QtNetwo
                 info.task.elapsedMillis = info.downloadTimer.elapsed();
                 info.task.speed = info.task.totalBytes * 1000 / info.task.elapsedMillis;
 
-                // ---- Content-Disposition filename fixup ----
-                // If the server provides a real filename via the Content-Disposition
-                // header (e.g. "attachment; filename=RealName.exe"),
-                // rename the downloaded file so it matches what a browser would save.
-                // Search case-insensitively because servers use different casing
-                // ("Content-Disposition", "content-disposition", etc.).
-                QByteArray cdValueRaw;
+                // ---- Filename fixup ----
+                // Try to recover the real filename from server hints:
+                //   1) Content-Disposition: attachment; filename="..."
+                //   2) X-Final-Url: final URL after redirects (set by the library)
+                // Then rename the file on disk and notify the UI.
+                QString realName;
+
+                // (1) Content-Disposition (case-insensitive key match)
                 for (auto hdrIt = rsp->headers.cbegin(); hdrIt != rsp->headers.cend(); ++hdrIt)
                 {
                     if (hdrIt.key().compare("content-disposition", Qt::CaseInsensitive) == 0)
                     {
-                        cdValueRaw = hdrIt.value();
+                        QString cdValue = QString::fromUtf8(hdrIt.value().trimmed());
+                        QRegularExpression re("filename\\s*=\\s*(?:\"([^\"]*)\"|([^\\s;]+))",
+                                              QRegularExpression::CaseInsensitiveOption);
+                        QRegularExpressionMatch m = re.match(cdValue);
+                        if (m.hasMatch())
+                        {
+                            realName = m.captured(1);
+                            if (realName.isEmpty())
+                                realName = m.captured(2);
+                            realName = QUrl::fromPercentEncoding(realName.trimmed().toUtf8());
+                        }
                         break;
                     }
                 }
-                if (!cdValueRaw.isEmpty())
+
+                // (2) Fallback: basename of the final URL (after redirects)
+                if (realName.isEmpty())
                 {
-                    QString cdValue = QString::fromUtf8(cdValueRaw.trimmed());
-                    // Match: filename="..." or filename=... (quoted or unquoted)
-                    QRegularExpression re("filename\\s*=\\s*(?:\"([^\"]*)\"|([^\\s;]+))",
-                                          QRegularExpression::CaseInsensitiveOption);
-                    QRegularExpressionMatch m = re.match(cdValue);
-                    if (m.hasMatch())
+                    for (auto hdrIt = rsp->headers.cbegin(); hdrIt != rsp->headers.cend(); ++hdrIt)
                     {
-                        QString realName = m.captured(1);
-                        if (realName.isEmpty())
-                            realName = m.captured(2);
-                        realName = realName.trimmed();
-                        // URL-decode if needed (e.g. %20 -> space)
-                        realName = QUrl::fromPercentEncoding(realName.toUtf8());
-
-                        if (!realName.isEmpty() && realName != info.task.fileName)
+                        if (hdrIt.key().compare("X-Final-Url", Qt::CaseInsensitive) == 0)
                         {
-                            QString oldPath = QDir(m_downloadDir).filePath(info.task.fileName);
-                            QString newPath = QDir(m_downloadDir).filePath(realName);
-
-                            // If newPath already exists, remove it so rename works
-                            if (QFile::exists(newPath))
-                                QFile::remove(newPath);
-
-                            if (QFile::rename(oldPath, newPath))
-                                info.task.fileName = realName;
+                            QUrl finalUrl(QString::fromUtf8(hdrIt.value()));
+                            if (finalUrl.isValid())
+                            {
+                                QString baseName = QFileInfo(finalUrl.path()).fileName();
+                                if (!baseName.isEmpty() && baseName != "/")
+                                    realName = baseName;
+                            }
+                            break;
                         }
+                    }
+                }
+
+                if (!realName.isEmpty() && realName != info.task.fileName)
+                {
+                    QString oldPath = QDir(m_downloadDir).filePath(info.task.fileName);
+                    QString newPath = QDir(m_downloadDir).filePath(realName);
+
+                    if (QFile::exists(newPath))
+                        QFile::remove(newPath);
+
+                    if (QFile::rename(oldPath, newPath))
+                    {
+                        info.task.fileName = realName;
+                        emit taskFileNameChanged(info.task.id, realName);
                     }
                 }
 

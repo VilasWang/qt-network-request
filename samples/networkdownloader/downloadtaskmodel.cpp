@@ -185,6 +185,16 @@ void QtNetworkRequest::NetworkDownloadTaskModel::updateTask(const QtNetworkReque
     }
 }
 
+void QtNetworkRequest::NetworkDownloadTaskModel::updateTaskFileName(const QString &id, const QString &fileName)
+{
+    int index = findTaskIndex(id);
+    if (index >= 0) {
+        m_tasks[index].fileName = fileName;
+        const QModelIndex cellIdx = createIndex(index, static_cast<int>(Column::ColumnFileName));
+        emit dataChanged(cellIdx, cellIdx, QVector<int>{ Qt::DisplayRole });
+    }
+}
+
 void QtNetworkRequest::NetworkDownloadTaskModel::updateTaskProgress(const QString &id, qint64 downloadedBytes, qint64 totalBytes, qint64 speed)
 {
     int index = findTaskIndex(id);
