@@ -1,17 +1,39 @@
-﻿#pragma once
+﻿/*
+@Brief:			Qt multi-threaded network request module
+
+The Qt multi-threaded network request module is a wrapper of Qt Network module, and combine with thread-pool to realize multi-threaded networking.
+- Multi-task concurrent(Each request task is executed in different threads).
+- Both single request and batch request mode are supported.
+- Large file multi-thread downloading supported. (The thread here refers to the download channel. Download speed is faster.)
+- HTTP(S)/FTP protocol supported.
+- Multiple request methods supported. (GET/POST/PUT/DELETE/HEAD)
+- Asynchronous API.
+- Thread-safe.
+
+Note: You must call NetworkRequestManager::initialize() before use, and call NetworkRequestManager::unInitialize() before application quit.
+That must be called in the main thread.
+*/
+
+#ifndef NETWORKEVENT_H
+#define NETWORKEVENT_H
+#pragma once
 
 #include <QEvent>
 #include <QMap>
 #include <QByteArray>
 #include <QVariant>
+#include <QSharedPointer>
 
 namespace QtNetworkRequest
 {
+    // Forward declaration — full definition is in networkrequestdefs.h
+    struct ResponseResult;
+
     ////////////////// Event ////////////////////////////////////////////////////
     namespace QEventRegister
     {
         template <typename T>
-        int regiester(const T &eventName)
+        int registerEvent(const T &eventName)
         {
             using UserEventMap = std::map<T, int>;
             static UserEventMap s_mapUserEvent;
@@ -26,44 +48,50 @@ namespace QtNetworkRequest
             s_mapUserEvent[eventName] = nEventType;
             return nEventType;
         }
+
+        // Keep old spelling for backward compatibility
+        template <typename T>
+        inline int regiester(const T &eventName) { return registerEvent(eventName); }
     };
 
     namespace NetworkEvent
     {
-        const QEvent::Type WaitForIdleThread = (QEvent::Type)QEventRegister::regiester(QLatin1String("WaitForIdleThread"));
-        const QEvent::Type ReplyResult = (QEvent::Type)QEventRegister::regiester(QLatin1String("ReplyResult"));
-        const QEvent::Type NetworkProgress = (QEvent::Type)QEventRegister::regiester(QLatin1String("NetworkProgress"));
+        const QEvent::Type WaitForIdleThread = (QEvent::Type)QEventRegister::registerEvent(QString("WaitForIdleThread"));
+        const QEvent::Type ReplyResult = (QEvent::Type)QEventRegister::registerEvent(QString("ReplyResult"));
+        const QEvent::Type NetworkProgress = (QEvent::Type)QEventRegister::registerEvent(QString("NetworkProgress"));
     }
 
-    // 等待空闲线程事件
+    // Wait for idle thread event
     class WaitForIdleThreadEvent : public QEvent
     {
     public:
         WaitForIdleThreadEvent() : QEvent(QEvent::Type(NetworkEvent::WaitForIdleThread)) {}
     };
 
-    // 通知结果事件
+    // Notify result event
     class ReplyResultEvent : public QEvent
     {
     public:
         ReplyResultEvent() : QEvent(QEvent::Type(NetworkEvent::ReplyResult)), bDestroyed(true) {}
 
-        RequestTask request;
+        QSharedPointer<ResponseResult> response;
         bool bDestroyed;
     };
 
-    // 下载/上传进度事件
+    // Download/Upload progress event
     class NetworkProgressEvent : public QEvent
     {
     public:
-        NetworkProgressEvent() : QEvent(QEvent::Type(NetworkEvent::NetworkProgress)), bDownload(true), uiId(0), uiBatchId(0), iBtyes(0), iTotalBtyes(0)
+        NetworkProgressEvent() : QEvent(QEvent::Type(NetworkEvent::NetworkProgress)), bDownload(true), uiId(0), uiBatchId(0), iBytes(0), iTotalBytes(0)
         {
         }
 
         bool bDownload;
         quint64 uiId;
         quint64 uiBatchId;
-        qint64 iBtyes;
-        qint64 iTotalBtyes;
+        qint64 iBytes;
+        qint64 iTotalBytes;
     };
 }
+
+#endif /// NETWORKEVENT_H

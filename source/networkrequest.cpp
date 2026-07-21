@@ -23,12 +23,15 @@ NetworkRequest::~NetworkRequest()
         {
             m_pNetworkReply->abort();
         }
-        m_pNetworkReply->deleteLater();
+        // deleteLater() is ineffective inside a destructor — the object's
+        // event loop is about to exit and deferred-delete events will never
+        // be processed. Use direct delete instead.
+        delete m_pNetworkReply;
         m_pNetworkReply = nullptr;
     }
     if (m_pNetworkManager)
     {
-        m_pNetworkManager->deleteLater();
+        delete m_pNetworkManager;
         m_pNetworkManager = nullptr;
     }
 }

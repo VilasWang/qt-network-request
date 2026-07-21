@@ -26,11 +26,14 @@ That must be called in the main thread.
 
 namespace QtNetworkRequest
 {
+    // Forward declaration — full definition is in networkrequestdefs.h
+    struct ResponseResult;
+
     ////////////////// Event ////////////////////////////////////////////////////
     namespace QEventRegister
     {
         template <typename T>
-        int regiester(const T &eventName)
+        int registerEvent(const T &eventName)
         {
             using UserEventMap = std::map<T, int>;
             static UserEventMap s_mapUserEvent;
@@ -45,13 +48,17 @@ namespace QtNetworkRequest
             s_mapUserEvent[eventName] = nEventType;
             return nEventType;
         }
+
+        // Keep old spelling for backward compatibility
+        template <typename T>
+        inline int regiester(const T &eventName) { return registerEvent(eventName); }
     };
 
     namespace NetworkEvent
     {
-        const QEvent::Type WaitForIdleThread = (QEvent::Type)QEventRegister::regiester(QString("WaitForIdleThread"));
-        const QEvent::Type ReplyResult = (QEvent::Type)QEventRegister::regiester(QString("ReplyResult"));
-        const QEvent::Type NetworkProgress = (QEvent::Type)QEventRegister::regiester(QString("NetworkProgress"));
+        const QEvent::Type WaitForIdleThread = (QEvent::Type)QEventRegister::registerEvent(QString("WaitForIdleThread"));
+        const QEvent::Type ReplyResult = (QEvent::Type)QEventRegister::registerEvent(QString("ReplyResult"));
+        const QEvent::Type NetworkProgress = (QEvent::Type)QEventRegister::registerEvent(QString("NetworkProgress"));
     }
 
     // Wait for idle thread event
@@ -75,15 +82,15 @@ namespace QtNetworkRequest
     class NetworkProgressEvent : public QEvent
     {
     public:
-        NetworkProgressEvent() : QEvent(QEvent::Type(NetworkEvent::NetworkProgress)), bDownload(true), uiId(0), uiBatchId(0), iBtyes(0), iTotalBtyes(0)
+        NetworkProgressEvent() : QEvent(QEvent::Type(NetworkEvent::NetworkProgress)), bDownload(true), uiId(0), uiBatchId(0), iBytes(0), iTotalBytes(0)
         {
         }
 
         bool bDownload;
         quint64 uiId;
         quint64 uiBatchId;
-        qint64 iBtyes;
-        qint64 iTotalBtyes;
+        qint64 iBytes;
+        qint64 iTotalBytes;
     };
 }
 

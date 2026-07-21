@@ -254,7 +254,9 @@ void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
                 m_pThreadPool->cancel(r.get());
                 r->quit();
 #endif
-                r.reset();
+                // r will be naturally released when leaving scope;
+                // do NOT r.reset() here — run() may still be executing
+                // cleanup after quit() returned
             }
         }
         // Check priority queue
@@ -307,7 +309,6 @@ void NetworkRequestManagerPrivate::stopBatchRequests(quint64 uiBatchId)
                 r->quit();
 #endif
                 iter = m_mapRunnable.erase(iter);
-                r.reset();
             }
             else
             {
@@ -386,7 +387,6 @@ void NetworkRequestManagerPrivate::stopSessionRequest(quint64 uiSessionId)
             r->quit();
 #endif
             iter = m_mapRunnable.erase(iter);
-            r.reset();
         }
         else
         {
@@ -437,7 +437,6 @@ void NetworkRequestManagerPrivate::stopAllRequest()
                 m_pThreadPool->cancel(r.get());
                 r->quit();
 #endif
-                r.reset();
             }
         }
         m_mapRunnable.clear();
@@ -576,9 +575,9 @@ bool NetworkRequestManagerPrivate::startRunnable(std::shared_ptr<NetworkRequestR
             return true;
         }
     }
-    catch (std::exception *e)
+    catch (const std::exception &e)
     {
-        qCritical() << "[QMultiThreadNetwork] startRunnable() exception:" << QString::fromUtf8(e->what());
+        qCritical() << "[QMultiThreadNetwork] startRunnable() exception:" << QString::fromUtf8(e.what());
     }
     catch (...)
     {
@@ -967,8 +966,8 @@ bool NetworkRequestManager::event(QEvent *event)
         {
             updateProgress(evtProgress->uiId,
                            evtProgress->uiBatchId,
-                           evtProgress->iBtyes,
-                           evtProgress->iTotalBtyes,
+                           evtProgress->iBytes,
+                           evtProgress->iTotalBytes,
                            evtProgress->bDownload);
         }
         return true;
@@ -1093,9 +1092,9 @@ void NetworkRequestManager::onResponse(QSharedPointer<QtNetworkRequest::Response
         // 4. Release task thread to make it idle
         d->releaseRequestThread(rsp->task.id);
     }
-    catch (std::exception *e)
+    catch (const std::exception &e)
     {
-        qCritical() << "NetworkRequestManager::onResponse() exception:" << QString::fromUtf8(e->what());
+        qCritical() << "NetworkRequestManager::onResponse() exception:" << QString::fromUtf8(e.what());
     }
     catch (...)
     {

@@ -287,8 +287,8 @@ void NetworkDownloadRequest::onDownloadProgress(qint64 iReceived, qint64 iTotal)
         NetworkProgressEvent *event = new NetworkProgressEvent;
         event->uiId = m_upContext->task.id;
         event->uiBatchId = m_upContext->task.batchId;
-        event->iBtyes = iReceived;
-        event->iTotalBtyes = iTotal;
+        event->iBytes = iReceived;
+        event->iTotalBytes = iTotal;
         QCoreApplication::postEvent(NetworkRequestManager::globalInstance(), event);
     }
 }

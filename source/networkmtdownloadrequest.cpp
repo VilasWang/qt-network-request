@@ -417,8 +417,8 @@ void NetworkMTDownloadRequest::onSubPartDownloadProgress(int index, qint64 bytes
 			NetworkProgressEvent* event = new NetworkProgressEvent;
 			event->uiId = m_upContext->task.id;
 			event->uiBatchId = m_upContext->task.batchId;
-			event->iBtyes = totalReceived;
-			event->iTotalBtyes = m_bytesTotal;
+			event->iBytes = totalReceived;
+			event->iTotalBytes = m_bytesTotal;
 			QCoreApplication::postEvent(NetworkRequestManager::globalInstance(), event);
 		}
 	}
@@ -743,8 +743,10 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
         connect(m_pNetworkReply, &QNetworkReply::downloadProgress, this, [=](qint64 bytesReceived, qint64 bytesTotal)
             {
                 if (!m_bAbortManual && m_bTimeout && bytesReceived > 0 && bytesTotal > 0)
+                {
                     m_bTimeout = false;
-                    emit downloadProgress(m_nIndex, bytesReceived, bytesTotal); 
+                }
+                emit downloadProgress(m_nIndex, bytesReceived, bytesTotal); 
             });
     }
     m_timer.start();

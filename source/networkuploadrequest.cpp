@@ -324,8 +324,8 @@ void NetworkUploadRequest::onUploadProgress(qint64 iSent, qint64 iTotal)
 		event->bDownload = false;
 		event->uiId = m_upContext->task.id;
 		event->uiBatchId = m_upContext->task.batchId;
-		event->iBtyes = iSent;
-		event->iTotalBtyes = iTotal;
+		event->iBytes = iSent;
+		event->iTotalBytes = iTotal;
 		QCoreApplication::postEvent(NetworkRequestManager::globalInstance(), event);
 	}
 }

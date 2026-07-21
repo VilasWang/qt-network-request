@@ -77,9 +77,9 @@ void NetworkRequestRunnable::run()
         }
         loop.exec();
     }
-    catch (std::exception* e)
+    catch (const std::exception &e)
     {
-        qCritical() << "[QMultiThreadNetwork] NetworkRequestRunnable::run() exception:" << QString::fromUtf8(e->what());
+        qCritical() << "[QMultiThreadNetwork] NetworkRequestRunnable::run() exception:" << QString::fromUtf8(e.what());
     }
     catch (...)
     {
