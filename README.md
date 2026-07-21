@@ -658,6 +658,8 @@ The test suite covers:
 - Retry behavior (retry on transient failures, disabled retries)
 - Persistent cookie jar (save, reload, cross-request cookie sharing)
 - Request priority queue (thread pool saturation with priority ordering)
+- Request cancellation (stop running, stop batch, stop all)
+- Rapid cancel stress (20x create/cancel cycle)
 - Error handling scenarios
 - Progress reporting
 - Thread safety

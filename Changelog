@@ -1,3 +1,15 @@
+version 2.1.5    2026-07-21
+
+- Fix: undefined type in public header (networkrequestevent.h)
+- Fix: deleteLater() memory leak in NetworkRequest destructor
+- Fix: exception catch type mismatch (std::exception* → const std::exception&)
+- Fix: premature shared_ptr reset in stop methods (use-after-free risk)
+- Fix: misleading lambda indentation in Downloader progress handler
+- Fix: spelling corrections (iBtyes→iBytes, regiester→registerEvent)
+- Test: add request cancellation regression tests (stop running/batch/all + stress)
+- Test: add /delay endpoint to HttpTestServer for slow-response simulation
+
+
 version 2.1.4    2025-09-02
 
 - Multi-threaded download improvements with duplicate part detection
