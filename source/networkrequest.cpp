@@ -20,19 +20,26 @@ NetworkRequest::~NetworkRequest()
 {
     if (m_pNetworkReply)
     {
-        // Disconnect all signals before abort/delete so that the NAM-pooled
-        // QNetworkReply (a child of the shared NAM) cannot deliver callbacks
-        // to this already-destroying NetworkRequest.
+        // Disconnect all signals so the NAM-pooled QNetworkReply (a child of
+        // the shared NAM) cannot deliver callbacks to this destroying request.
         m_pNetworkReply->disconnect(this);
 
         if (m_pNetworkReply->isRunning())
         {
             m_pNetworkReply->abort();
         }
-        // deleteLater() is ineffective inside a destructor — the object's
-        // event loop is about to exit and deferred-delete events will never
-        // be processed. Use direct delete instead.
-        delete m_pNetworkReply;
+        // Do NOT delete or deleteLater() the reply here.
+        // QNetworkReplyImpl's destructor walks back into the shared NAM's
+        // private state (connection cache/channel); under stop/cancel timing
+        // races this crashes (0xC0000005 at Qt5Network during ~NetworkRequest).
+        // deleteLater() is also unsafe: if the NAM is later destroyed by the
+        // cleanup QRunnable, the reply (a NAM child) is deleted, and a
+        // subsequent deferred-delete event processed on the reused worker
+        // thread would dereference a dangling pointer.
+        // The reply is a child of the thread-affine NAM and is safely reclaimed
+        // by the NAM's own destruction during pool shutdown (cleanup QRunnable
+        // runs on the same affine thread). We only abort+disconnect here so it
+        // stops doing work and cannot call back into this destroying request.
         m_pNetworkReply = nullptr;
     }
     // Disconnect NAM signals that were connected to this request
