@@ -80,6 +80,9 @@ namespace QtNetworkRequest
 							bool bShowProgress = false,
 							quint16 nMaxRedirectionCount = 5,
 							int transferTimeout = 0,
+#ifndef QT_NO_SSL
+							const SslConfig *sslConfig = nullptr,
+#endif
 							QObject *parent = 0);
 
 		virtual ~Downloader();
@@ -99,6 +102,9 @@ namespace QtNetworkRequest
 		void onFinished();
 		void onReadyRead();
 		void onError(QNetworkReply::NetworkError code);
+#ifndef QT_NO_SSL
+		void onSslErrors(const QList<QSslError> &errors);
+#endif
 
 	private:
 		QPointer<QNetworkAccessManager> m_pNetworkManager;
@@ -119,6 +125,11 @@ namespace QtNetworkRequest
 		qint64 m_bytesWritten;					 // Bytes written
 		bool m_bOverflowLogged{ false };		 // Only log overflow once per download
 		int m_transferTimeout{ 0 };              // Per-request transfer timeout (ms)
+#ifndef QT_NO_SSL
+		const SslConfig *m_perRequestSslConfig{ nullptr };
+		SslConfig::IgnorePolicy m_ignorePolicy{ SslConfig::IgnorePolicy::Never };
+		QList<QSslError::SslError> m_resolvedIgnoreErrorTypes;
+#endif
 
 		QTimer m_timer;
 		int m_mIntervalMs{ 250 };

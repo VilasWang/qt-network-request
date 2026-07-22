@@ -151,18 +151,7 @@ void NetworkUploadRequest::start()
 	if (!isFtpProxy(url.scheme())) // http / https
 	{
 #ifndef QT_NO_SSL
-		if (url.scheme().toLower() == "https")
-		{
-			// Preparation before sending HTTPS request;
-			QSslConfiguration conf = request.sslConfiguration();
-			conf.setPeerVerifyMode(QSslSocket::VerifyNone);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
-			conf.setProtocol(QSsl::TlsV1_2OrLater);
-#else
-			conf.setProtocol(QSsl::TlsV1_2OrLater);
-#endif
-			request.setSslConfiguration(conf);
-		}
+		applySslConfig(request);
 #endif
 		if (m_upContext->uploadConfig->usePutMethod)
 		{
@@ -210,6 +199,9 @@ void NetworkUploadRequest::start()
 #endif
 	connect(m_pNetworkManager, SIGNAL(authenticationRequired(QNetworkReply *, QAuthenticator *)),
 			SLOT(onAuthenticationRequired(QNetworkReply *, QAuthenticator *)));
+#ifndef QT_NO_SSL
+	connectSslErrorHandling(m_pNetworkReply);
+#endif
 	if (m_upContext->behavior.showProgress)
 	{
 		connect(m_pNetworkReply, SIGNAL(uploadProgress(qint64, qint64)), this, SLOT(onUploadProgress(qint64, qint64)));

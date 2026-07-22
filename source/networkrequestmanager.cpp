@@ -770,6 +770,10 @@ std::atomic<bool> NetworkRequestManager::ms_bIntialized = false;
 std::atomic<bool> NetworkRequestManager::ms_bUnIntializing = false;
 ProxyConfig NetworkRequestManager::ms_globalProxy{};
 QScopedPointer<QNetworkCookieJar> NetworkRequestManager::ms_spCookieJar;
+#ifndef QT_NO_SSL
+SslConfig NetworkRequestManager::ms_globalSslConfig = SslConfig::secureDefault();
+QMutex NetworkRequestManager::ms_globalSslConfigMutex;
+#endif
 
 NetworkRequestManager::NetworkRequestManager(QObject *parent)
     : QObject(parent), d_ptr(new NetworkRequestManagerPrivate)
@@ -824,6 +828,35 @@ const ProxyConfig &NetworkRequestManager::globalProxy()
 {
     return ms_globalProxy;
 }
+
+#ifndef QT_NO_SSL
+void NetworkRequestManager::setGlobalSslConfig(const SslConfig &config)
+{
+    // Normalize: global fields must never remain Inherit (no higher level to
+    // inherit from). Replace any Inherit with the secure-default value.
+    SslConfig normalized = config;
+    const SslConfig def = SslConfig::secureDefault();
+    if (normalized.peerVerifyMode == SslConfig::PeerVerifyMode::Inherit)
+        normalized.peerVerifyMode = def.peerVerifyMode;
+    if (normalized.minProtocol == SslConfig::TlsProtocol::Inherit)
+        normalized.minProtocol = def.minProtocol;
+    if (normalized.ignoreSslErrorsPolicy == SslConfig::IgnorePolicy::Inherit)
+        normalized.ignoreSslErrorsPolicy = def.ignoreSslErrorsPolicy;
+    if (normalized.caPolicy == SslConfig::CaPolicy::Inherit)
+        normalized.caPolicy = def.caPolicy;
+
+    QMutexLocker locker(&ms_globalSslConfigMutex);
+    ms_globalSslConfig = normalized;
+}
+
+SslConfig NetworkRequestManager::globalSslConfig()
+{
+    // Return by value so callers (worker threads) hold an independent copy
+    // and never dereference the global while another thread mutates it.
+    QMutexLocker locker(&ms_globalSslConfigMutex);
+    return ms_globalSslConfig;
+}
+#endif
 
 void NetworkRequestManager::setCookieStoragePath(const QString &path)
 {

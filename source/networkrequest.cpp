@@ -208,6 +208,123 @@ void NetworkRequest::applyCookieJar(QNetworkAccessManager* mgr)
     }
 }
 
+#ifndef QT_NO_SSL
+// Resolve effective SSL config: start from per-request (if provided) else global,
+// then fill Inherit fields from the global copy (taken under lock, by value).
+SslConfig NetworkRequest::resolveSslConfig(const SslConfig *perRequest)
+{
+    SslConfig global = NetworkRequestManager::globalSslConfig();  // by-value, thread-safe
+    SslConfig base = perRequest ? *perRequest : global;
+
+    if (base.peerVerifyMode == SslConfig::PeerVerifyMode::Inherit)
+        base.peerVerifyMode = global.peerVerifyMode;
+    if (base.minProtocol == SslConfig::TlsProtocol::Inherit)
+        base.minProtocol = global.minProtocol;
+    if (base.ignoreSslErrorsPolicy == SslConfig::IgnorePolicy::Inherit)
+        base.ignoreSslErrorsPolicy = global.ignoreSslErrorsPolicy;
+    if (base.caPolicy == SslConfig::CaPolicy::Inherit)
+    {
+        base.caPolicy = global.caPolicy;
+        base.caCertificates = global.caCertificates;
+    }
+    return base;
+}
+
+static QSsl::SslProtocol toQSslProtocol(SslConfig::TlsProtocol p)
+{
+    switch (p)
+    {
+    case SslConfig::TlsProtocol::TlsV1_0: return QSsl::TlsV1_0OrLater;
+    case SslConfig::TlsProtocol::TlsV1_1: return QSsl::TlsV1_1OrLater;
+    case SslConfig::TlsProtocol::TlsV1_2: return QSsl::TlsV1_2OrLater;
+    case SslConfig::TlsProtocol::TlsV1_3:
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
+        return QSsl::TlsV1_3OrLater;
+#else
+        return QSsl::TlsV1_2OrLater;  // fallback for Qt < 5.12
+#endif
+    case SslConfig::TlsProtocol::AnyProtocol: return QSsl::AnyProtocol;
+    default: return QSsl::TlsV1_2OrLater;
+    }
+}
+
+void NetworkRequest::applySslConfigToRequest(QNetworkRequest &request, const SslConfig &resolved)
+{
+    QSslConfiguration conf = request.sslConfiguration();
+    conf.setPeerVerifyMode(
+        resolved.peerVerifyMode == SslConfig::PeerVerifyMode::VerifyPeer
+            ? QSslSocket::VerifyPeer : QSslSocket::VerifyNone);
+    conf.setProtocol(toQSslProtocol(resolved.minProtocol));
+    if (resolved.caPolicy == SslConfig::CaPolicy::Custom && !resolved.caCertificates.isEmpty())
+        conf.setCaCertificates(resolved.caCertificates);
+    request.setSslConfiguration(conf);
+}
+
+void NetworkRequest::applySslConfig(QNetworkRequest &request)
+{
+    // Only HTTPS requests use SSL configuration; for plain HTTP/FTP the
+    // QSslConfiguration is ignored by Qt. m_resolvedIgnorePolicy stays at
+    // its default (Never) so onSslErrors (never fired for non-HTTPS) is safe.
+    if (request.url().scheme().toLower() != "https")
+        return;
+
+    const SslConfig *perRequest = (m_upContext && m_upContext->sslConfig)
+        ? m_upContext->sslConfig.get() : nullptr;
+    SslConfig resolved = resolveSslConfig(perRequest);
+
+    // Cache resolved ignore policy/types for onSslErrors().
+    m_resolvedIgnorePolicy = resolved.ignoreSslErrorsPolicy;
+    m_resolvedIgnoreErrorTypes = resolved.ignoreErrorTypes;
+
+    applySslConfigToRequest(request, resolved);
+}
+
+void NetworkRequest::connectSslErrorHandling(QNetworkReply *reply)
+{
+    if (!reply)
+        return;
+    connect(reply, &QNetworkReply::sslErrors, this, &NetworkRequest::onSslErrors);
+}
+
+void NetworkRequest::onSslErrors(const QList<QSslError> &errors)
+{
+    if (m_resolvedIgnorePolicy == SslConfig::IgnorePolicy::Always)
+    {
+        qWarning() << "[QMultiThreadNetwork] SSL errors IGNORED (policy=Always) for"
+                   << m_url.toString() << "- NOT for production use:";
+        for (const QSslError &e : errors)
+            qWarning() << "   " << e.errorString();
+        if (m_pNetworkReply)
+            m_pNetworkReply->ignoreSslErrors();
+    }
+    else if (m_resolvedIgnorePolicy == SslConfig::IgnorePolicy::IgnoreSpecificErrors)
+    {
+        QList<QSslError> ignorable;
+        for (const QSslError &e : errors)
+        {
+            if (m_resolvedIgnoreErrorTypes.contains(e.error()))
+            {
+                qWarning() << "[QMultiThreadNetwork] SSL error ignored (specific):" << e.errorString();
+                ignorable.append(e);
+            }
+            else
+            {
+                qWarning() << "[QMultiThreadNetwork] SSL error NOT ignored:" << e.errorString();
+            }
+        }
+        if (!ignorable.isEmpty() && m_pNetworkReply)
+            m_pNetworkReply->ignoreSslErrors(ignorable);
+    }
+    else
+    {
+        // Never: log and let the handshake fail (SslHandshakeFailedError triggers retry/fail).
+        qWarning() << "[QMultiThreadNetwork] SSL errors (policy=Never) for" << m_url.toString() << ":";
+        for (const QSslError &e : errors)
+            qWarning() << "   " << e.errorString();
+    }
+}
+#endif
+
 bool NetworkRequest::isTransientError(QNetworkReply::NetworkError err)
 {
     switch (err)

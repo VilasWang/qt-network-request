@@ -29,11 +29,6 @@ namespace QtNetworkRequest
 		void onReadyRead();
 		void onDownloadProgress(qint64 iReceived, qint64 iTotal);
 
-	private slots:
-#ifndef QT_NO_SSL
-		void onSslErrors(const QList<QSslError> &errors);
-#endif
-
 	protected:
 		void cleanupForRetry() Q_DECL_OVERRIDE { CloseFile(true); }
 

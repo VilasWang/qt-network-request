@@ -101,18 +101,7 @@ void NetworkDownloadRequest::start()
     }
 
 #ifndef QT_NO_SSL
-    if (url.scheme().toLower() == "https")
-    {
-        // Preparation before sending HTTPS request;
-        QSslConfiguration conf = request.sslConfiguration();
-        conf.setPeerVerifyMode(QSslSocket::VerifyNone);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
-        conf.setProtocol(QSsl::TlsV1_2OrLater);
-#else
-        conf.setProtocol(QSsl::TlsV1_2OrLater);
-#endif
-        request.setSslConfiguration(conf);
-    }
+    applySslConfig(request);
 #endif
 
     m_pNetworkReply = m_pNetworkManager->get(request);
@@ -140,8 +129,7 @@ void NetworkDownloadRequest::start()
     }
 
 #ifndef QT_NO_SSL
-    connect(m_pNetworkReply, SIGNAL(sslErrors(QList<QSslError>)),
-            this, SLOT(onSslErrors(QList<QSslError>)));
+    connectSslErrorHandling(m_pNetworkReply);
 #endif
 
 #if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
@@ -306,23 +294,6 @@ void NetworkDownloadRequest::onDownloadProgress(qint64 iReceived, qint64 iTotal)
         QCoreApplication::postEvent(NetworkRequestManager::globalInstance(), event);
     }
 }
-
-#ifndef QT_NO_SSL
-void NetworkDownloadRequest::onSslErrors(const QList<QSslError> &errors)
-{
-    qDebug() << "[NetworkDownloadRequest] SSL errors occurred:";
-    for (const QSslError &error : errors)
-    {
-        qDebug() << "  -" << error.errorString();
-    }
-
-    // In production, should decide whether to ignore SSL errors based on specific requirements
-    if (m_pNetworkReply)
-    {
-        m_pNetworkReply->ignoreSslErrors();
-    }
-}
-#endif
 
 void NetworkDownloadRequest::CloseFile(bool bRemove)
 {

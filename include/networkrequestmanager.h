@@ -44,6 +44,7 @@ SOFTWARE.
 #include "networkrequestdefs.h"
 #include "networkrequestglobal.h"
 #include <memory>
+#include <QMutex>
 
 class QNetworkAccessManager;
 class QNetworkCookieJar;
@@ -73,6 +74,13 @@ namespace QtNetworkRequest
 		// Global proxy (applied to all requests unless overridden per-request)
 		static void setGlobalProxy(const ProxyConfig &config);
 		static const ProxyConfig &globalProxy();
+
+#ifndef QT_NO_SSL
+		// Global SSL/TLS policy (secure default: verify peer + TLS1.2+ + system CA + never ignore errors).
+		// Thread-safe. globalSslConfig() returns by value to avoid holding a reference across threads.
+		static void setGlobalSslConfig(const SslConfig &config);
+		static SslConfig globalSslConfig();
+#endif
 
 		// Persistent cookie jar
 		static void setCookieStoragePath(const QString &path);
@@ -144,5 +152,9 @@ namespace QtNetworkRequest
 		static std::atomic<bool> ms_bUnIntializing;
 		static ProxyConfig ms_globalProxy;
 		static QScopedPointer<QNetworkCookieJar> ms_spCookieJar;
+#ifndef QT_NO_SSL
+		static SslConfig ms_globalSslConfig;
+		static QMutex ms_globalSslConfigMutex;
+#endif
 	};
 }

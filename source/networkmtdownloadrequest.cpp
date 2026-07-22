@@ -81,18 +81,7 @@ bool NetworkMTDownloadRequest::requestFileSize()
 #endif
 
 #ifndef QT_NO_SSL
-    if (url.scheme().toLower() == "https")
-    {
-        // Preparation before sending HTTPS request;
-        QSslConfiguration conf = request.sslConfiguration();
-        conf.setPeerVerifyMode(QSslSocket::VerifyNone);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
-        conf.setProtocol(QSsl::TlsV1_2OrLater);
-#else
-        conf.setProtocol(QSsl::TlsV1_2OrLater);
-#endif
-        request.setSslConfiguration(conf);
-    }
+    applySslConfig(request);
 #endif
 
     m_pNetworkReply = m_pNetworkManager->head(request);
@@ -103,6 +92,9 @@ bool NetworkMTDownloadRequest::requestFileSize()
         connect(m_pNetworkReply, SIGNAL(errorOccurred(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
 #else
         connect(m_pNetworkReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
+#endif
+#ifndef QT_NO_SSL
+        connectSslErrorHandling(m_pNetworkReply);
 #endif
     }
 
@@ -144,17 +136,7 @@ bool NetworkMTDownloadRequest::requestRangeProbe()
     request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
 
 #ifndef QT_NO_SSL
-    if (m_url.scheme().toLower() == "https")
-    {
-        QSslConfiguration conf = request.sslConfiguration();
-        conf.setPeerVerifyMode(QSslSocket::VerifyNone);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
-        conf.setProtocol(QSsl::TlsV1_2OrLater);
-#else
-        conf.setProtocol(QSsl::TlsV1_2);
-#endif
-        request.setSslConfiguration(conf);
-    }
+    applySslConfig(request);
 #endif
 
     qDebug() << "[QMultiThreadNetwork] Probing Range support with bytes=0-0...";
@@ -163,6 +145,9 @@ bool NetworkMTDownloadRequest::requestRangeProbe()
     if (m_pNetworkReply)
     {
         connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onRangeProbeFinished()));
+#ifndef QT_NO_SSL
+        connectSslErrorHandling(m_pNetworkReply);
+#endif
         return true;
     }
 
@@ -306,6 +291,11 @@ void NetworkMTDownloadRequest::startMTDownload()
                 m_upContext->behavior.showProgress, 
                 m_upContext->behavior.maxRedirectionCount, 
                 m_upContext->behavior.transferTimeout,
+#ifndef QT_NO_SSL
+                m_upContext->sslConfig.get(),
+#else
+                nullptr,
+#endif
                 this);
 
         connect(downloader.get(), SIGNAL(downloadFinished(int, bool, const QString &)),
@@ -631,7 +621,11 @@ bool NetworkMTDownloadRequest::renameTempFileToFinal()
 }
 
 //////////////////////////////////////////////////////////////////////////
-Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessManager *pNetworkManager, bool bShowProgress, quint16 nMaxRedirectionCount, int transferTimeout, QObject *parent)
+Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessManager *pNetworkManager, bool bShowProgress, quint16 nMaxRedirectionCount, int transferTimeout
+#ifndef QT_NO_SSL
+    , const SslConfig *sslConfig
+#endif
+    , QObject *parent)
     : QObject(parent),
       m_nIndex(index),
       m_pNetworkReply(nullptr),
@@ -645,6 +639,10 @@ Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessMa
       m_mappedFile(QPointer<MemoryMappedFile>(mappedFile)),
       m_bytesWritten(0),
       m_transferTimeout(transferTimeout)
+#ifndef QT_NO_SSL
+      , m_perRequestSslConfig(sslConfig)
+      , m_ignorePolicy(SslConfig::IgnorePolicy::Never)
+#endif
 {
 	m_timer.setInterval(m_mIntervalMs);
 	connect(&m_timer, &QTimer::timeout, this, [this]()
@@ -742,15 +740,10 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
 #ifndef QT_NO_SSL
     if (url.scheme().toLower() == "https")
     {
-        // Preparation before sending HTTPS request;
-        QSslConfiguration conf = request.sslConfiguration();
-        conf.setPeerVerifyMode(QSslSocket::VerifyNone);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
-        conf.setProtocol(QSsl::TlsV1_2OrLater);
-#else
-        conf.setProtocol(QSsl::TlsV1_2OrLater);
-#endif
-        request.setSslConfiguration(conf);
+        SslConfig resolved = NetworkRequest::resolveSslConfig(m_perRequestSslConfig);
+        m_ignorePolicy = resolved.ignoreSslErrorsPolicy;
+        m_resolvedIgnoreErrorTypes = resolved.ignoreErrorTypes;
+        NetworkRequest::applySslConfigToRequest(request, resolved);
     }
 #endif
 
@@ -766,7 +759,10 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
 #else
         connect(m_pNetworkReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
 #endif
-        
+#ifndef QT_NO_SSL
+        connect(m_pNetworkReply, &QNetworkReply::sslErrors, this, &Downloader::onSslErrors);
+#endif
+
         connect(m_pNetworkReply, &QNetworkReply::downloadProgress, this, [this](qint64 bytesReceived, qint64 bytesTotal)
             {
                 if (!m_bAbortManual && m_readyToEmitProgress && bytesReceived > 0 && bytesTotal > 0)
@@ -782,6 +778,45 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
     m_timer.start();
     return true;
 }
+
+#ifndef QT_NO_SSL
+void Downloader::onSslErrors(const QList<QSslError> &errors)
+{
+    if (m_ignorePolicy == SslConfig::IgnorePolicy::Always)
+    {
+        qWarning() << "[QMultiThreadNetwork] SSL errors IGNORED (policy=Always) for part"
+                   << m_nIndex << m_url.toString() << "- NOT for production use:";
+        for (const QSslError &e : errors)
+            qWarning() << "   " << e.errorString();
+        if (m_pNetworkReply)
+            m_pNetworkReply->ignoreSslErrors();
+    }
+    else if (m_ignorePolicy == SslConfig::IgnorePolicy::IgnoreSpecificErrors)
+    {
+        QList<QSslError> ignorable;
+        for (const QSslError &e : errors)
+        {
+            if (m_resolvedIgnoreErrorTypes.contains(e.error()))
+            {
+                qWarning() << "[QMultiThreadNetwork] SSL error ignored (specific):" << e.errorString();
+                ignorable.append(e);
+            }
+            else
+            {
+                qWarning() << "[QMultiThreadNetwork] SSL error NOT ignored:" << e.errorString();
+            }
+        }
+        if (!ignorable.isEmpty() && m_pNetworkReply)
+            m_pNetworkReply->ignoreSslErrors(ignorable);
+    }
+    else
+    {
+        qWarning() << "[QMultiThreadNetwork] SSL errors (policy=Never) for part" << m_nIndex << m_url.toString() << ":";
+        for (const QSslError &e : errors)
+            qWarning() << "   " << e.errorString();
+    }
+}
+#endif
 
 void Downloader::onReadyRead()
 {

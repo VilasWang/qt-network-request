@@ -10,6 +10,9 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QNetworkAccessManager>
+#ifndef QT_NO_SSL
+#include <QSslError>
+#endif
 
 class QNetworkAccessManager;
 namespace QtNetworkRequest
@@ -26,12 +29,26 @@ namespace QtNetworkRequest
 
 		void setRequestContext(std::unique_ptr<RequestContext> context);
 
+#ifndef QT_NO_SSL
+		// Merge global + per-request SSL config into an effective configuration.
+		static SslConfig resolveSslConfig(const SslConfig *perRequest);
+		// Apply an already-resolved SslConfig to a QNetworkRequest.
+		static void applySslConfigToRequest(QNetworkRequest &request, const SslConfig &resolved);
+#endif
+
 	protected:
 		QSharedPointer<ResponseResult> ToFailedResult(int statusCode = 0, const QByteArray& body = QByteArray(), const QMap<QByteArray, QByteArray>& headers = {});
 
 		QSharedPointer<ResponseResult> ToSuccessResult(const QByteArray& body, const QMap<QByteArray, QByteArray>& headers, int statusCode = 0);
 		void applyProxyConfig(QNetworkAccessManager* mgr);
 		void applyCookieJar(QNetworkAccessManager* mgr);
+#ifndef QT_NO_SSL
+		// Resolve (global + per-request) and apply SSL config to a QNetworkRequest.
+		// Caches the resolved ignore policy for onSslErrors(). Call before sending.
+		void applySslConfig(QNetworkRequest &request);
+		// Connect reply's sslErrors signal to this request's onSslErrors slot.
+		void connectSslErrorHandling(QNetworkReply *reply);
+#endif
 
 		// 重试: 返回 true 表示重试已调度，调用方应直接 return
 		bool tryRetry();
@@ -46,6 +63,9 @@ namespace QtNetworkRequest
 		virtual void onFinished() = 0;
 		virtual void onError(QNetworkReply::NetworkError);
 		virtual void onAuthenticationRequired(QNetworkReply *, QAuthenticator *);
+#ifndef QT_NO_SSL
+		virtual void onSslErrors(const QList<QSslError> &errors);
+#endif
 
 	Q_SIGNALS:
 		void response(QSharedPointer<QtNetworkRequest::ResponseResult> spResult);
@@ -64,6 +84,10 @@ namespace QtNetworkRequest
 		QNetworkAccessManager *m_pNetworkManager;  // non-owning — managed by NetworkAccessManagerPool
 		QNetworkReply *m_pNetworkReply;
         QUrl m_url;
+#ifndef QT_NO_SSL
+		SslConfig::IgnorePolicy m_resolvedIgnorePolicy{ SslConfig::IgnorePolicy::Never };
+		QList<QSslError::SslError> m_resolvedIgnoreErrorTypes;
+#endif
 
 		// Layer3: Idle/stall timeout (heartbeat-based)
 		QTimer m_heartbeatTimer;          // 250ms periodic heartbeat
