@@ -32,7 +32,7 @@ Debug builds append `d` to the lib name (`QNetworkRequestd`).
 
 ## Tests
 
-Qt Test framework. Single test file: `test/test_networkrequest.cpp`.
+Qt Test framework. Test files: `test/test_networkrequest.cpp` (core), `test/test_qtrequester.cpp` (UI), `test/httptestserver.cpp` (local HTTP server for controlled tests).
 
 ```powershell
 cd build/test
@@ -44,6 +44,7 @@ Tests use real network requests (httpbin.org) and require SSL support. On Linux,
 ## Key conventions
 
 - **API lifecycle**: `NetworkRequestManager::initialize()` (main thread) → use → `unInitialize()` (main thread)
+- **Request construction**: Use `RequestContextBuilder` fluent API (`.url(...).type(...).build()`) — do not manually construct `RequestContext`
 - Export macro: `NETWORK_EXPORT` (defined in `include/networkrequestglobal.h`, controlled by `QT_MTNETWORK_LIB` / `QT_MTNETWORK_STATIC`)
 - CMake: `CMAKE_AUTOMOC`, `AUTOUIC`, `AUTORCC` are ON
 - Qt version switch: QRecursiveMutex used for Qt ≥ 5.14 (`USE_Q_RECURSIVE_MUTEX` define)
@@ -51,14 +52,21 @@ Tests use real network requests (httpbin.org) and require SSL support. On Linux,
 
 ## Architecture
 
-Public API in `include/` (6 files); implementation in `source/` (private headers + .cpp). Request pipeline:
+Public API in `include/` (9 files); implementation in `source/` (private headers + .cpp). Request pipeline:
 
 `RequestContext` → `NetworkRequestManager::postRequest()` → `NetworkReply` (signals `requestFinished`) → `ResponseResult`
 
 Request types handled by separate classes in `source/`: `NetworkCommonRequest`, `NetworkDownloadRequest`, `NetworkMTDownloadRequest`, `NetworkUploadRequest`, `NetworkRequest`.
 
+Key internal components:
+- `MemoryMappedFile` — platform-specific file I/O (CreateFileMapping on Windows, mmap on Unix)
+- `NetworkCookieJar` / `SharedCookieJar` — persistent file-backed cookie storage
+- `NetworkAccessManagerPool` — QNetworkAccessManager instance pool per thread
+- `NetworkRequestRunnable` — QRunnable wrapper for thread-pool execution
+
 ## Directory map
 
+- `cmake/` — CMake modules (compiler flags, OpenSSL detection, utilities)
 - `include/` — public headers
 - `source/` — implementation + private headers
 - `test/` — Qt Test unit tests (single suite)
