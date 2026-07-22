@@ -5,7 +5,8 @@
 #include <QMutex>
 #include <QTimer>
 #include <atomic>
-#include "networkrequestdefs.h"
+#include "requestcontext.h"
+#include "responseresult.h"
 #include <QSharedPointer>
 
 namespace QtNetworkRequest

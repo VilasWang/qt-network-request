@@ -14,7 +14,8 @@
 #include <QJsonArray>
 #include "test_qtrequester.h"
 #include "networkrequesttool.h"
-#include "networkrequestdefs.h"
+#include "requestcontext.h"
+#include "responseresult.h"
 #include "networkrequestmanager.h"
 #include "networkreply.h"
 

@@ -2,7 +2,7 @@
 
 #include <memory>
 #include <QString>
-#include "networkrequestdefs.h"
+#include "requestcontext.h"
 
 class QFile;
 class QUrl;

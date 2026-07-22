@@ -7,7 +7,8 @@
 #include <QNetworkAccessManager>
 #include <QSignalSpy>
 #include <memory>
-#include "networkrequestdefs.h"
+#include "requestcontext.h"
+#include "responseresult.h"
 #include "networkrequestmanager.h"
 #include "networkreply.h"
 

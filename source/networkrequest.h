@@ -5,7 +5,8 @@
 #include <QObject>
 #include <memory>
 #include <QNetworkReply>
-#include "networkrequestdefs.h"
+#include "requestcontext.h"
+#include "responseresult.h"
 #include <QSharedPointer>
 #include <QTimer>
 #include <QElapsedTimer>

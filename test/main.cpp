@@ -2,7 +2,8 @@
 #include <QtTest/QtTest>
 #include <QSslSocket>
 #include "test_networkrequest.h"
-#include "networkrequestdefs.h"
+#include "requestcontext.h"
+#include "responseresult.h"
 
 int main(int argc, char *argv[])
 {

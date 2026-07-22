@@ -9,7 +9,7 @@
 #include <QDir>
 #include <QDebug>
 #include <QFile>
-#include "networkrequestdefs.h"
+#include "responseresult.h"
 
 using namespace QtNetworkRequest;
 

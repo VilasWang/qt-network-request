@@ -63,12 +63,16 @@ add_library(QNetworkRequest SHARED
     # Headers for AUTOMOC
     include/networkrequestmanager.h
     include/networkreply.h
-    include/networkrequestdefs.h
+    include/taskdata.h
+    include/sslconfig.h
+    include/proxyconfig.h
+    include/requestcontext.h
+    include/responseresult.h
     include/networkrequestglobal.h
+    include/networkrequestevent.h
     source/memorymappedfile.h
     source/networkaccessmanagerpool.h
     source/networkcookiejar.h
-    source/networkrequestevent.h
     source/networkcommonrequest.h
     source/networkdownloadrequest.h
     source/networkmtdownloadrequest.h

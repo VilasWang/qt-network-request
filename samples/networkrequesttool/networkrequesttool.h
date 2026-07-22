@@ -3,7 +3,8 @@
 
 #include <QtWidgets/QMainWindow>
 #include "ui_NetworkRequestTool.h"
-#include "networkrequestdefs.h"
+#include "requestcontext.h"
+#include "responseresult.h"
 #include <QListWidgetItem>
 #include <QDateTime>
 #include <memory>

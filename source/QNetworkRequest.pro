@@ -19,11 +19,15 @@ staticlib: DEFINES += QT_MTNETWORK_STATIC
 
 # Input
 HEADERS += $$PWD/../include/networkrequestglobal.h \
-           $$PWD/../include/networkrequestdefs.h \
+           $$PWD/../include/taskdata.h \
+           $$PWD/../include/sslconfig.h \
+           $$PWD/../include/proxyconfig.h \
+           $$PWD/../include/requestcontext.h \
+           $$PWD/../include/responseresult.h \
            $$PWD/../include/networkrequestmanager.h \
            $$PWD/../include/networkreply.h \
+           $$PWD/../include/networkrequestevent.h \
            memorymappedfile.h \
-           networkrequestevent.h \
            networkrequest.h \
            networkmtdownloadrequest.h \
            networkdownloadrequest.h \

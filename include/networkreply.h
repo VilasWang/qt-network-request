@@ -3,7 +3,8 @@
 #pragma once
 
 #include <QObject>
-#include "networkrequestdefs.h"
+#include "taskdata.h"
+#include "responseresult.h"
 #include "networkrequestglobal.h"
 #include <memory>
 #include <QSharedPointer>

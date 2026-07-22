@@ -41,7 +41,8 @@ SOFTWARE.
 #include <QObject>
 #include <atomic>
 #include <functional>
-#include "networkrequestdefs.h"
+#include "requestcontext.h"
+#include "responseresult.h"
 #include "networkrequestglobal.h"
 #include <memory>
 #include <QMutex>
