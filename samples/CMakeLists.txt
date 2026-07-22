@@ -11,10 +11,10 @@ endif()
 
 # ── OpenSSL bin dir (Windows) ────────────────────────────────────────────────
 if(WIN32)
-    if(Qt5_VERSION_MAJOR GREATER_EQUAL 5 AND Qt5_VERSION_MINOR GREATER_EQUAL 12)
-        set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.1.1/bin")
-    else()
+    if(QT_VERSION_MAJOR EQUAL 5 AND Qt5_VERSION_MINOR LESS 12)
         set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.0.2/bin")
+    else()
+        set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.1.1/bin")
     endif()
 endif()
 
@@ -37,7 +37,12 @@ add_executable(QtRequester ${GUI_EXECUTABLE_FLAG}
     networkrequesttool/NetworkRequestTool.qrc
 )
 
-target_link_libraries(QtRequester PRIVATE QNetworkRequest Qt5::Widgets Qt5::Xml Qt5::Network)
+target_link_libraries(QtRequester PRIVATE
+    QNetworkRequest
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Xml
+    Qt${QT_VERSION_MAJOR}::Network
+)
 target_include_directories(QtRequester PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/networkrequesttool)
 set_output_directories(QtRequester)
 
@@ -65,7 +70,11 @@ add_executable(QtDownloader ${GUI_EXECUTABLE_FLAG}
     networkdownloader/NetworkDownloader.qrc
 )
 
-target_link_libraries(QtDownloader PRIVATE QNetworkRequest Qt5::Widgets Qt5::Network)
+target_link_libraries(QtDownloader PRIVATE
+    QNetworkRequest
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Network
+)
 target_include_directories(QtDownloader PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/networkdownloader
     ${CMAKE_SOURCE_DIR}/include

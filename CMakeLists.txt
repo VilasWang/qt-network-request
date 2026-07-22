@@ -24,13 +24,19 @@ option(BUILD_TESTS   "Build unit and UI test executables" ON)
 option(BUILD_SAMPLES "Build sample GUI applications"       ON)
 
 # ── Find Qt ──────────────────────────────────────────────────────────────────
-find_package(Qt5 COMPONENTS Core Widgets Network Xml Test REQUIRED)
+# Try Qt6 first, fall back to Qt5 (Qt6 not fully supported yet, but infra ready)
+option(USE_QT6 "Build against Qt6 instead of Qt5" OFF)
 
-if(Qt5_FOUND)
-    message(STATUS "Qt version: ${Qt5_VERSION}")
-    message(STATUS "Qt major version: ${Qt5_VERSION_MAJOR}")
-    message(STATUS "Qt minor version: ${Qt5_VERSION_MINOR}")
+if(USE_QT6)
+    find_package(Qt6 COMPONENTS Core Widgets Network Xml Test REQUIRED)
+    set(QT_VERSION_MAJOR 6)
+else()
+    find_package(Qt5 5.9 COMPONENTS Core Widgets Network Xml Test REQUIRED)
+    set(QT_VERSION_MAJOR 5)
 endif()
+
+message(STATUS "Qt version: ${Qt${QT_VERSION_MAJOR}_VERSION}")
+message(STATUS "Qt major version: ${QT_VERSION_MAJOR}")
 
 # ── Subdirectories ───────────────────────────────────────────────────────────
 add_subdirectory(source)

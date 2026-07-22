@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt5 REQUIRED COMPONENTS Core Widgets Network)
+set(QT_VERSION_MAJOR 5)
 
 # Source files
 set(DOWNLOADER_SOURCES
@@ -47,9 +48,9 @@ target_include_directories(QtDownloader PRIVATE
 # Link Qt libraries
 target_link_libraries(QtDownloader PRIVATE
     QNetworkRequest
-    Qt5::Core
-    Qt5::Widgets
-    Qt5::Network
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Network
 )
 
 # Windows specific settings

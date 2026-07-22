@@ -62,7 +62,10 @@ target_include_directories(QNetworkRequest
 )
 
 # ── Dependencies ─────────────────────────────────────────────────────────────
-target_link_libraries(QNetworkRequest PRIVATE Qt5::Core Qt5::Network)
+target_link_libraries(QNetworkRequest PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+)
 
 # ── Output directories ───────────────────────────────────────────────────────
 set_output_directories(QNetworkRequest)
@@ -70,10 +73,10 @@ set_output_directories(QNetworkRequest)
 # ── OpenSSL ──────────────────────────────────────────────────────────────────
 # Windows: copy DLLs post-build
 if(WIN32)
-    if(Qt5_VERSION_MAJOR GREATER_EQUAL 5 AND Qt5_VERSION_MINOR GREATER_EQUAL 12)
-        set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.1.1/bin")
-    else()
+    if(QT_VERSION_MAJOR EQUAL 5 AND Qt5_VERSION_MINOR LESS 12)
         set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.0.2/bin")
+    else()
+        set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.1.1/bin")
     endif()
     copy_openssl_dlls(QNetworkRequest "${OPENSSL_BIN_DIR}")
 endif()

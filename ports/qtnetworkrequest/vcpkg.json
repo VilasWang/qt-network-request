@@ -1,0 +1,34 @@
+{
+  "name": "qtnetworkrequest",
+  "version": "2.1.6",
+  "description": "Multi-threaded HTTP(S)/FTP request library based on Qt Network",
+  "homepage": "https://github.com/your-org/qt-network-request",
+  "license": "MIT",
+  "supports": "!(uwp | arm | x86)",
+  "dependencies": [
+    "openssl"
+  ],
+  "features": {
+    "qt5": {
+      "description": "Build with Qt5 (default)",
+      "dependencies": [
+        {
+          "name": "qt5-base",
+          "default-features": false,
+          "features": ["core", "network"]
+        }
+      ]
+    },
+    "qt6": {
+      "description": "Build with Qt6",
+      "dependencies": [
+        {
+          "name": "qtbase",
+          "default-features": false,
+          "features": ["core", "network"]
+        }
+      ]
+    }
+  },
+  "default-features": ["qt5"]
+}

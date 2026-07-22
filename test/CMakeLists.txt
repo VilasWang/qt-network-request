@@ -4,10 +4,10 @@
 
 # ── OpenSSL bin dir (Windows) ────────────────────────────────────────────────
 if(WIN32)
-    if(Qt5_VERSION_MAJOR GREATER_EQUAL 5 AND Qt5_VERSION_MINOR GREATER_EQUAL 12)
-        set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.1.1/bin")
-    else()
+    if(QT_VERSION_MAJOR EQUAL 5 AND Qt5_VERSION_MINOR LESS 12)
         set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.0.2/bin")
+    else()
+        set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.1.1/bin")
     endif()
 endif()
 
@@ -22,9 +22,9 @@ add_executable(UnitTests
 
 target_link_libraries(UnitTests
     QNetworkRequest
-    Qt5::Core
-    Qt5::Network
-    Qt5::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Test
 )
 
 target_include_directories(UnitTests PRIVATE
@@ -60,11 +60,11 @@ target_compile_definitions(UiTests PRIVATE QT_MTNETWORK_UNIT_TEST)
 
 target_link_libraries(UiTests
     QNetworkRequest
-    Qt5::Core
-    Qt5::Network
-    Qt5::Widgets
-    Qt5::Xml
-    Qt5::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Xml
+    Qt${QT_VERSION_MAJOR}::Test
 )
 
 target_include_directories(UiTests PRIVATE

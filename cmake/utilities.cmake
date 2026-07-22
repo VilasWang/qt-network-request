@@ -26,10 +26,11 @@ function(copy_openssl_dlls target openssl_bin_dir)
         return()
     endif()
 
-    if(Qt5_VERSION_MAJOR GREATER_EQUAL 5 AND Qt5_VERSION_MINOR GREATER_EQUAL 12)
-        set(dlls libcrypto-1_1-x64.dll libssl-1_1-x64.dll)
-    else()
+    # Qt6 always uses OpenSSL 1.1.x; Qt5 < 5.12 uses 1.0.x
+    if(QT_VERSION_MAJOR EQUAL 5 AND Qt5_VERSION_MINOR LESS 12)
         set(dlls libeay32.dll ssleay32.dll)
+    else()
+        set(dlls libcrypto-1_1-x64.dll libssl-1_1-x64.dll)
     endif()
 
     foreach(dll ${dlls})
