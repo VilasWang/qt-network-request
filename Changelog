@@ -1,3 +1,11 @@
+version 2.1.6    2026-07-22
+
+- Feat: RequestContextBuilder fluent API (replaces manual RequestContext field assignment)
+- Refactor: split god header networkrequestdefs.h into focused headers
+- Docs: update README examples to use RequestContextBuilder pattern
+- Docs: add SSL/TLS configuration example to README
+
+
 version 2.1.5    2026-07-21
 
 - Fix: undefined type in public header (networkrequestevent.h)

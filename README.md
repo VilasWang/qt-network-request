@@ -162,24 +162,24 @@ cmake --build build --config Release --parallel
 ### Basic Usage
 
 ```cpp
-#include "networkrequestdefs.h"
+#include "requestcontext.h"
 #include "networkrequestmanager.h"
 #include "networkreply.h"
+
+using namespace QtNetworkRequest;
 
 // Initialize in main thread
 NetworkRequestManager::initialize();
 
-// Create request context
-auto req = std::make_unique<QtNetworkRequest::RequestContext>();
-req->url = "https://example.com/file.zip";
-req->type = QtNetworkRequest::RequestType::MTDownload;
-req->behavior.showProgress = true;
-
-// Configure download settings
-req->downloadConfig = std::make_unique<QtNetworkRequest::DownloadConfig>();
-req->downloadConfig->saveDir = "downloads";
-req->downloadConfig->overwriteFile = true;
-req->downloadConfig->threadCount = 0; // 0 = auto detect CPU cores
+// Build a multi-threaded download request with the fluent builder
+auto reply = NetworkRequestManager::globalInstance()->postRequest(
+    RequestContextBuilder()
+        .url("https://example.com/file.zip")
+        .type(RequestType::MTDownload)
+        .showProgress(true)
+        .downloadConfig(std::make_unique<DownloadConfig>(
+            DownloadConfig{ .saveDir = "downloads", .overwriteFile = true, .threadCount = 0 }))
+        .build());
 /*
  * Thread count options:
  * - 0: Auto detect CPU cores (recommended for most cases)
@@ -187,8 +187,6 @@ req->downloadConfig->threadCount = 0; // 0 = auto detect CPU cores
  * - N>1: Use N threads for multi-threaded download
  */
 
-// Execute asynchronously
-auto reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
 if (reply) {
     connect(reply.get(), &NetworkReply::requestFinished, this, &MyClass::onFinished);
 }
@@ -200,20 +198,21 @@ NetworkRequestManager::unInitialize();
 ### Batch Operations
 
 ```cpp
-// Prepare batch requests
+// Prepare batch requests with fluent builder
 QtNetworkRequest::BatchRequestPtrTasks tasks;
 for (const QString& url : urls) {
-    auto req = std::make_unique<QtNetworkRequest::RequestContext>();
-    req->url = url;
-    req->type = QtNetworkRequest::RequestType::Download;
-    req->downloadConfig = std::make_unique<QtNetworkRequest::DownloadConfig>();
-    req->downloadConfig->saveDir = "downloads";
-    tasks.push_back(std::move(req));
+    tasks.push_back(
+        RequestContextBuilder()
+            .url(url)
+            .type(RequestType::Download)
+            .downloadConfig(std::make_unique<DownloadConfig>(
+                DownloadConfig{ .saveDir = "downloads" }))
+            .build());
 }
 
 // Execute batch with progress tracking
 quint64 batchId = 0;
-auto reply = NetworkRequestManager::globalInstance()->postBatchRequest(tasks, batchId);
+auto reply = NetworkRequestManager::globalInstance()->postBatchRequest(std::move(tasks), batchId);
 if (reply) {
     connect(reply.get(), &NetworkReply::requestFinished, this, &MyClass::onBatchFinished);
 }
@@ -232,16 +231,14 @@ MultiThread Downloader demo
 ### File Download
 
 ```cpp
-auto req = std::make_unique<QtNetworkRequest::RequestContext>();
-req->url = "https://httpbin.org/image/png";
-req->type = QtNetworkRequest::RequestType::Download;
-req->behavior.showProgress = true;
-
-req->downloadConfig = std::make_unique<QtNetworkRequest::DownloadConfig>();
-req->downloadConfig->saveDir = "Download";
-req->downloadConfig->overwriteFile = true;
-
-auto reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+auto reply = NetworkRequestManager::globalInstance()->postRequest(
+    RequestContextBuilder()
+        .url("https://httpbin.org/image/png")
+        .type(RequestType::Download)
+        .showProgress(true)
+        .downloadConfig(std::make_unique<DownloadConfig>(
+            DownloadConfig{ .saveDir = "Download", .overwriteFile = true }))
+        .build());
 if (reply) {
     connect(reply.get(), &NetworkReply::requestFinished, this, &MyClass::onDownloadFinished);
 }
@@ -250,16 +247,14 @@ if (reply) {
 ### File Upload
 
 ```cpp
-auto req = std::make_unique<QtNetworkRequest::RequestContext>();
-req->url = "https://httpbin.org/post";
-req->type = QtNetworkRequest::RequestType::Upload;
-req->behavior.showProgress = true;
-
-req->uploadConfig = std::make_unique<QtNetworkRequest::UploadConfig>();
-req->uploadConfig->filePath = "resources/1.png";
-req->uploadConfig->usePutMethod = false;
-
-auto reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+auto reply = NetworkRequestManager::globalInstance()->postRequest(
+    RequestContextBuilder()
+        .url("https://httpbin.org/post")
+        .type(RequestType::Upload)
+        .showProgress(true)
+        .uploadConfig(std::make_unique<UploadConfig>(
+            UploadConfig{ .filePath = "resources/1.png", .usePutMethod = false }))
+        .build());
 if (reply) {
     connect(reply.get(), &NetworkReply::requestFinished, this, &MyClass::onUploadFinished);
 }
@@ -268,13 +263,13 @@ if (reply) {
 ### HTTP GET Request
 
 ```cpp
-auto req = std::make_unique<QtNetworkRequest::RequestContext>();
-req->url = "https://httpbin.org/get?userId=123&userName=456";
-req->type = QtNetworkRequest::RequestType::Get;
-req->behavior.retryOnFailed = true;
-req->behavior.maxRedirectionCount = 3;
-
-auto reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+auto reply = NetworkRequestManager::globalInstance()->postRequest(
+    RequestContextBuilder()
+        .url("https://httpbin.org/get?userId=123&userName=456")
+        .type(RequestType::Get)
+        .retry(3)          // retryOnFailed = true, maxRetryCount = 3, delay 1s
+        .maxRedirects(3)
+        .build());
 if (reply) {
     connect(reply.get(), &NetworkReply::requestFinished, this, &MyClass::onGetFinished);
 }
@@ -283,14 +278,14 @@ if (reply) {
 ### HTTP POST Request
 
 ```cpp
-auto req = std::make_unique<QtNetworkRequest::RequestContext>();
-req->url = "https://httpbin.org/post";
-req->type = QtNetworkRequest::RequestType::Post;
-req->body = "userId=123&userName=456";
-req->behavior.retryOnFailed = true;
-req->behavior.maxRedirectionCount = 3;
-
-auto reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+auto reply = NetworkRequestManager::globalInstance()->postRequest(
+    RequestContextBuilder()
+        .url("https://httpbin.org/post")
+        .type(RequestType::Post)
+        .body("userId=123&userName=456")
+        .retry(3)
+        .maxRedirects(3)
+        .build());
 if (reply) {
     connect(reply.get(), &NetworkReply::requestFinished, this, &MyClass::onPostFinished);
 }
@@ -300,7 +295,7 @@ if (reply) {
 
 ```cpp
 // Global proxy (applied to all requests unless overridden)
-QtNetworkRequest::ProxyConfig proxy;
+ProxyConfig proxy;
 proxy.enabled = true;
 proxy.host = "proxy.example.com";
 proxy.port = 3128;
@@ -308,14 +303,27 @@ proxy.user = "username";
 proxy.password = "password";
 NetworkRequestManager::setGlobalProxy(proxy);
 
-// Per-request proxy (overrides global)
-auto req = std::make_unique<QtNetworkRequest::RequestContext>();
-req->url = "https://httpbin.org/get";
-req->type = QtNetworkRequest::RequestType::Get;
-req->proxyConfig = std::make_unique<QtNetworkRequest::ProxyConfig>();
-req->proxyConfig->enabled = true;
-req->proxyConfig->host = "127.0.0.1";
-req->proxyConfig->port = 8080;
+// Per-request proxy (overrides global) — pass a heap-allocated ProxyConfig
+auto reply = NetworkRequestManager::globalInstance()->postRequest(
+    RequestContextBuilder()
+        .url("https://httpbin.org/get")
+        .type(RequestType::Get)
+        .proxyConfig(std::make_unique<ProxyConfig>(
+            ProxyConfig{ .enabled = true, .host = "127.0.0.1", .port = 8080 }))
+        .build());
+```
+
+### SSL/TLS Configuration
+
+```cpp
+// Global secure default is applied automatically (VerifyPeer + TLS1.2+ + system CA).
+// Override per-request via the builder:
+auto reply = NetworkRequestManager::globalInstance()->postRequest(
+    RequestContextBuilder()
+        .url("https://self-signed.example.com/api")
+        .type(RequestType::Get)
+        .sslConfig(SslConfig::secureDefault())   // copy; or build a custom SslConfig first
+        .build());
 ```
 
 ### Persistent Cookie Jar
@@ -334,15 +342,19 @@ NetworkRequestManager::setCookieStoragePath(QString());
 ### Request Priority
 
 ```cpp
-auto highReq = std::make_unique<QtNetworkRequest::RequestContext>();
-highReq->url = "https://httpbin.org/get";
-highReq->type = QtNetworkRequest::RequestType::Get;
-highReq->behavior.priority = 10; // higher = more urgent
+auto highReply = NetworkRequestManager::globalInstance()->postRequest(
+    RequestContextBuilder()
+        .url("https://httpbin.org/get")
+        .type(RequestType::Get)
+        .priority(10)      // higher = more urgent
+        .build());
 
-auto lowReq = std::make_unique<QtNetworkRequest::RequestContext>();
-lowReq->url = "https://httpbin.org/get";
-lowReq->type = QtNetworkRequest::RequestType::Get;
-lowReq->behavior.priority = 0; // default priority
+auto lowReply = NetworkRequestManager::globalInstance()->postRequest(
+    RequestContextBuilder()
+        .url("https://httpbin.org/get")
+        .type(RequestType::Get)
+        .priority(0)       // default priority
+        .build());
 
 // When threads are saturated, priority 10 executes before priority 0
 ```
@@ -350,12 +362,12 @@ lowReq->behavior.priority = 0; // default priority
 ### Retry on Failure
 
 ```cpp
-auto req = std::make_unique<QtNetworkRequest::RequestContext>();
-req->url = "https://httpbin.org/get";
-req->type = QtNetworkRequest::RequestType::Get;
-req->behavior.retryOnFailed = true;
-req->behavior.maxRetryCount = 3;    // up to 3 retries
-req->behavior.retryDelayMs = 1000;  // 1s, then 2s, then 4s (exponential)
+auto reply = NetworkRequestManager::globalInstance()->postRequest(
+    RequestContextBuilder()
+        .url("https://httpbin.org/get")
+        .type(RequestType::Get)
+        .retry(3, 1000)    // up to 3 retries, 1s base delay (then 2s, 4s — exponential)
+        .build());
 ```
 
 ### Request Management
@@ -385,7 +397,7 @@ Singleton class that manages the thread pool and request lifecycle.
 
 - `initialize()`: Initialize the manager (must be called in main thread)
 - `unInitialize()`: Cleanup resources (must be called in main thread)
-- `postRequest(RequestContext)`: Execute a single request
+- `postRequest(std::unique_ptr<RequestContext>)`: Build with RequestContextBuilder and execute a single request
 - `postBatchRequest(BatchRequestPtrTasks)`: Execute batch requests
 - `stopRequest(quint64)`: Stop a specific request
 - `stopBatchRequests(quint64)`: Stop batch requests
