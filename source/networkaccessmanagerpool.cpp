@@ -105,18 +105,54 @@ QNetworkAccessManager *NetworkAccessManagerPool::acquireNam()
 	return nam;
 }
 
+void NetworkAccessManagerPool::setReleasing(bool b)
+{
+	m_bReleasing.store(b);
+}
+
+bool NetworkAccessManagerPool::isReleasing() const
+{
+	return m_bReleasing.load();
+}
+
+void NetworkAccessManagerPool::releaseCurrentThreadNam()
+{
+	if (!m_bReleasing.load())
+		return;
+
+	Qt::HANDLE threadId = QThread::currentThreadId();
+	QNetworkAccessManager *nam = nullptr;
+	{
+		QMutexLocker locker(&m_mutex);
+		auto it = m_namPool.find(threadId);
+		if (it == m_namPool.end())
+			return;
+		nam = it->nam;
+		m_namPool.erase(it);
+	}
+	// Same-thread destruction: NAM and its children (cookie jar/replies)
+	// are affine to this worker thread — safe to delete here.
+	delete nam;
+}
+
 void NetworkAccessManagerPool::releaseAll()
 {
 	QMutexLocker locker(&m_mutex);
 	if (m_namPool.isEmpty())
 		return;
 
-	qDebug() << "[QMultiThreadNetwork] NAM pool: releasing" << m_namPool.size() << "NAM(s)";
-	for (auto it = m_namPool.begin(); it != m_namPool.end(); ++it)
+	// NAMs whose owning worker thread ran releaseCurrentThreadNam() during
+	// shutdown are already deleted (same-thread, safe). Any residual entries
+	// belong to threads that did not get a cleanup chance — detach them
+	// (leak to process exit) rather than risk a cross-thread delete, which
+	// would crash in the NAM/cookie-jar destructor accessing the exited
+	// worker's threadData (0xC0000005, see cleanupTestCase stack).
+	if (!m_namPool.isEmpty())
 	{
-		delete it->nam;
+		qDebug() << "[QMultiThreadNetwork] NAM pool: detaching residual"
+				 << m_namPool.size() << "NAM(s) to process exit";
+		m_namPool.clear();
 	}
-	m_namPool.clear();
 }
 
 int NetworkAccessManagerPool::size() const

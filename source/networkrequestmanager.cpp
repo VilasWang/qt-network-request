@@ -175,6 +175,12 @@ void NetworkRequestManagerPrivate::unInitialize()
     stopAllRequest();
     reset();
 
+    // Phase 1: signal NAM pool shutdown. In-flight run()s will delete their
+    // thread-affine NAM on exit (same-thread destruction — safe, required by
+    // QObject affinity: NAM/cookie-jar/replies are affine to the worker).
+    if (m_pNamPool)
+        m_pNamPool->setReleasing(true);
+
     m_pThreadPool->clear();
     qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
     if (!m_pThreadPool->waitForDone(1000))
@@ -182,12 +188,21 @@ void NetworkRequestManagerPrivate::unInitialize()
         qDebug() << "[QMultiThreadNetwork] ThreadPool waitForDone failed!";
     }
 
-    // Ensure all pending deleteLater() events are processed before
-    // releasing the NAM pool, so that no dangling references remain.
-    qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
+    // Phase 2: dispatch cleanup runnables so each surviving pooled NAM's
+    // owning worker thread deletes its own NAM (same-thread). QThreadPool
+    // reuses the same OS threads that created the NAMs, so cleanup runs on
+    // the affine thread. Cross-thread delete would crash (0xC0000005).
+    if (m_pNamPool && m_pNamPool->size() > 0)
+    {
+        const int n = m_pThreadPool->maxThreadCount();
+        for (int i = 0; i < n; ++i)
+            m_pThreadPool->start(new NamCleanupRunnable);
+        m_pThreadPool->waitForDone(2000);
+        qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
 
-    // Safe to release: all QRunnable::run() have returned,
-    // no worker thread is using any NAM.
+    // Phase 3: detach any residual entries (threads that didn't get a
+    // cleanup chance) — never cross-thread delete.
     if (m_pNamPool)
         m_pNamPool->releaseAll();
 }
@@ -879,6 +894,30 @@ QNetworkAccessManager *NetworkRequestManager::acquireThreadNam()
 {
     auto *d = globalInstance()->d_func();
     return d->m_pNamPool ? d->m_pNamPool->acquireNam() : nullptr;
+}
+
+void NetworkRequestManager::releaseThreadNamOnExit()
+{
+    auto *inst = globalInstance();
+    if (!inst)
+        return;
+    auto *d = inst->d_func();
+    if (d && d->m_pNamPool)
+        d->m_pNamPool->releaseCurrentThreadNam();
+}
+
+// Lightweight QRunnable that deletes the calling worker thread's NAM during
+// shutdown. QThreadPool reuses the same OS threads that created the NAMs, so
+// this runs on the affine thread — same-thread destruction is safe.
+namespace {
+class NamCleanupRunnable : public QRunnable
+{
+public:
+    void run() Q_DECL_OVERRIDE
+    {
+        NetworkRequestManager::releaseThreadNamOnExit();
+    }
+};
 }
 
 void NetworkRequestManager::init()

@@ -93,6 +93,13 @@ namespace QtNetworkRequest
 		// caller — its lifetime is managed by the pool.
 		static QNetworkAccessManager *acquireThreadNam();
 
+		// Destroy the calling worker thread's NAM if the pool is shutting
+		// down. Called from NetworkRequestRunnable::run() exit and from
+		// shutdown cleanup QRunnables so that each NAM is deleted on the
+		// same thread that created it (QObject affinity — cross-thread
+		// delete crashes in the NAM/cookie-jar destructor).
+		static void releaseThreadNamOnExit();
+
 	public:
 		// Asynchronously execute single request task (returns nullptr if url is invalid)
 		std::shared_ptr<NetworkReply> postRequest(std::unique_ptr<RequestContext> context);
