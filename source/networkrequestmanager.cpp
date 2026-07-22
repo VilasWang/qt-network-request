@@ -37,6 +37,18 @@ struct PriorityRunnable
     }
 };
 
+// Lightweight QRunnable that deletes the calling worker thread's NAM during
+// shutdown. QThreadPool reuses the same OS threads that created the NAMs, so
+// this runs on the affine thread — same-thread destruction is safe.
+class NamCleanupRunnable : public QRunnable
+{
+public:
+    void run() Q_DECL_OVERRIDE
+    {
+        NetworkRequestManager::releaseThreadNamOnExit();
+    }
+};
+
 class NetworkRequestManagerPrivate
 {
     Q_DECLARE_PUBLIC(NetworkRequestManager)
@@ -904,20 +916,6 @@ void NetworkRequestManager::releaseThreadNamOnExit()
     auto *d = inst->d_func();
     if (d && d->m_pNamPool)
         d->m_pNamPool->releaseCurrentThreadNam();
-}
-
-// Lightweight QRunnable that deletes the calling worker thread's NAM during
-// shutdown. QThreadPool reuses the same OS threads that created the NAMs, so
-// this runs on the affine thread — same-thread destruction is safe.
-namespace {
-class NamCleanupRunnable : public QRunnable
-{
-public:
-    void run() Q_DECL_OVERRIDE
-    {
-        NetworkRequestManager::releaseThreadNamOnExit();
-    }
-};
 }
 
 void NetworkRequestManager::init()
