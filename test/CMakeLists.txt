@@ -1,61 +1,50 @@
-# CMakeLists.txt for test directory
+# ══════════════════════════════════════════════════════════════════════════════
+# Unit and UI test executables
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── OpenSSL bin dir (Windows) ────────────────────────────────────────────────
+if(WIN32)
+    if(Qt5_VERSION_MAJOR GREATER_EQUAL 5 AND Qt5_VERSION_MINOR GREATER_EQUAL 12)
+        set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.1.1/bin")
+    else()
+        set(OPENSSL_BIN_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/openssl/1.0.2/bin")
+    endif()
+endif()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# UnitTests — core library functional tests
+# ══════════════════════════════════════════════════════════════════════════════
 add_executable(UnitTests
     main.cpp
     test_networkrequest.cpp
     httptestserver.cpp
 )
 
-target_link_libraries(UnitTests 
-    QNetworkRequest 
-    Qt5::Core 
-    Qt5::Network 
+target_link_libraries(UnitTests
+    QNetworkRequest
+    Qt5::Core
+    Qt5::Network
     Qt5::Test
 )
 
-target_include_directories(UnitTests PRIVATE 
+target_include_directories(UnitTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_SOURCE_DIR}/include
 )
 
-# Register test with CTest
-add_test(NAME UnitTests COMMAND UnitTests)
+set_output_directories(UnitTests)
 
-# --- Copy OpenSSL binary files to build directory ---
 if(WIN32)
-    if(Qt5_VERSION_MAJOR GREATER_EQUAL 5 AND Qt5_VERSION_MINOR GREATER_EQUAL 12)
-        set(OPENSSL_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ThirdParty/openssl/1.1.1/bin")
-    else()
-        set(OPENSSL_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ThirdParty/openssl/1.0.2/bin")
-    endif()
-    
-    if(Qt5_VERSION_MAJOR GREATER_EQUAL 5 AND Qt5_VERSION_MINOR GREATER_EQUAL 12)
-        set(OPENSSL_DLLS libcrypto-1_1-x64.dll libssl-1_1-x64.dll)
-    else()
-        set(OPENSSL_DLLS libeay32.dll ssleay32.dll)
-    endif()
-    
-    foreach(dll ${OPENSSL_DLLS})
-        add_custom_command(
-            TARGET UnitTests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${OPENSSL_BIN_DIR}/${dll}"
-            $<TARGET_FILE_DIR:UnitTests>
-        )
-    endforeach()
-
-    # Copy QNetworkRequest DLL to test directory
-    add_custom_command(
-        TARGET UnitTests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE_DIR:QNetworkRequest>/$<TARGET_FILE_NAME:QNetworkRequest>"
-        $<TARGET_FILE_DIR:UnitTests>
-    )
-
+    copy_openssl_dlls(UnitTests "${OPENSSL_BIN_DIR}")
+    copy_library_artifact(UnitTests QNetworkRequest)
 endif()
 
+add_test(NAME UnitTests COMMAND UnitTests)
 set_tests_properties(UnitTests PROPERTIES TIMEOUT 120)
 
-# ─── UiTests: QtRequester GUI tests ────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# UiTests — QtRequester GUI automation tests
+# ══════════════════════════════════════════════════════════════════════════════
 add_executable(UiTests
     main_uitester.cpp
     test_qtrequester.cpp
@@ -84,22 +73,11 @@ target_include_directories(UiTests PRIVATE
     ${CMAKE_SOURCE_DIR}/samples/networkrequesttool
 )
 
-if(WIN32)
-    foreach(dll ${OPENSSL_DLLS})
-        add_custom_command(
-            TARGET UiTests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${OPENSSL_BIN_DIR}/${dll}"
-            $<TARGET_FILE_DIR:UiTests>
-        )
-    endforeach()
+set_output_directories(UiTests)
 
-    add_custom_command(
-        TARGET UiTests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE_DIR:QNetworkRequest>/$<TARGET_FILE_NAME:QNetworkRequest>"
-        $<TARGET_FILE_DIR:UiTests>
-    )
+if(WIN32)
+    copy_openssl_dlls(UiTests "${OPENSSL_BIN_DIR}")
+    copy_library_artifact(UiTests QNetworkRequest)
 endif()
 
 add_test(NAME UiTests COMMAND UiTests)
