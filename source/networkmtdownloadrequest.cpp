@@ -71,14 +71,14 @@ bool NetworkMTDownloadRequest::requestFileSize()
 
     if (nullptr == m_pNetworkManager)
     {
-        m_pNetworkManager = new QNetworkAccessManager(this);
-        applyProxyConfig(m_pNetworkManager);
-        applyCookieJar(m_pNetworkManager);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-        m_pNetworkManager->setTransferTimeout(m_upContext->behavior.transferTimeout);
-#endif
+        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
     }
+    // Per-request proxy applies after pool's global proxy
+    applyProxyConfig(m_pNetworkManager);
     QNetworkRequest request(url);
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+    request.setTransferTimeout(m_upContext->behavior.transferTimeout);
+#endif
 
 #ifndef QT_NO_SSL
     if (url.scheme().toLower() == "https")
@@ -128,15 +128,18 @@ bool NetworkMTDownloadRequest::requestRangeProbe()
 
     if (nullptr == m_pNetworkManager)
     {
-        m_pNetworkManager = new QNetworkAccessManager(this);
-        applyProxyConfig(m_pNetworkManager);
-        applyCookieJar(m_pNetworkManager);
+        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
     }
+    // Per-request proxy applies after pool's global proxy
+    applyProxyConfig(m_pNetworkManager);
 
     QNetworkRequest request(m_url);
     request.setRawHeader("Range", "bytes=0-0");
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 13, 0))
     request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+#endif
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+    request.setTransferTimeout(m_upContext->behavior.transferTimeout);
 #endif
     request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
 
@@ -302,6 +305,7 @@ void NetworkMTDownloadRequest::startMTDownload()
                 m_pNetworkManager, 
                 m_upContext->behavior.showProgress, 
                 m_upContext->behavior.maxRedirectionCount, 
+                m_upContext->behavior.transferTimeout,
                 this);
 
         connect(downloader.get(), SIGNAL(downloadFinished(int, bool, const QString &)),
@@ -627,7 +631,7 @@ bool NetworkMTDownloadRequest::renameTempFileToFinal()
 }
 
 //////////////////////////////////////////////////////////////////////////
-Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessManager *pNetworkManager, bool bShowProgress, quint16 nMaxRedirectionCount, QObject *parent)
+Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessManager *pNetworkManager, bool bShowProgress, quint16 nMaxRedirectionCount, int transferTimeout, QObject *parent)
     : QObject(parent),
       m_nIndex(index),
       m_pNetworkReply(nullptr),
@@ -639,7 +643,8 @@ Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessMa
       m_bShowProgress(bShowProgress),
       m_nMaxRedirectionCount(nMaxRedirectionCount),
       m_mappedFile(QPointer<MemoryMappedFile>(mappedFile)),
-      m_bytesWritten(0)
+      m_bytesWritten(0),
+      m_transferTimeout(transferTimeout)
 {
 	m_timer.setInterval(m_mIntervalMs);
 	connect(&m_timer, &QTimer::timeout, this, [this]()
@@ -722,6 +727,10 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
     QNetworkRequest request;
     request.setUrl(url);
     request.setRawHeader("Range", range.toLocal8Bit());
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+    if (m_transferTimeout > 0)
+        request.setTransferTimeout(m_transferTimeout);
+#endif
     // Force HTTP/1.1 — when HTTP/2 multiplexes concurrent Range requests
     // onto a single connection, CDNs (Cloudflare, Varnish) may drop the
     // Range header and return 200 with the full body.

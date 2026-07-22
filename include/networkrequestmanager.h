@@ -45,6 +45,7 @@ SOFTWARE.
 #include "networkrequestglobal.h"
 #include <memory>
 
+class QNetworkAccessManager;
 class QNetworkCookieJar;
 
 class QEvent;
@@ -77,6 +78,12 @@ namespace QtNetworkRequest
 		static void setCookieStoragePath(const QString &path);
 		static QString cookieStoragePath();
 		static QNetworkCookieJar *cookieJar();
+
+		// Acquire a thread-affine QNetworkAccessManager from the pool.
+		// Must be called from a worker thread (or main thread during
+		// initialization).  The returned NAM must NOT be deleted by the
+		// caller — its lifetime is managed by the pool.
+		static QNetworkAccessManager *acquireThreadNam();
 
 	public:
 		// Asynchronously execute single request task (returns nullptr if url is invalid)

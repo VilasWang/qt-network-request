@@ -68,17 +68,13 @@ void NetworkDownloadRequest::start()
         return;
     }
 
-    // Improved network manager creation
+    // Get thread-affine NAM from pool
     if (nullptr == m_pNetworkManager)
     {
-        m_pNetworkManager = new QNetworkAccessManager(this);
-        applyProxyConfig(m_pNetworkManager);
-        applyCookieJar(m_pNetworkManager);
-// Set timeout
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-        m_pNetworkManager->setTransferTimeout(m_upContext->behavior.transferTimeout);
-#endif
+        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
     }
+    // Per-request proxy applies after pool's global proxy
+    applyProxyConfig(m_pNetworkManager);
 
     // Set cookies
     for (const QNetworkCookie &cookie : m_upContext->cookies)
@@ -90,6 +86,9 @@ void NetworkDownloadRequest::start()
     }
 
     QNetworkRequest request(url);
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+    request.setTransferTimeout(m_upContext->behavior.transferTimeout);
+#endif
     request.setRawHeader("Accept-Encoding", "gzip,deflate");
     request.setRawHeader("Connection", "keep-alive");
     request.setRawHeader("User-Agent", "QtNetworkRequest/2.0");

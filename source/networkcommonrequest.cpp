@@ -7,6 +7,7 @@
 #include <QMimeDatabase>
 
 #include "networkrequestutility.h"
+#include "networkrequestmanager.h"
 #include <QtGlobal> // Add header file for Qt version checking
 #include "QThread"
 #include "QHttpMultiPart"
@@ -65,14 +66,10 @@ void NetworkCommonRequest::start()
 
     if (nullptr == m_pNetworkManager)
     {
-        m_pNetworkManager = new QNetworkAccessManager(this);
-        applyProxyConfig(m_pNetworkManager);
-        applyCookieJar(m_pNetworkManager);
-// Set timeout
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-        m_pNetworkManager->setTransferTimeout(m_upContext->behavior.transferTimeout);
-#endif
+        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
     }
+    // Per-request proxy applies after pool's global proxy
+    applyProxyConfig(m_pNetworkManager);
     for (QNetworkCookie &cookie : m_upContext->cookies)
     {
         if (m_pNetworkManager->cookieJar())
@@ -82,6 +79,10 @@ void NetworkCommonRequest::start()
     }
 
     QNetworkRequest request(url);
+
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+    request.setTransferTimeout(m_upContext->behavior.transferTimeout);
+#endif
 
     // Set default User-Agent if not provided
     if (!m_upContext->headers.contains("User-Agent") && !m_upContext->headers.contains("user-agent"))

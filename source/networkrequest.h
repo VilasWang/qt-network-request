@@ -61,7 +61,7 @@ namespace QtNetworkRequest
 		qint64 m_nBytesReceived{ 0 };
 		qint64 m_nBytesSent{ 0 };
 		quint16 m_nRedirectionCount;
-		QNetworkAccessManager *m_pNetworkManager;
+		QNetworkAccessManager *m_pNetworkManager;  // non-owning — managed by NetworkAccessManagerPool
 		QNetworkReply *m_pNetworkReply;
         QUrl m_url;
 

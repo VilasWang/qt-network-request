@@ -62,14 +62,10 @@ void NetworkUploadRequest::start()
 
 	if (nullptr == m_pNetworkManager)
 	{
-		m_pNetworkManager = new QNetworkAccessManager(this);
-		applyProxyConfig(m_pNetworkManager);
-		applyCookieJar(m_pNetworkManager);
-		// Set timeout
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-		m_pNetworkManager->setTransferTimeout(m_upContext->behavior.transferTimeout);
-#endif
+		m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
 	}
+	// Per-request proxy applies after pool's global proxy
+	applyProxyConfig(m_pNetworkManager);
 	m_pNetworkManager->connectToHost(url.host(), url.port());
 
 	for (QNetworkCookie& cookie : m_upContext->cookies)
@@ -81,6 +77,9 @@ void NetworkUploadRequest::start()
 	}
 
 	QNetworkRequest request(url);
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+	request.setTransferTimeout(m_upContext->behavior.transferTimeout);
+#endif
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/octet-stream");
 	// Let Qt automatically handle Content-Length, remove manual setting
 	// request.setHeader(QNetworkRequest::ContentLengthHeader, bytes.length());

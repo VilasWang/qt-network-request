@@ -79,6 +79,7 @@ namespace QtNetworkRequest
 							QNetworkAccessManager *pNetworkManager,
 							bool bShowProgress = false,
 							quint16 nMaxRedirectionCount = 5,
+							int transferTimeout = 0,
 							QObject *parent = 0);
 
 		virtual ~Downloader();
@@ -117,6 +118,7 @@ namespace QtNetworkRequest
 		QPointer<MemoryMappedFile> m_mappedFile; // Memory mapped file pointer
 		qint64 m_bytesWritten;					 // Bytes written
 		bool m_bOverflowLogged{ false };		 // Only log overflow once per download
+		int m_transferTimeout{ 0 };              // Per-request transfer timeout (ms)
 
 		QTimer m_timer;
 		int m_mIntervalMs{ 250 };

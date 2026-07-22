@@ -7,6 +7,7 @@
 #include "networkmtdownloadrequest.h"
 #include "networkrequestutility.h"
 #include "networkrequestmanager.h"
+#include "sharedcookiejar.h"
 
 using namespace QtNetworkRequest;
 
@@ -19,6 +20,11 @@ NetworkRequest::~NetworkRequest()
 {
     if (m_pNetworkReply)
     {
+        // Disconnect all signals before abort/delete so that the NAM-pooled
+        // QNetworkReply (a child of the shared NAM) cannot deliver callbacks
+        // to this already-destroying NetworkRequest.
+        m_pNetworkReply->disconnect(this);
+
         if (m_pNetworkReply->isRunning())
         {
             m_pNetworkReply->abort();
@@ -29,9 +35,10 @@ NetworkRequest::~NetworkRequest()
         delete m_pNetworkReply;
         m_pNetworkReply = nullptr;
     }
+    // Disconnect NAM signals that were connected to this request
     if (m_pNetworkManager)
     {
-        delete m_pNetworkManager;
+        m_pNetworkManager->disconnect(this);
         m_pNetworkManager = nullptr;
     }
 }
@@ -42,11 +49,23 @@ void NetworkRequest::abort()
     m_heartbeatTimer.stop();
     if (m_pNetworkReply)
     {
+        // Block signals so any pending queued signal delivery
+        // (QMetaCallEvent) is silently dropped rather than routed
+        // to this already-destroyed NetworkRequest.
+        m_pNetworkReply->blockSignals(true);
+
+        // Disconnect all signals to prevent callbacks after abort
+        m_pNetworkReply->disconnect(this);
+
         if (m_pNetworkReply->isRunning())
         {
             m_pNetworkReply->abort();
         }
-        m_pNetworkReply->deleteLater();
+        // Use direct delete rather than deleteLater(): when the event loop
+        // is about to be quit (cancel path), deferred deletion never runs
+        // and the QNetworkReply lives on as a child of the shared NAM,
+        // eventually delivering queued signals to a destroyed NetworkRequest.
+        delete m_pNetworkReply;
         m_pNetworkReply = nullptr;
     }
 }
@@ -162,7 +181,7 @@ bool NetworkRequest::tryRetry()
     }
     if (m_pNetworkManager)
     {
-        m_pNetworkManager->deleteLater();
+        // NAM is owned by the pool — just release our reference
         m_pNetworkManager = nullptr;
     }
 
@@ -182,7 +201,11 @@ void NetworkRequest::applyCookieJar(QNetworkAccessManager* mgr)
 {
     QNetworkCookieJar *jar = NetworkRequestManager::cookieJar();
     if (jar)
-        mgr->setCookieJar(jar);
+    {
+        // Use a delegate wrapper so the NAM owns its own SharedCookieJar
+        // while the underlying real jar is owned by NetworkRequestManager.
+        mgr->setCookieJar(new SharedCookieJar(jar));
+    }
 }
 
 bool NetworkRequest::isTransientError(QNetworkReply::NetworkError err)

@@ -19,6 +19,7 @@
 #include "networkreply.h"
 #include "networkrequestevent.h"
 #include "networkcookiejar.h"
+#include "networkaccessmanagerpool.h"
 
 #define DEFAULT_MAX_THREAD_COUNT 8
 
@@ -126,6 +127,9 @@ private:
     // Priority queue for pending runnables when all threads are busy
     std::multiset<PriorityRunnable> m_priorityQueue;
     quint64 m_prioritySeq{ 0 };
+
+    // Thread-affine NAM pool (owned, created in init(), destroyed in unInitialize())
+    QScopedPointer<NetworkAccessManagerPool> m_pNamPool;
 };
 std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiRequestId = 0;
 std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiBatchId = 0;
@@ -160,6 +164,9 @@ void NetworkRequestManagerPrivate::initialize()
         m_pThreadPool->setMaxThreadCount(DEFAULT_MAX_THREAD_COUNT);
     }
 
+    // Create the thread-affine NAM pool
+    m_pNamPool.reset(new NetworkAccessManagerPool());
+
     // To add something intialize...
 }
 
@@ -174,6 +181,15 @@ void NetworkRequestManagerPrivate::unInitialize()
     {
         qDebug() << "[QMultiThreadNetwork] ThreadPool waitForDone failed!";
     }
+
+    // Ensure all pending deleteLater() events are processed before
+    // releasing the NAM pool, so that no dangling references remain.
+    qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
+
+    // Safe to release: all QRunnable::run() have returned,
+    // no worker thread is using any NAM.
+    if (m_pNamPool)
+        m_pNamPool->releaseAll();
 }
 
 void NetworkRequestManagerPrivate::reset()
@@ -824,6 +840,12 @@ QString NetworkRequestManager::cookieStoragePath()
 QNetworkCookieJar *NetworkRequestManager::cookieJar()
 {
     return ms_spCookieJar.data();
+}
+
+QNetworkAccessManager *NetworkRequestManager::acquireThreadNam()
+{
+    auto *d = globalInstance()->d_func();
+    return d->m_pNamPool ? d->m_pNamPool->acquireNam() : nullptr;
 }
 
 void NetworkRequestManager::init()
