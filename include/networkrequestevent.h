@@ -23,12 +23,10 @@ That must be called in the main thread.
 #include <QByteArray>
 #include <QVariant>
 #include <QSharedPointer>
+#include "responseresult.h"
 
 namespace QtNetworkRequest
 {
-    // Forward declaration — full definition is in networkrequestdefs.h
-    struct ResponseResult;
-
     ////////////////// Event ////////////////////////////////////////////////////
     namespace QEventRegister
     {

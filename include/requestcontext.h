@@ -27,6 +27,7 @@ SOFTWARE.
 #pragma once
 
 #include <memory>
+#include <utility>
 #include <QMap>
 #include <QByteArray>
 #include <QVariant>
@@ -114,7 +115,10 @@ namespace QtNetworkRequest
 	};
 
 	// ====================================================================
-	// RequestContextBuilder — fluent builder for RequestContext
+	// RequestContextBuilder — consumable fluent builder (single-shot)
+	//
+	// Usage: auto ctx = RequestContextBuilder().url(...).type(...).build();
+	// After build() the builder is consumed — do not reuse or call setters.
 	// ====================================================================
 
 	class RequestContextBuilder
@@ -127,6 +131,7 @@ namespace QtNetworkRequest
 		// --- url ---
 		RequestContextBuilder &url(const QString &v)
 		{
+			Q_ASSERT(m_context);
 			m_context->url = v;
 			return *this;
 		}
@@ -251,10 +256,11 @@ namespace QtNetworkRequest
 			return *this;
 		}
 
-		// --- build ---
+		// --- build (single-shot: builder is consumed) ---
 		std::unique_ptr<RequestContext> build()
 		{
-			return std::move(m_context);
+			Q_ASSERT(m_context);
+			return std::exchange(m_context, nullptr);
 		}
 
 	private:
