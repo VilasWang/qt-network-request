@@ -206,13 +206,29 @@ jobs:
           }
           Write-Host "All targets built successfully"
 
-      - name: Verify all targets built (Linux/macOS)
-        if: matrix.platform != 'windows'
+      - name: Verify all targets built (Linux)
+        if: matrix.platform == 'linux'
         run: |
           buildDir="build/${{ matrix.build_type }}"
           missing=""
           # All targets land flat in build/<config>/ via set_output_directories()
-          for f in "libQNetworkRequest.so" "libQNetworkRequest.dylib" "QtRequester" "QtDownloader" "UnitTests"; do
+          for f in "libQNetworkRequest.so" "QtRequester" "QtDownloader" "UnitTests"; do
+            if [ ! -f "$buildDir/$f" ] && [ ! -x "$buildDir/$f" ] 2>/dev/null; then
+              missing="$missing $f"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "Missing targets:$missing"
+            exit 1
+          fi
+          echo "All targets built successfully"
+
+      - name: Verify all targets built (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          buildDir="build/${{ matrix.build_type }}"
+          missing=""
+          for f in "libQNetworkRequest.dylib" "QtRequester" "QtDownloader" "UnitTests"; do
             if [ ! -f "$buildDir/$f" ] && [ ! -x "$buildDir/$f" ] 2>/dev/null; then
               missing="$missing $f"
             fi
