@@ -184,8 +184,7 @@ void NetworkRequestManagerPrivate::initialize()
 
 void NetworkRequestManagerPrivate::unInitialize()
 {
-    stopAllRequest();
-    reset();
+    stopAllRequest();  // internally calls reset() — reply maps already cleared
 
     // Phase 1: signal NAM pool shutdown. In-flight run()s will delete their
     // thread-affine NAM on exit (same-thread destruction — safe, required by
@@ -221,6 +220,13 @@ void NetworkRequestManagerPrivate::unInitialize()
 
 void NetworkRequestManagerPrivate::reset()
 {
+    // Drain pending events before clearing reply maps: worker threads may
+    // have posted ReplyResultEvents destined for NetworkReply objects held
+    // in m_mapReply.  Delivering them here while targets are still alive
+    // avoids a use-after-free crash (0xC0000005) on the subsequent
+    // processEvents() call in unInitialize().
+    qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
+
     QMutexLocker locker(&m_mutex);
 
     m_mapBatchTotalSize.clear();
