@@ -1,7 +1,8 @@
 # ─── Shared utility functions ────────────────────────────────────────────────
 
 # ---- set_output_directories --------------------------------------------------
-# Standardizes per-config output for a target.
+# Standardizes per-config output for a target (all configs → flat dir).
+# Uses generator expressions so multi-config generators (MSVC/Xcode) work.
 # Defaults to CMAKE_BINARY_DIR; override QTNETWORK_OUTPUT_ROOT for a custom root.
 #
 function(set_output_directories target)
@@ -9,13 +10,11 @@ function(set_output_directories target)
         set(QTNETWORK_OUTPUT_ROOT "${CMAKE_BINARY_DIR}")
     endif()
 
-    foreach(config IN ITEMS Debug Release RelWithDebInfo MinSizeRel)
-        set_target_properties(${target} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY_${config}  "${QTNETWORK_OUTPUT_ROOT}/${config}"
-            LIBRARY_OUTPUT_DIRECTORY_${config}  "${QTNETWORK_OUTPUT_ROOT}/${config}"
-            ARCHIVE_OUTPUT_DIRECTORY_${config}  "${QTNETWORK_OUTPUT_ROOT}/${config}"
-        )
-    endforeach()
+    set_target_properties(${target} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${QTNETWORK_OUTPUT_ROOT}/$<CONFIG>"
+        LIBRARY_OUTPUT_DIRECTORY "${QTNETWORK_OUTPUT_ROOT}/$<CONFIG>"
+        ARCHIVE_OUTPUT_DIRECTORY "${QTNETWORK_OUTPUT_ROOT}/$<CONFIG>"
+    )
 endfunction()
 
 # ---- copy_openssl_dlls -------------------------------------------------------

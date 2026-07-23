@@ -211,12 +211,10 @@ jobs:
         run: |
           buildDir="build/${{ matrix.build_type }}"
           missing=""
-          for f in "libQNetworkRequest.so" "libQNetworkRequest.dylib" "QtRequester" "QtDownloader" "test/UnitTests"; do
+          # All targets land flat in build/<config>/ via set_output_directories()
+          for f in "libQNetworkRequest.so" "libQNetworkRequest.dylib" "QtRequester" "QtDownloader" "UnitTests"; do
             if [ ! -f "$buildDir/$f" ] && [ ! -x "$buildDir/$f" ] 2>/dev/null; then
-              # Try without config subdir
-              if [ ! -f "build/$f" ] && [ ! -x "build/$f" ] 2>/dev/null; then
-                missing="$missing $f"
-              fi
+              missing="$missing $f"
             fi
           done
           if [ -n "$missing" ]; then
@@ -255,7 +253,7 @@ jobs:
           copy "build\${{ matrix.build_type }}\QNetworkRequest.pdb" artifacts\library\
           copy "build\${{ matrix.build_type }}\QtRequester.exe" artifacts\requester\
           copy "build\${{ matrix.build_type }}\QtDownloader.exe" artifacts\downloader\
-          copy "build\test\${{ matrix.build_type }}\UnitTests.exe" artifacts\tests\
+          copy "build\${{ matrix.build_type }}\UnitTests.exe" artifacts\tests\
           copy "ThirdParty\openssl\1.1.1\bin\libcrypto-1_1-x64.dll" artifacts\library\
           copy "ThirdParty\openssl\1.1.1\bin\libssl-1_1-x64.dll" artifacts\library\
 
@@ -266,7 +264,7 @@ jobs:
           cp "build/${{ matrix.build_type }}/libQNetworkRequest.so" artifacts/library/ 2>/dev/null || true
           cp "build/${{ matrix.build_type }}/QtRequester" artifacts/requester/ 2>/dev/null || true
           cp "build/${{ matrix.build_type }}/QtDownloader" artifacts/downloader/ 2>/dev/null || true
-          cp "build/test/${{ matrix.build_type }}/UnitTests" artifacts/tests/ 2>/dev/null || true
+          cp "build/${{ matrix.build_type }}/UnitTests" artifacts/tests/ 2>/dev/null || true
 
       - name: Prepare artifacts (macOS)
         if: matrix.platform == 'macos'
@@ -275,7 +273,7 @@ jobs:
           cp "build/${{ matrix.build_type }}/libQNetworkRequest.dylib" artifacts/library/ 2>/dev/null || true
           cp -R "build/${{ matrix.build_type }}/QtRequester.app" artifacts/requester/ 2>/dev/null || true
           cp -R "build/${{ matrix.build_type }}/QtDownloader.app" artifacts/downloader/ 2>/dev/null || true
-          cp "build/test/${{ matrix.build_type }}/UnitTests" artifacts/tests/ 2>/dev/null || true
+          cp "build/${{ matrix.build_type }}/UnitTests" artifacts/tests/ 2>/dev/null || true
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
