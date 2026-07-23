@@ -4,6 +4,9 @@
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
+    # Treat all source files as UTF-8 (suppresses C4819 on Chinese code page 936)
+    add_compile_options("/utf-8")
+
     # Debug
     set(CMAKE_CXX_FLAGS_DEBUG          "/ZI /Od /MDd /RTC1 /GS /Ob0")
     set(CMAKE_EXE_LINKER_FLAGS_DEBUG   "/DEBUG /INCREMENTAL")
