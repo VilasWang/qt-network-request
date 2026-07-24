@@ -95,7 +95,9 @@ void NetworkDownloadRequest::start()
     // NOTE: Do NOT set "Accept-Encoding" manually. Qt transparently negotiates
     // and decompresses gzip/deflate only when it adds the header itself; a manual
     // header disables auto-decompression and would persist raw compressed bytes.
-    request.setRawHeader("Connection", "keep-alive");
+    // NOTE: Do NOT set "Connection" manually either. It is a hop-by-hop header that
+    // Qt manages via its connection pool (keep-alive is the HTTP/1.1 default, and
+    // the header is forbidden under HTTP/2 which Qt may negotiate).
     request.setRawHeader("User-Agent", "QtNetworkRequest/2.0");
 
     // Set custom headers

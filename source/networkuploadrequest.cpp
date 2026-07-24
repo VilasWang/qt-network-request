@@ -84,7 +84,9 @@ void NetworkUploadRequest::start()
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/octet-stream");
 	// Let Qt automatically handle Content-Length, remove manual setting
 	// request.setHeader(QNetworkRequest::ContentLengthHeader, bytes.length());
-	request.setRawHeader("Connection", "keep-alive");
+	// NOTE: Do NOT set "Connection" manually. It is a hop-by-hop header that Qt
+	// manages via its connection pool (keep-alive is the HTTP/1.1 default, and the
+	// header is forbidden under HTTP/2 which Qt may negotiate).
 	auto iter = m_upContext->headers.cbegin();
 	for (; iter != m_upContext->headers.cend(); ++iter)
 	{
