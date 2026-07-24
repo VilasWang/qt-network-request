@@ -263,8 +263,9 @@ jobs:
 
       - name: Prepare artifacts (Windows)
         if: matrix.platform == 'windows'
+        shell: cmd
         run: |
-          mkdir -p artifacts\library artifacts\requester artifacts\downloader artifacts\tests
+          mkdir artifacts\library artifacts\requester artifacts\downloader artifacts\tests
           copy "build\${{ matrix.build_type }}\QNetworkRequest.dll" artifacts\library\
           copy "build\${{ matrix.build_type }}\QNetworkRequest.pdb" artifacts\library\
           copy "build\${{ matrix.build_type }}\QtRequester.exe" artifacts\requester\
