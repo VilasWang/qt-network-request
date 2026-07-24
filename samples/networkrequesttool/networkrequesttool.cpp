@@ -35,17 +35,6 @@ using namespace QtNetworkRequest;
 
 namespace
 {
-    QString getSupportedAcceptEncoding()
-    {
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
-        // Qt 5.12+ supports Brotli compression
-        return QLatin1String("gzip, deflate, br");
-#else
-        // Older Qt versions only support gzip and deflate
-        return QLatin1String("gzip, deflate");
-#endif
-    }
-
     // Delegate for table cells. The window-level stylesheet styles QLineEdit with
     // generous padding (8px) intended for the standalone inputs; applied to the
     // short in-cell editor it clips the text vertically. Setting the stylesheet
@@ -226,7 +215,6 @@ void NetworkRequestTool::addDefaultHeaders()
 {
     QStringList defaultHeaders = {
         "Accept;*/*",
-        "Accept-Encoding;gzip,deflate",
         "Connection;keep-alive",
         "User-Agent;QtNetworkTool/1.0"};
 
@@ -310,18 +298,18 @@ void NetworkRequestTool::updateDefaultHeadersForMethod(const QString &method)
         }
     }
 
-    // Define default headers for different HTTP methods
+    // Define default headers for different HTTP methods.
+    // NOTE: "Accept-Encoding" is intentionally omitted so Qt can add it itself
+    // and transparently decompress gzip/deflate responses.
     QMap<QString, QString> defaultHeaders;
     if (method == "GET" || method == "HEAD" || method == "OPTIONS")
     {
         defaultHeaders["Accept"] = "*/*";
-        defaultHeaders["Accept-Encoding"] = "gzip, deflate";
         defaultHeaders["User-Agent"] = "QtNetworkTool/1.0";
     }
     else
     {
         defaultHeaders["Accept"] = "*/*";
-        defaultHeaders["Accept-Encoding"] = "gzip, deflate";
         defaultHeaders["User-Agent"] = "QtNetworkTool/1.0";
     }
 

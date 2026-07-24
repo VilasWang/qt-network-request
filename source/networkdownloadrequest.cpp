@@ -92,7 +92,9 @@ void NetworkDownloadRequest::start()
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
     request.setTransferTimeout(m_upContext->behavior.transferTimeout);
 #endif
-    request.setRawHeader("Accept-Encoding", "gzip,deflate");
+    // NOTE: Do NOT set "Accept-Encoding" manually. Qt transparently negotiates
+    // and decompresses gzip/deflate only when it adds the header itself; a manual
+    // header disables auto-decompression and would persist raw compressed bytes.
     request.setRawHeader("Connection", "keep-alive");
     request.setRawHeader("User-Agent", "QtNetworkRequest/2.0");
 
