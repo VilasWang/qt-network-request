@@ -905,3 +905,691 @@ void TestNetworkRequest::testIdleTimeout()
     QVERIFY(waitForFinished(reply, 10000));
     QVERIFY(called);
 }
+
+// ─── Stage A P0 contract tests ───────────────────────────────────────────────
+
+void TestNetworkRequest::testSendRequestSync()
+{
+    // Synchronous sendRequest() runs a nested event loop and invokes the
+    // callback before returning. Blocking mode is used so the callback runs
+    // deterministically inside the call.
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/get?sync=1";
+    req->type = RequestType::Get;
+
+    bool called = false;
+    bool ok = NetworkRequestManager::globalInstance()->sendRequest(
+        std::move(req),
+        [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+        {
+            called = true;
+            QVERIFY(rsp);
+            QVERIFY(rsp->success);
+            QVERIFY(!rsp->body.isEmpty());
+        },
+        true);
+
+    QVERIFY(ok);
+    QVERIFY(called);
+}
+
+void TestNetworkRequest::testBatchSuccessAndSignal()
+{
+    // A batch of successful requests should emit batchRequestFinished with
+    // bAllSuccess == true once every task in the batch completes.
+    QSignalSpy batchSpy(NetworkRequestManager::globalInstance(),
+                        &NetworkRequestManager::batchRequestFinished);
+
+    BatchRequestPtrTasks tasks;
+    for (int i = 0; i < 3; ++i)
+    {
+        std::unique_ptr<RequestContext> ctx = std::make_unique<RequestContext>();
+        ctx->url = s_server->baseUrl() + QString("/get?batch=%1").arg(i);
+        ctx->type = RequestType::Get;
+        tasks.push_back(std::move(ctx));
+    }
+
+    quint64 batchId = 0;
+    std::shared_ptr<NetworkReply> reply =
+        NetworkRequestManager::globalInstance()->postBatchRequest(std::move(tasks), batchId);
+    QVERIFY(reply != nullptr);
+    QVERIFY(batchId > 0);
+
+    QVERIFY(waitForFinished(reply, 30000));
+
+    // The batchRequestFinished signal is emitted once the whole batch is done;
+    // pump the event loop until it arrives.
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(10000);
+    while (timer.isActive() && batchSpy.isEmpty())
+    {
+        QCoreApplication::processEvents();
+        QThread::msleep(10);
+    }
+
+    QVERIFY(!batchSpy.isEmpty());
+    QList<QVariant> args = batchSpy.takeFirst();
+    QCOMPARE(args.at(0).value<quint64>(), batchId);
+    QCOMPARE(args.at(1).toBool(), true);
+}
+
+void TestNetworkRequest::testTotalTimeoutTriggered()
+{
+    // /drip sends response headers advertising a large body but never sends
+    // the body. With a short total timeout the request must terminate and the
+    // result must be flagged as a timeout (Layer1 total-timeout contract).
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/drip";
+    req->type = RequestType::Get;
+    req->behavior.totalTimeoutMs = 2000;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(!rsp->success);
+                         QVERIFY(rsp->timeout);
+                     });
+
+    QVERIFY(waitForFinished(reply, 15000));
+    QVERIFY(called);
+}
+
+void TestNetworkRequest::testIdleTimeoutTriggered()
+{
+    // /drip stalls after headers, so no data arrives. An idle timeout should
+    // abort the transfer; a total timeout backstop guarantees a response is
+    // delivered even if the idle path only aborts the underlying reply.
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/drip";
+    req->type = RequestType::Get;
+    req->behavior.idleTimeoutMs = 1500;
+    req->behavior.totalTimeoutMs = 6000; // backstop so the worker never hangs
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(!rsp->success);
+                     });
+
+    QVERIFY(waitForFinished(reply, 15000));
+    QVERIFY(called);
+}
+
+void TestNetworkRequest::testStatusCode404()
+{
+    // /status/404 returns a 404 with a body. The response should surface the
+    // HTTP status code and be marked unsuccessful.
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/status/404";
+    req->type = RequestType::Get;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(!rsp->success);
+                         QCOMPARE(rsp->statusCode, 404);
+                     });
+
+    QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
+}
+
+void TestNetworkRequest::testInvalidUrlReturnsNull()
+{
+    // postRequest() validates the URL via QUrl::isValid(); a malformed URL
+    // (unterminated IPv6 literal) must be rejected with a nullptr reply.
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = QString("http://[");
+    req->type = RequestType::Get;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply == nullptr);
+}
+
+void TestNetworkRequest::testResponsePerformanceStats()
+{
+    // A successful response should populate the performance statistics:
+    // bytesReceived reflects the payload actually read from the network.
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/bytes/1024";
+    req->type = RequestType::Get;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->performance.bytesReceived > 0);
+                     });
+
+    QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
+}
+
+// ─── Stage B P1 feature tests ────────────────────────────────────────────────
+
+void TestNetworkRequest::testRedirectFollow()
+{
+    // /redirect/2 returns a 302 chain that ultimately points at /get.
+    // Depending on Qt's redirect policy the client either transparently
+    // follows to the 200 target or surfaces the 3xx directly; both are valid
+    // library outcomes. The contract asserted here is: the request completes,
+    // delivers a non-null result, and yields a sane final HTTP status.
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/redirect/2";
+    req->type = RequestType::Get;
+    req->behavior.maxRedirectionCount = 5;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    int finalStatus = 0;
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called, &finalStatus](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         finalStatus = rsp->statusCode;
+                     });
+
+    QVERIFY(waitForFinished(reply, 15000));
+    QVERIFY(called);
+    qDebug() << "Redirect final status:" << finalStatus;
+    QVERIFY2(finalStatus == 200 || (finalStatus >= 300 && finalStatus < 400),
+             qPrintable(QString("Unexpected redirect status %1").arg(finalStatus)));
+}
+
+void TestNetworkRequest::testMaxRedirectExceeded()
+{
+    // A long redirect chain (10 hops) constrained to a small redirect budget.
+    // The request must still terminate cleanly and deliver a result rather than
+    // spinning or crashing; the exact terminal status is Qt-policy dependent.
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/redirect/10";
+    req->type = RequestType::Get;
+    req->behavior.maxRedirectionCount = 2;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    int finalStatus = -1;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called, &finalStatus](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         finalStatus = rsp->statusCode;
+                     });
+
+    QVERIFY(waitForFinished(reply, 15000));
+    QVERIFY(called);
+    qDebug() << "Max-redirect terminal status:" << finalStatus;
+}
+
+#ifndef QT_NO_SSL
+void TestNetworkRequest::testGlobalSslConfigNormalize()
+{
+    // Global SSL config must never retain Inherit sentinels: setGlobalSslConfig
+    // normalizes any Inherit field to the corresponding secure-default value,
+    // while explicitly-provided values are preserved verbatim.
+    SslConfig saved = NetworkRequestManager::globalSslConfig();
+
+    // All-Inherit input → fully normalized to secureDefault.
+    SslConfig allInherit;  // default-constructed: every field == Inherit
+    NetworkRequestManager::setGlobalSslConfig(allInherit);
+    SslConfig out = NetworkRequestManager::globalSslConfig();
+    const SslConfig def = SslConfig::secureDefault();
+    QVERIFY(out.peerVerifyMode != SslConfig::PeerVerifyMode::Inherit);
+    QVERIFY(out.minProtocol != SslConfig::TlsProtocol::Inherit);
+    QVERIFY(out.ignoreSslErrorsPolicy != SslConfig::IgnorePolicy::Inherit);
+    QVERIFY(out.caPolicy != SslConfig::CaPolicy::Inherit);
+    QCOMPARE(int(out.peerVerifyMode), int(def.peerVerifyMode));
+    QCOMPARE(int(out.minProtocol), int(def.minProtocol));
+    QCOMPARE(int(out.ignoreSslErrorsPolicy), int(def.ignoreSslErrorsPolicy));
+    QCOMPARE(int(out.caPolicy), int(def.caPolicy));
+
+    // Explicit values are preserved; unset (Inherit) fields still normalize.
+    SslConfig custom;
+    custom.peerVerifyMode = SslConfig::PeerVerifyMode::VerifyNone;
+    custom.minProtocol = SslConfig::TlsProtocol::TlsV1_3;
+    NetworkRequestManager::setGlobalSslConfig(custom);
+    out = NetworkRequestManager::globalSslConfig();
+    QCOMPARE(int(out.peerVerifyMode), int(SslConfig::PeerVerifyMode::VerifyNone));
+    QCOMPARE(int(out.minProtocol), int(SslConfig::TlsProtocol::TlsV1_3));
+    QVERIFY(out.ignoreSslErrorsPolicy != SslConfig::IgnorePolicy::Inherit);
+    QVERIFY(out.caPolicy != SslConfig::CaPolicy::Inherit);
+
+    NetworkRequestManager::setGlobalSslConfig(saved);
+}
+
+void TestNetworkRequest::testPerRequestSslInherit()
+{
+    // A per-request SslConfig left entirely at Inherit must resolve against the
+    // (non-default) global config without breaking the request. Over plain HTTP
+    // the SSL settings are ignored by Qt, so the effective assertion is that
+    // Inherit-resolution is side-effect free and the request still succeeds.
+    SslConfig saved = NetworkRequestManager::globalSslConfig();
+
+    SslConfig global;
+    global.peerVerifyMode = SslConfig::PeerVerifyMode::VerifyNone;
+    global.minProtocol = SslConfig::TlsProtocol::TlsV1_2;
+    NetworkRequestManager::setGlobalSslConfig(global);
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/get?ssl=inherit";
+    req->type = RequestType::Get;
+    req->sslConfig = std::make_unique<SslConfig>();  // all Inherit
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                     });
+
+    QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
+
+    NetworkRequestManager::setGlobalSslConfig(saved);
+}
+#endif
+
+void TestNetworkRequest::testStopSession()
+{
+    // nextSessionId() must hand out strictly-increasing ids, and
+    // stopSessionRequest() must cancel every in-flight request tagged with that
+    // session. Session-stop is a *silent* cancel: onResponse() drops the result
+    // for a stopped session (see NetworkRequestManager::onResponse), so the
+    // reply's requestFinished signal must NOT fire afterwards.
+    quint64 sid1 = NetworkRequestManager::globalInstance()->nextSessionId();
+    quint64 sid2 = NetworkRequestManager::globalInstance()->nextSessionId();
+    QVERIFY(sid2 > sid1);
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/delay/5000";
+    req->type = RequestType::Get;
+    req->task.sessionId = sid2;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    QSignalSpy spy(reply.get(), &NetworkReply::requestFinished);
+
+    // Let the request get dispatched onto a worker thread before cancelling.
+    QCoreApplication::processEvents();
+    QThread::msleep(100);
+
+    NetworkRequestManager::globalInstance()->stopSessionRequest(sid2);
+
+    // Spin the event loop well under the server's 5s delay: a stopped session
+    // must never deliver a result, so the spy stays empty.
+    QElapsedTimer elapsed;
+    elapsed.start();
+    while (elapsed.elapsed() < 800)
+    {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        QThread::msleep(10);
+    }
+
+    QVERIFY2(spy.isEmpty(), "stopSessionRequest must silently cancel: no requestFinished expected");
+}
+
+void TestNetworkRequest::testDownloadProgress()
+{
+    // showProgress=true must surface incremental downloadProgress(recv,total)
+    // signals on the reply for a single-threaded download. The /slowbytes
+    // endpoint dribbles the body out over ~640ms so the client's 250ms
+    // progress-throttle timer is guaranteed to tick at least once.
+    QString tmpDir = QDir::tempPath();
+    QString savePath = tmpDir + "/qt_test_dlprogress_" + QString::number(QCoreApplication::applicationPid()) + ".dat";
+    QFile::remove(savePath);
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/slowbytes/262144";
+    req->type = RequestType::Download;
+    req->behavior.showProgress = true;
+    req->downloadConfig = std::make_unique<DownloadConfig>();
+    req->downloadConfig->threadCount = 1;
+    req->downloadConfig->saveDir = tmpDir;
+    req->downloadConfig->saveFileName = QFileInfo(savePath).fileName();
+    req->downloadConfig->overwriteFile = true;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    QSignalSpy progressSpy(reply.get(), &NetworkReply::downloadProgress);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                     });
+
+    QVERIFY(waitForFinished(reply, 30000));
+    QVERIFY(called);
+    QVERIFY2(progressSpy.count() > 0, "Expected at least one downloadProgress signal");
+
+    QFile::remove(savePath);
+}
+
+void TestNetworkRequest::testUploadProgress()
+{
+    // showProgress=true on an Upload request wires the uploadProgress signal and
+    // drives byte accounting. On loopback the transfer usually completes inside
+    // the 250ms progress-throttle window, so emitted uploadProgress signals are
+    // best-effort and not asserted; instead we assert the deterministic outcome:
+    // the reply reports the full request body as bytesSent.
+    const qint64 fileSize = 512 * 1024;
+    QTemporaryFile tmpFile;
+    QVERIFY(tmpFile.open());
+    tmpFile.write(QByteArray(int(fileSize), 'U'));
+    tmpFile.flush();
+    QString filePath = tmpFile.fileName();
+    tmpFile.close();
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/put";
+    req->type = RequestType::Upload;
+    req->behavior.showProgress = true;
+    req->uploadConfig = std::make_unique<UploadConfig>();
+    req->uploadConfig->usePutMethod = true;
+    req->uploadConfig->filePath = filePath;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    qint64 reportedSent = -1;
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called, &reportedSent](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                         reportedSent = rsp->performance.bytesSent;
+                     });
+
+    QVERIFY(waitForFinished(reply, 30000));
+    QVERIFY(called);
+    QCOMPARE(reportedSent, fileSize);
+}
+
+void TestNetworkRequest::testSetMaxThreadCountBounds()
+{
+    // setMaxThreadCount accepts 1..100 and rejects out-of-range values without
+    // mutating the current setting.
+    NetworkRequestManager *mgr = NetworkRequestManager::globalInstance();
+    int saved = mgr->maxThreadCount();
+
+    QVERIFY(mgr->setMaxThreadCount(1));
+    QCOMPARE(mgr->maxThreadCount(), 1);
+    QVERIFY(mgr->setMaxThreadCount(100));
+    QCOMPARE(mgr->maxThreadCount(), 100);
+
+    QVERIFY(!mgr->setMaxThreadCount(0));
+    QVERIFY(!mgr->setMaxThreadCount(-5));
+    QVERIFY(!mgr->setMaxThreadCount(101));
+    // Rejected calls must leave the last valid value (100) intact.
+    QCOMPARE(mgr->maxThreadCount(), 100);
+
+    mgr->setMaxThreadCount(saved);
+}
+
+void TestNetworkRequest::testDownloadAutoThreadCount()
+{
+    // threadCount=0 selects the auto (CPU-core) multi-thread download path.
+    QString tmpDir = QDir::tempPath();
+    QString savePath = tmpDir + "/qt_test_autodl_" + QString::number(QCoreApplication::applicationPid()) + ".dat";
+    QFile::remove(savePath);
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/bytes/8192";
+    req->type = RequestType::Download;
+    req->downloadConfig = std::make_unique<DownloadConfig>();
+    req->downloadConfig->threadCount = 0;  // auto
+    req->downloadConfig->saveDir = tmpDir;
+    req->downloadConfig->saveFileName = QFileInfo(savePath).fileName();
+    req->downloadConfig->overwriteFile = true;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                     });
+
+    QVERIFY(waitForFinished(reply, 60000));
+    QVERIFY(called);
+
+    QFileInfo fi(savePath);
+    QVERIFY2(fi.exists(), "Auto-thread downloaded file should exist");
+    QCOMPARE(fi.size(), 8192);
+    QFile::remove(savePath);
+}
+
+void TestNetworkRequest::testDownloadNoOverwriteConflict()
+{
+    // Single-threaded download to an existing target with overwriteFile=false
+    // must fail with a file-conflict rather than clobbering the file.
+    QString tmpDir = QDir::tempPath();
+    QString savePath = tmpDir + "/qt_test_nooverwrite_" + QString::number(QCoreApplication::applicationPid()) + ".dat";
+
+    // Pre-create the target with sentinel content.
+    {
+        QFile f(savePath);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("PREEXISTING");
+        f.close();
+    }
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/bytes/2048";
+    req->type = RequestType::Download;
+    req->downloadConfig = std::make_unique<DownloadConfig>();
+    req->downloadConfig->threadCount = 1;
+    req->downloadConfig->saveDir = tmpDir;
+    req->downloadConfig->saveFileName = QFileInfo(savePath).fileName();
+    req->downloadConfig->overwriteFile = false;
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(!rsp->success);
+                     });
+
+    QVERIFY(waitForFinished(reply, 15000));
+    QVERIFY(called);
+
+    // Original file must remain untouched.
+    QFile f(savePath);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    QCOMPARE(f.readAll(), QByteArray("PREEXISTING"));
+    f.close();
+    QFile::remove(savePath);
+}
+
+void TestNetworkRequest::testFormDataUpload()
+{
+    // multipart/form-data upload via UploadConfig::files (POST). The request
+    // must succeed and the server must observe a POST.
+    QTemporaryFile tmpFile;
+    QVERIFY(tmpFile.open());
+    tmpFile.write("form-data file body 0123456789");
+    tmpFile.flush();
+    QString filePath = tmpFile.fileName();
+    tmpFile.close();
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/post";
+    req->type = RequestType::Post;
+    req->uploadConfig = std::make_unique<UploadConfig>();
+    req->uploadConfig->useFormData = true;
+    req->uploadConfig->files = QStringList{ filePath };
+    req->uploadConfig->kvPairs.insert("field1", "value1");
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->body.contains("POST"));
+                     });
+
+    QVERIFY(waitForFinished(reply, 30000));
+    QVERIFY(called);
+}
+
+void TestNetworkRequest::testUserContextRoundTrip()
+{
+    // A user-supplied QVariant context must be carried through to the response
+    // unchanged (success path copies request.userContext into the result).
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/get?ctx=1";
+    req->type = RequestType::Get;
+    req->userContext = QVariant(QString("ctx-token-42"));
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                         QCOMPARE(rsp->userContext.toString(), QString("ctx-token-42"));
+                     });
+
+    QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
+}
+
+void TestNetworkRequest::testPerRequestCookies()
+{
+    // Cookies attached to a single RequestContext are inserted into the NAM's
+    // cookie jar before the request is sent (see NetworkCommonRequest::start).
+    // That path is a no-op unless a global cookie jar is configured, so we
+    // enable one first. The /cookies endpoint echoes received cookies back.
+    QString cookieFile = QDir::tempPath() + "/qt_test_percookie_" + QString::number(QCoreApplication::applicationPid()) + ".json";
+    QFile::remove(cookieFile);
+    NetworkRequestManager::setCookieStoragePath(cookieFile);
+    QVERIFY(NetworkRequestManager::cookieJar() != nullptr);
+
+    QNetworkCookie cookie("percookie", "pcval");
+    cookie.setDomain(QUrl(s_server->baseUrl()).host());
+    cookie.setPath("/");
+
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/cookies";
+    req->type = RequestType::Get;
+    req->cookies.append(cookie);
+
+    std::shared_ptr<NetworkReply> reply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+
+    bool called = false;
+    QObject::connect(reply.get(), &NetworkReply::requestFinished,
+                     [&called](QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
+                     {
+                         called = true;
+                         QVERIFY(rsp);
+                         QVERIFY(rsp->success);
+                         QVERIFY2(rsp->body.contains("percookie"),
+                                  qPrintable(QString("cookies echo missing per-request cookie: %1")
+                                                 .arg(QString::fromUtf8(rsp->body))));
+                     });
+
+    QVERIFY(waitForFinished(reply, 10000));
+    QVERIFY(called);
+
+    QFile::remove(cookieFile);
+}
+
+void TestNetworkRequest::testInitializeIdempotent()
+{
+    // The manager is already initialized by initTestCase(). A redundant
+    // initialize() must be a harmless no-op (guarded by ms_bIntialized) and the
+    // global instance must remain the same, valid object.
+    QVERIFY(NetworkRequestManager::isInitialized());
+    NetworkRequestManager *before = NetworkRequestManager::globalInstance();
+    QVERIFY(before != nullptr);
+
+    NetworkRequestManager::initialize();  // redundant
+    QVERIFY(NetworkRequestManager::isInitialized());
+
+    NetworkRequestManager *after = NetworkRequestManager::globalInstance();
+    QCOMPARE(after, before);
+
+    // A live request still works after the redundant initialize().
+    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
+    req->url = s_server->baseUrl() + "/get?reinit=1";
+    req->type = RequestType::Get;
+
+    std::shared_ptr<NetworkReply> reply = after->postRequest(std::move(req));
+    QVERIFY(reply != nullptr);
+    QVERIFY(waitForFinished(reply, 10000));
+}
+
+void TestNetworkRequest::testNamPoolReuseSameThread()
+{
+    // acquireThreadNam() hands out a QNetworkAccessManager that is affine to,
+    // and cached for, the calling thread. Repeated calls on the same thread
+    // must return the very same instance (pool reuse, no per-call allocation).
+    QNetworkAccessManager *nam1 = NetworkRequestManager::acquireThreadNam();
+    QVERIFY(nam1 != nullptr);
+    QNetworkAccessManager *nam2 = NetworkRequestManager::acquireThreadNam();
+    QCOMPARE(nam2, nam1);
+    // NAM must be affine to the acquiring (main) thread.
+    QCOMPARE(nam1->thread(), QThread::currentThread());
+}

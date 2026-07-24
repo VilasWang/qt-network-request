@@ -12,12 +12,17 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QTextDocument>
+#include <QTextLayout>
+#include <QTextBlock>
 #include "test_qtrequester.h"
 #include "networkrequesttool.h"
 #include "requestcontext.h"
 #include "responseresult.h"
 #include "networkrequestmanager.h"
 #include "networkreply.h"
+#include "jsonsyntaxhighlighter.h"
+#include "xmlsyntaxhighlighter.h"
 
 using namespace QtNetworkRequest;
 
@@ -262,5 +267,131 @@ void TestQtRequester::testEndToEndGet()
              qPrintable(QString("Response body did not contain GET, got: %1").arg(body.left(200))));
 
     server.stop();
+}
+
+// ---------------------------------------------------------------------------
+// 8. bytesToString unit-scaling (B / KB / MB / GB)
+// ---------------------------------------------------------------------------
+void TestQtRequester::testBytesToString()
+{
+    NetworkRequestTool tool;
+    QCOMPARE(tool.bytesToString(512), QString("512B"));
+    QCOMPARE(tool.bytesToString(2048), QString("2KB"));               // integer KB
+    QCOMPARE(tool.bytesToString(5 * 1024 * 1024), QString("5.00MB")); // 2-dp MB
+    QCOMPARE(tool.bytesToString(qint64(3) * 1024 * 1024 * 1024), QString("3.00GB"));
+}
+
+// ---------------------------------------------------------------------------
+// 9. getRequestType maps the method string to the RequestType enum
+// ---------------------------------------------------------------------------
+void TestQtRequester::testGetRequestTypeMapping()
+{
+    NetworkRequestTool tool;
+    tool.currentMethod = "GET";     QVERIFY(tool.getRequestType() == RequestType::Get);
+    tool.currentMethod = "POST";    QVERIFY(tool.getRequestType() == RequestType::Post);
+    tool.currentMethod = "PUT";     QVERIFY(tool.getRequestType() == RequestType::Put);
+    tool.currentMethod = "PATCH";   QVERIFY(tool.getRequestType() == RequestType::Patch);
+    tool.currentMethod = "DELETE";  QVERIFY(tool.getRequestType() == RequestType::Delete);
+    tool.currentMethod = "HEAD";    QVERIFY(tool.getRequestType() == RequestType::Head);
+    tool.currentMethod = "OPTIONS"; QVERIFY(tool.getRequestType() == RequestType::Options);
+    tool.currentMethod = "WAT";     QVERIFY(tool.getRequestType() == RequestType::Get); // fallback
+}
+
+// ---------------------------------------------------------------------------
+// 10. Content-Type sniffing helpers
+// ---------------------------------------------------------------------------
+void TestQtRequester::testContentTypeDetection()
+{
+    NetworkRequestTool tool;
+    QMap<QByteArray, QByteArray> json;
+    json.insert("Content-Type", "application/json; charset=utf-8");
+    QVERIFY(tool.isJsonResponse(json));
+    QVERIFY(!tool.isXmlResponse(json));
+    QVERIFY(!tool.isOctetStreamResponse(json));
+
+    QMap<QByteArray, QByteArray> xml;
+    xml.insert("Content-Type", "text/xml");
+    QVERIFY(tool.isXmlResponse(xml));
+    QVERIFY(!tool.isJsonResponse(xml));
+
+    QMap<QByteArray, QByteArray> bin;
+    bin.insert("Content-Type", "application/octet-stream");
+    QVERIFY(tool.isOctetStreamResponse(bin));
+    QVERIFY(!tool.isJsonResponse(bin));
+
+    // Detection is case-insensitive on the header value.
+    QMap<QByteArray, QByteArray> upper;
+    upper.insert("Content-Type", "APPLICATION/JSON");
+    QVERIFY(tool.isJsonResponse(upper));
+}
+
+// ---------------------------------------------------------------------------
+// 11. formatDateTime uses the fixed display pattern
+// ---------------------------------------------------------------------------
+void TestQtRequester::testFormatDateTime()
+{
+    NetworkRequestTool tool;
+    QDateTime dt(QDate(2023, 5, 9), QTime(8, 7, 6));
+    QCOMPARE(tool.formatDateTime(dt), QString("2023-05-09 08:07:06"));
+}
+
+// ---------------------------------------------------------------------------
+// 12. updateBodyTypeFromContentType drives the body/raw-type combos
+// ---------------------------------------------------------------------------
+void TestQtRequester::testUpdateBodyTypeFromContentType()
+{
+    NetworkRequestTool tool;
+    tool.show();
+    QTest::qWait(50);
+
+    tool.updateBodyTypeFromContentType("application/json");
+    QCOMPARE(tool.ui.cmb_body_type->currentText(), QString("raw"));
+    QCOMPARE(tool.ui.cmb_raw_type->currentText(), QString("JSON"));
+
+    tool.updateBodyTypeFromContentType("text/xml");
+    QCOMPARE(tool.ui.cmb_body_type->currentText(), QString("raw"));
+    QCOMPARE(tool.ui.cmb_raw_type->currentText(), QString("XML"));
+
+    tool.updateBodyTypeFromContentType("application/x-www-form-urlencoded");
+    QCOMPARE(tool.ui.cmb_body_type->currentText(), QString("x-www-form-urlencoded"));
+}
+
+// ---------------------------------------------------------------------------
+// 13. JSON syntax highlighter applies character formats
+// ---------------------------------------------------------------------------
+void TestQtRequester::testJsonHighlighter()
+{
+    QTextDocument doc;
+    doc.setPlainText("{\n  \"name\": \"value\",\n  \"count\": 42,\n  \"ok\": true\n}");
+    JsonSyntaxHighlighter highlighter(&doc);
+    highlighter.rehighlight(); // force synchronous highlight
+
+    // At least one block must have received non-default character formats.
+    int totalFormats = 0;
+    for (QTextBlock b = doc.begin(); b != doc.end(); b = b.next())
+    {
+        if (b.layout())
+            totalFormats += b.layout()->formats().size();
+    }
+    QVERIFY2(totalFormats > 0, "JSON highlighter produced no character formats");
+}
+
+// ---------------------------------------------------------------------------
+// 14. XML syntax highlighter applies character formats
+// ---------------------------------------------------------------------------
+void TestQtRequester::testXmlHighlighter()
+{
+    QTextDocument doc;
+    doc.setPlainText("<root attr=\"x\"><!-- c --><child>text</child></root>");
+    XmlSyntaxHighlighter highlighter(&doc);
+    highlighter.rehighlight();
+
+    int totalFormats = 0;
+    for (QTextBlock b = doc.begin(); b != doc.end(); b = b.next())
+    {
+        if (b.layout())
+            totalFormats += b.layout()->formats().size();
+    }
+    QVERIFY2(totalFormats > 0, "XML highlighter produced no character formats");
 }
 

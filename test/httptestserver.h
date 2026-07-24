@@ -64,6 +64,8 @@ private:
     HttpResponse handleCookies(const HttpRequest &req);
     HttpResponse handleCookiesSet(const HttpRequest &req);
     HttpResponse handleDelay(const HttpRequest &req);
+    HttpResponse handleStatus(const HttpRequest &req);
+    HttpResponse handleRedirect(const HttpRequest &req);
     HttpResponse handleFourOhFour();
     QByteArray buildResponse(const HttpResponse &resp);
     int parseRange(const QString &range, qint64 total, qint64 &start, qint64 &end);

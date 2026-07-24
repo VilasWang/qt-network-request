@@ -134,6 +134,10 @@ namespace QtNetworkRequest
 
 	public Q_SLOTS:
 		void onResponse(QSharedPointer<QtNetworkRequest::ResponseResult> rsp);
+		// Destroys a runnable on the main thread once its run() has fully
+		// returned (see NetworkRequestRunnable::finished). Sole owner of the
+		// runnable's lifetime end for cancelled-while-running requests.
+		void onRunnableFinished(quint64 uiRequestId);
 
 	public:
 		bool event(QEvent *pEvent) Q_DECL_OVERRIDE;

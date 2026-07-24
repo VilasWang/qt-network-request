@@ -113,6 +113,11 @@ private:
     QThreadPool *m_pThreadPool;
 
     QHash<quint64, std::shared_ptr<NetworkRequestRunnable>> m_mapRunnable;
+    // Runnables that were cancelled while their run() was still executing on a
+    // worker thread. Ownership is held here until the runnable emits finished()
+    // (delivered on the main thread after run() returns), at which point it is
+    // safe to destroy. Prevents destroying a runnable mid-run (use-after-free).
+    QHash<quint64, std::shared_ptr<NetworkRequestRunnable>> m_retiredRunnables;
     // One-to-one. requestId <---> NetworkReply *
     QHash<quint64, std::shared_ptr<NetworkReply>> m_mapReply;
     // One-to-many. batchId <---> NetworkReply *
@@ -216,6 +221,13 @@ void NetworkRequestManagerPrivate::unInitialize()
     // cleanup chance) — never cross-thread delete.
     if (m_pNamPool)
         m_pNamPool->releaseAll();
+
+    // All worker run()s have now completed (waitForDone above), so any retired
+    // runnables that never had their finished() drained are safe to destroy.
+    {
+        QMutexLocker locker(&m_mutex);
+        m_retiredRunnables.clear();
+    }
 }
 
 void NetworkRequestManagerPrivate::reset()
@@ -298,14 +310,20 @@ void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
                 if (!m_pThreadPool->tryTake(r.get()))
                 {
                     r->quit();
+                    // run() is still executing on a worker thread. Keep the
+                    // runnable alive until it emits finished() (delivered on
+                    // the main thread after run() returns) — dropping it here
+                    // would destroy it mid-run (use-after-free).
+                    m_retiredRunnables.insert(r->requestId(), r);
                 }
 #else
                 m_pThreadPool->cancel(r.get());
                 r->quit();
+                m_retiredRunnables.insert(r->requestId(), r);
 #endif
-                // r will be naturally released when leaving scope;
-                // do NOT r.reset() here — run() may still be executing
-                // cleanup after quit() returned
+                // r will be naturally released when leaving scope for the
+                // not-started case; running runnables are owned by
+                // m_retiredRunnables until finished() fires.
             }
         }
         // Check priority queue
@@ -352,10 +370,13 @@ void NetworkRequestManagerPrivate::stopBatchRequests(quint64 uiBatchId)
                 if (!m_pThreadPool->tryTake(r.get()))
                 {
                     r->quit();
+                    // Still running: keep alive until finished() (see stopRequest).
+                    m_retiredRunnables.insert(r->requestId(), r);
                 }
 #else
                 m_pThreadPool->cancel(r.get());
                 r->quit();
+                m_retiredRunnables.insert(r->requestId(), r);
 #endif
                 iter = m_mapRunnable.erase(iter);
             }
@@ -430,10 +451,13 @@ void NetworkRequestManagerPrivate::stopSessionRequest(quint64 uiSessionId)
             if (!m_pThreadPool->tryTake(r.get()))
             {
                 r->quit();
+                // Still running: keep alive until finished() (see stopRequest).
+                m_retiredRunnables.insert(r->requestId(), r);
             }
 #else
             m_pThreadPool->cancel(r.get());
             r->quit();
+            m_retiredRunnables.insert(r->requestId(), r);
 #endif
             iter = m_mapRunnable.erase(iter);
         }
@@ -481,10 +505,13 @@ void NetworkRequestManagerPrivate::stopAllRequest()
                 if (!m_pThreadPool->tryTake(r.get()))
                 {
                     r->quit();
+                    // Still running: keep alive until finished() (see stopRequest).
+                    m_retiredRunnables.insert(r->requestId(), r);
                 }
 #else
                 m_pThreadPool->cancel(r.get());
                 r->quit();
+                m_retiredRunnables.insert(r->requestId(), r);
 #endif
             }
         }
@@ -594,6 +621,12 @@ bool NetworkRequestManagerPrivate::startRunnable(std::shared_ptr<NetworkRequestR
 {
     if (!r.get())
         return false;
+
+    // Route the runnable's end-of-run() notification to the manager so its
+    // destruction always happens on the main thread after run() has returned.
+    Q_Q(NetworkRequestManager);
+    QObject::connect(r.get(), &NetworkRequestRunnable::finished,
+                     q, &NetworkRequestManager::onRunnableFinished);
 
     try
     {
@@ -778,6 +811,14 @@ bool NetworkRequestManagerPrivate::releaseRequestThread(quint64 uiRequestId)
         std::shared_ptr<NetworkRequestRunnable> r = m_mapRunnable.take(uiRequestId);
         if (r.get())
         {
+            // The response is delivered on the main thread while run() is still
+            // executing on a worker thread (blocked in its event loop). Dropping
+            // the last reference here would destroy the runnable mid-run() and
+            // race with run()'s tail (cleanup + finished()) — a use-after-free.
+            // Keep it alive in m_retiredRunnables until finished() is delivered
+            // on the main thread (onRunnableFinished), exactly as the stop paths
+            // do; quit() below wakes run() so it returns and emits finished().
+            m_retiredRunnables.insert(uiRequestId, r);
             r->quit();
         }
     }
@@ -1198,6 +1239,17 @@ void NetworkRequestManager::onResponse(QSharedPointer<QtNetworkRequest::Response
     {
         qCritical() << "NetworkRequestManager::onResponse() unknown exception";
     }
+}
+
+void NetworkRequestManager::onRunnableFinished(quint64 uiRequestId)
+{
+    // Runs on the main thread once the runnable's run() has fully returned
+    // (finished() is emitted as run()'s last action, delivered via a queued
+    // connection). This is the safe point to release the runnable — for both
+    // normally-completed and cancelled-while-running requests.
+    Q_D(NetworkRequestManager);
+    QMutexLocker locker(&d->m_mutex);
+    d->m_retiredRunnables.remove(uiRequestId);
 }
 
 } // namespace QtNetworkRequest

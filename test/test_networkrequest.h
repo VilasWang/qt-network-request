@@ -48,6 +48,36 @@ private slots:
     void testTotalTimeout();
     void testIdleTimeout();
 
+    // Stage A P0 contract tests
+    void testSendRequestSync();
+    void testBatchSuccessAndSignal();
+    void testTotalTimeoutTriggered();
+    void testIdleTimeoutTriggered();
+    void testStatusCode404();
+    void testInvalidUrlReturnsNull();
+    void testResponsePerformanceStats();
+
+    // Stage B P1 feature tests
+    void testRedirectFollow();
+    void testMaxRedirectExceeded();
+#ifndef QT_NO_SSL
+    void testGlobalSslConfigNormalize();
+    void testPerRequestSslInherit();
+#endif
+    void testStopSession();
+    void testDownloadProgress();
+    void testUploadProgress();
+    void testSetMaxThreadCountBounds();
+    void testDownloadAutoThreadCount();
+    void testDownloadNoOverwriteConflict();
+    void testFormDataUpload();
+    void testUserContextRoundTrip();
+    void testPerRequestCookies();
+
+    // Stage C P2 lifecycle / pool tests
+    void testInitializeIdempotent();
+    void testNamPoolReuseSameThread();
+
 private:
     bool waitForFinished(std::shared_ptr<NetworkReply> reply, int timeoutMs = 10000);
 };

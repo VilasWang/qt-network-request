@@ -22,6 +22,15 @@ private slots:
     void testApplyAuthHeader();
     void testSaveAndLoadDisk();
     void testEndToEndGet();
+
+    // Stage C: additional pure NetworkRequestTool helpers + syntax highlighters.
+    void testBytesToString();
+    void testGetRequestTypeMapping();
+    void testContentTypeDetection();
+    void testFormatDateTime();
+    void testUpdateBodyTypeFromContentType();
+    void testJsonHighlighter();
+    void testXmlHighlighter();
 };
 
 #endif

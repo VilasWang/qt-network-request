@@ -34,6 +34,11 @@ namespace QtNetworkRequest
 	Q_SIGNALS:
 		void response(QSharedPointer<QtNetworkRequest::ResponseResult> spResult);
 		void exitLoop();
+		// Emitted as the very last action of run(), after the worker thread has
+		// finished touching this object. The manager uses it to destroy the
+		// runnable on the main thread only once run() has fully returned,
+		// preventing a use-after-free when a request is cancelled mid-run.
+		void finished(quint64 uiRequestId);
 
 	private:
 		Q_DISABLE_COPY(NetworkRequestRunnable);

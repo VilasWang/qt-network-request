@@ -139,6 +139,12 @@ void NetworkDownloadRequest::start()
         m_transferElapsed.start();
     }
 #endif
+
+    // Start the progress-throttle timer so onDownloadProgress() is allowed to
+    // emit at most once per interval. Mirrors NetworkUploadRequest and
+    // NetworkMTDownloadRequest; without it a single-thread download would never
+    // set m_readyToEmitProgress and downloadProgress() would never fire.
+    m_timer.start();
 }
 
 void NetworkDownloadRequest::onReadyRead()

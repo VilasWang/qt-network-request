@@ -153,6 +153,12 @@ void NetworkRequestRunnable::run()
     }
     pRequest.reset();
     m_bRunning.store(false);
+
+    // Signal completion LAST — after every access to this object on the worker
+    // thread is done. Delivered to the manager on the main thread (queued), so
+    // the runnable is destroyed only after run() has fully returned. This is
+    // what makes cancelling a running request safe (no use-after-free).
+    emit finished(m_task.id);
 }
 
 quint64 NetworkRequestRunnable::requestId() const
