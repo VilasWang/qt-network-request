@@ -68,7 +68,7 @@ void TestNetworkRequest::testGetRequest()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
@@ -96,7 +96,7 @@ void TestNetworkRequest::testPostRequest()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
@@ -125,7 +125,7 @@ void TestNetworkRequest::testPostFormDataRequest()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
@@ -156,7 +156,7 @@ void TestNetworkRequest::testPutRequest()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
@@ -182,7 +182,7 @@ void TestNetworkRequest::testDeleteRequest()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
@@ -208,7 +208,7 @@ void TestNetworkRequest::testHeadRequest()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                              QVERIFY(!rsp->headers.isEmpty());
                          });
     }
@@ -236,7 +236,7 @@ void TestNetworkRequest::testRequestHeaders()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
@@ -264,7 +264,7 @@ void TestNetworkRequest::testContentType()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                              QVERIFY(!rsp->body.isEmpty());
                          });
     }
@@ -334,7 +334,7 @@ void TestNetworkRequest::testRequestProxyConfig()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(!rsp->success);
+                             QVERIFY(!rsp->isSuccess());
                          });
     }
 
@@ -368,7 +368,7 @@ void TestNetworkRequest::testRetryOnFailure()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                          });
     }
 
@@ -399,7 +399,7 @@ void TestNetworkRequest::testRetryOnFailure()
                          {
                              calledNoRetry = true;
                              QVERIFY(rsp);
-                             QVERIFY(!rsp->success);
+                             QVERIFY(!rsp->isSuccess());
                          });
     }
 
@@ -436,7 +436,7 @@ void TestNetworkRequest::testSingleDownload()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                          });
     }
 
@@ -475,7 +475,7 @@ void TestNetworkRequest::testMTDownload()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                          });
     }
 
@@ -516,7 +516,7 @@ void TestNetworkRequest::testFileUpload()
                          {
                              called = true;
                              QVERIFY(rsp);
-                             QVERIFY(rsp->success);
+                             QVERIFY(rsp->isSuccess());
                              QVERIFY(rsp->body.contains(uploadContent));
                          });
     }
@@ -583,7 +583,7 @@ void TestNetworkRequest::testPersistentCookieJar()
                              {
                                  called = true;
                                  QVERIFY(rsp);
-                                 QVERIFY(rsp->success);
+                                 QVERIFY(rsp->isSuccess());
                                  QVERIFY(rsp->body.contains("testcookie"));
                              });
         }
@@ -610,7 +610,7 @@ void TestNetworkRequest::testPersistentCookieJar()
                              {
                                  called = true;
                                  QVERIFY(rsp);
-                                 QVERIFY(rsp->success);
+                                 QVERIFY(rsp->isSuccess());
                                  QVERIFY(rsp->body.contains("testcookie"));
                              });
         }
@@ -722,8 +722,8 @@ void TestNetworkRequest::testStopRunningRequest()
     QList<QVariant> args = spy.takeFirst();
     auto rsp = args.at(0).value<QSharedPointer<QtNetworkRequest::ResponseResult>>();
     QVERIFY(rsp);
-    QVERIFY(!rsp->success);
-    QVERIFY(rsp->cancelled);
+    QVERIFY(!rsp->isSuccess());
+    QVERIFY(rsp->isCancelled());
     QVERIFY(!rsp->body.isEmpty());
 }
 
@@ -760,8 +760,8 @@ void TestNetworkRequest::testStopBatchRequest()
     QList<QVariant> args = spy.takeFirst();
     auto rsp = args.at(0).value<QSharedPointer<QtNetworkRequest::ResponseResult>>();
     QVERIFY(rsp);
-    QVERIFY(!rsp->success);
-    QVERIFY(rsp->cancelled);
+    QVERIFY(!rsp->isSuccess());
+    QVERIFY(rsp->isCancelled());
 }
 
 void TestNetworkRequest::testStopAllRequests()
@@ -800,7 +800,7 @@ void TestNetworkRequest::testStopAllRequests()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                      });
 
     QVERIFY(waitForFinished(reply, 15000));
@@ -871,7 +871,7 @@ void TestNetworkRequest::testTotalTimeout()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                      });
 
     QVERIFY(waitForFinished(reply, 10000));
@@ -899,7 +899,7 @@ void TestNetworkRequest::testIdleTimeout()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                      });
 
     QVERIFY(waitForFinished(reply, 10000));
@@ -924,7 +924,7 @@ void TestNetworkRequest::testSendRequestSync()
         {
             called = true;
             QVERIFY(rsp);
-            QVERIFY(rsp->success);
+            QVERIFY(rsp->isSuccess());
             QVERIFY(!rsp->body.isEmpty());
         },
         true);
@@ -993,8 +993,10 @@ void TestNetworkRequest::testTotalTimeoutTriggered()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(!rsp->success);
-                         QVERIFY(rsp->timeout);
+                         QVERIFY(!rsp->isSuccess());
+                         QVERIFY(rsp->isTimeout());
+                         QVERIFY(rsp->error.category == QtNetworkRequest::ErrorCategory::Timeout);
+                         QVERIFY(rsp->error.code == QtNetworkRequest::ErrorCode::TimeoutTotal);
                      });
 
     QVERIFY(waitForFinished(reply, 15000));
@@ -1021,7 +1023,7 @@ void TestNetworkRequest::testIdleTimeoutTriggered()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(!rsp->success);
+                         QVERIFY(!rsp->isSuccess());
                      });
 
     QVERIFY(waitForFinished(reply, 15000));
@@ -1045,7 +1047,7 @@ void TestNetworkRequest::testStatusCode404()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(!rsp->success);
+                         QVERIFY(!rsp->isSuccess());
                          QCOMPARE(rsp->statusCode, 404);
                      });
 
@@ -1082,7 +1084,7 @@ void TestNetworkRequest::testResponsePerformanceStats()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                          QVERIFY(rsp->performance.bytesReceived > 0);
                      });
 
@@ -1215,7 +1217,7 @@ void TestNetworkRequest::testPerRequestSslInherit()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                      });
 
     QVERIFY(waitForFinished(reply, 10000));
@@ -1296,7 +1298,7 @@ void TestNetworkRequest::testDownloadProgress()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                      });
 
     QVERIFY(waitForFinished(reply, 30000));
@@ -1339,7 +1341,7 @@ void TestNetworkRequest::testUploadProgress()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                          reportedSent = rsp->performance.bytesSent;
                      });
 
@@ -1394,7 +1396,7 @@ void TestNetworkRequest::testDownloadAutoThreadCount()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                      });
 
     QVERIFY(waitForFinished(reply, 60000));
@@ -1439,7 +1441,7 @@ void TestNetworkRequest::testDownloadNoOverwriteConflict()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(!rsp->success);
+                         QVERIFY(!rsp->isSuccess());
                      });
 
     QVERIFY(waitForFinished(reply, 15000));
@@ -1481,7 +1483,7 @@ void TestNetworkRequest::testFormDataUpload()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                          QVERIFY(rsp->body.contains("POST"));
                      });
 
@@ -1507,7 +1509,7 @@ void TestNetworkRequest::testUserContextRoundTrip()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                          QCOMPARE(rsp->userContext.toString(), QString("ctx-token-42"));
                      });
 
@@ -1544,7 +1546,7 @@ void TestNetworkRequest::testPerRequestCookies()
                      {
                          called = true;
                          QVERIFY(rsp);
-                         QVERIFY(rsp->success);
+                         QVERIFY(rsp->isSuccess());
                          QVERIFY2(rsp->body.contains("percookie"),
                                   qPrintable(QString("cookies echo missing per-request cookie: %1")
                                                  .arg(QString::fromUtf8(rsp->body))));

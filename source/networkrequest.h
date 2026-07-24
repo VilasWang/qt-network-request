@@ -51,6 +51,9 @@ namespace QtNetworkRequest
 		void connectSslErrorHandling(QNetworkReply *reply);
 #endif
 
+		// 设置结构化错误 (同时同步 m_error 与 m_strError 消息)
+		void setError(ErrorCategory category, ErrorCode code, const QString& msg, int nativeCode = 0);
+
 		// 重试: 返回 true 表示重试已调度，调用方应直接 return
 		bool tryRetry();
 		// 子类重写以清理请求特有资源（如文件句柄）
@@ -77,6 +80,7 @@ namespace QtNetworkRequest
 		QSharedPointer<ResponseResult> m_spResult;
 		bool m_bAbortManual;
 		QString m_strError;
+		ErrorInfo m_error;
 		int m_nProgress;
 		int m_nRetryCount{ 0 };
 		qint64 m_nBytesReceived{ 0 };

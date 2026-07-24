@@ -46,7 +46,8 @@ void NetworkCommonRequest::start()
     const QUrl &url = m_url;
     if (!url.isValid())
     {
-        m_strError = QString("Network error: Invalid URL format - %1").arg(url.toString());
+        setError(ErrorCategory::Configuration, ErrorCode::InvalidUrl,
+                 QString("Network error: Invalid URL format - %1").arg(url.toString()));
         emit response(ToFailedResult());
         return;
     }
@@ -56,7 +57,8 @@ void NetworkCommonRequest::start()
         if (m_upContext->type == RequestType::Post || m_upContext->type == RequestType::Delete || m_upContext->type == RequestType::Head)
         {
             const QString &strType = NetworkRequestUtility::getRequestTypeString(m_upContext->type);
-            m_strError = QString("Protocol error: Unsupported FTP request type '%1' for URL: %2").arg(strType).arg(url.url());
+            setError(ErrorCategory::Protocol, ErrorCode::UnsupportedProtocol,
+                     QString("Protocol error: Unsupported FTP request type '%1' for URL: %2").arg(strType).arg(url.url()));
             qDebug() << "[QMultiThreadNetwork]" << m_strError;
 
             emit response(ToFailedResult());
@@ -187,7 +189,8 @@ void NetworkCommonRequest::start()
                 {
                     QFile* file = new QFile(m_upContext->uploadConfig->filePath);
                     if (!file->open(QIODevice::ReadOnly)) {
-                        m_strError = "Failed to open file for PUT: " + file->errorString();
+                        setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed,
+                                 "Failed to open file for PUT: " + file->errorString());
                         delete file;
                         emit response(ToFailedResult());
                         return;
@@ -235,7 +238,8 @@ void NetworkCommonRequest::onFinished()
 {
     if (!m_pNetworkReply)
     {
-        m_strError = QString("Network error: Invalid reply");
+        setError(ErrorCategory::Network, ErrorCode::InvalidReply,
+                 QString("Network error: Invalid reply"));
         emit response(ToFailedResult());
         return;
     }

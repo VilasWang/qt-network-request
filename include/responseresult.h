@@ -31,6 +31,7 @@ SOFTWARE.
 #include <QVariant>
 #include <QSharedPointer>
 #include "taskdata.h"
+#include "networkerror.h"
 
 #pragma pack(push, _CRT_PACKING)
 
@@ -39,12 +40,9 @@ namespace QtNetworkRequest
 	// 响应结果 (Output)
 	struct ResponseResult
 	{
-		bool success{ false };
-		bool cancelled{ false };
-		bool timeout{ false };  // true if request terminated due to timeout (not cancellation)
-		int statusCode{ 0 };
-		int errorCode{ 0 };     // QNetworkReply::NetworkError when failed
-		QString errorMessage;
+		// 结构化错误 (error.isError()==false 即成功)
+		ErrorInfo error;
+		int statusCode{ 0 };   // HTTP 状态码 (成功时也有意义)
 		QByteArray body;
 		QMap<QByteArray, QByteArray> headers;
 
@@ -60,6 +58,11 @@ namespace QtNetworkRequest
 			qint64 bytesReceived{ 0 };
 			qint64 bytesSent{ 0 };
 		} performance;
+
+		// 便捷只读访问器 (纯派生, 不存储冗余状态)
+		bool isSuccess() const { return !error.isError(); }
+		bool isCancelled() const { return error.category == ErrorCategory::Cancelled; }
+		bool isTimeout() const { return error.category == ErrorCategory::Timeout; }
 	};
 }
 

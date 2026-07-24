@@ -340,8 +340,9 @@ void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
 
     if (reply.get())
     {
-        rsp->success = false;
-        rsp->cancelled = true;
+        rsp->error.category = ErrorCategory::Cancelled;
+        rsp->error.code = ErrorCode::OperationCancelled;
+        rsp->error.message = QString("Operation canceled (id: %1)").arg(uiTaskId);
         rsp->body = QString("Operation canceled (id: %1)").arg(uiTaskId).toUtf8();
         rsp->task.endTime = QDateTime::currentDateTime();
 
@@ -426,8 +427,9 @@ void NetworkRequestManagerPrivate::stopBatchRequests(quint64 uiBatchId)
     {
         auto rsp = QSharedPointer<ResponseResult>::create();
         rsp->task.batchId = uiBatchId;
-        rsp->success = false;
-        rsp->cancelled = true;
+        rsp->error.category = ErrorCategory::Cancelled;
+        rsp->error.code = ErrorCode::OperationCancelled;
+        rsp->error.message = QString("Operation canceled (Batch id: %1)").arg(uiBatchId);
         rsp->body = QString("Operation canceled (Batch id: %1)").arg(uiBatchId).toUtf8();
         rsp->task.endTime = QDateTime::currentDateTime();
 
@@ -1195,7 +1197,7 @@ void NetworkRequestManager::onResponse(QSharedPointer<QtNetworkRequest::Response
                 }
             }
 
-            if (rsp->success)
+            if (rsp->isSuccess())
             {
                 if (sizeFinished < sizeTotal) // Still have requests not completed
                 {
@@ -1218,12 +1220,12 @@ void NetworkRequestManager::onResponse(QSharedPointer<QtNetworkRequest::Response
             if (batchId > 0 && bDestroyed)
             {
                 qDebug() << QString("[QMultiThreadNetwork] Batch request finished! Id: %1").arg(batchId);
-                emit batchRequestFinished(batchId, rsp->success);
+                emit batchRequestFinished(batchId, rsp->isSuccess());
             }
         }
 
         // 3. If batch task failed and bAbortBatchWhileOneFailed is specified, stop tasks in this batch
-        if (batchId > 0 && !rsp->success && rsp->task.abortBatchOnFailed)
+        if (batchId > 0 && !rsp->isSuccess() && rsp->task.abortBatchOnFailed)
         {
             d->stopBatchRequests(batchId);
         }

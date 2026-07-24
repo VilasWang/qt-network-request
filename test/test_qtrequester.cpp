@@ -230,7 +230,7 @@ void TestQtRequester::testEndToEndGet()
     bool directOk = false;
     QObject::connect(reply.get(), &NetworkReply::requestFinished,
                      [&directOk](QSharedPointer<ResponseResult> rsp) {
-                         directOk = rsp && rsp->success && rsp->body.contains("GET");
+                         directOk = rsp && rsp->isSuccess() && rsp->body.contains("GET");
                      });
     {
         QEventLoop loop;

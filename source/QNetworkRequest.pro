@@ -24,6 +24,7 @@ HEADERS += $$PWD/../include/networkrequestglobal.h \
            $$PWD/../include/proxyconfig.h \
            $$PWD/../include/requestcontext.h \
            $$PWD/../include/responseresult.h \
+           $$PWD/../include/networkerror.h \
            $$PWD/../include/networkrequestmanager.h \
            $$PWD/../include/networkreply.h \
            $$PWD/../include/networkrequestevent.h \

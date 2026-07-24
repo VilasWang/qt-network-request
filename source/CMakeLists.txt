@@ -38,6 +38,7 @@ add_library(QNetworkRequest SHARED
     ${CMAKE_SOURCE_DIR}/include/proxyconfig.h
     ${CMAKE_SOURCE_DIR}/include/requestcontext.h
     ${CMAKE_SOURCE_DIR}/include/responseresult.h
+    ${CMAKE_SOURCE_DIR}/include/networkerror.h
     ${CMAKE_SOURCE_DIR}/include/networkrequestglobal.h
     ${CMAKE_SOURCE_DIR}/include/networkrequestevent.h
 )

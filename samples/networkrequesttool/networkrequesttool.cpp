@@ -688,7 +688,7 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
         return;
     }
     clearResponse();
-    if (rsp->success)
+    if (rsp->isSuccess())
     {
         displayResponseHeaders(rsp->headers);
 
@@ -710,7 +710,7 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
     }
     else
     {
-        appendToResponseBody("Error: \n" + rsp->errorMessage, QColor(232, 17, 35));
+        appendToResponseBody("Error: \n" + rsp->error.message, QColor(232, 17, 35));
     }
 
     // Item 2: show status code, time, size

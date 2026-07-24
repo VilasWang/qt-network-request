@@ -55,7 +55,8 @@ void NetworkUploadRequest::start()
 	const QUrl& url = m_url;
 	if (!url.isValid())
 	{
-		m_strError = QString("Network error: Invalid URL format - %1").arg(url.toString());
+		setError(ErrorCategory::Configuration, ErrorCode::InvalidUrl,
+		         QString("Network error: Invalid URL format - %1").arg(url.toString()));
 		emit response(ToFailedResult());
 		return;
 	}
@@ -98,6 +99,7 @@ void NetworkUploadRequest::start()
 		m_pFile = NetworkRequestUtility::openFile(m_upContext->uploadConfig->filePath, m_strError);
 		if (!m_pFile || !m_pFile->isOpen())
 		{
+			setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed, m_strError);
 			emit response(ToFailedResult());
 			return;
 		}
@@ -221,7 +223,7 @@ void NetworkUploadRequest::onFinished()
 {
 	if (!m_pNetworkReply)
 	{
-		m_strError = QString("Network error: Invalid reply");
+		setError(ErrorCategory::Network, ErrorCode::InvalidReply, QString("Network error: Invalid reply"));
 		emit response(ToFailedResult());
 		return;
 	}

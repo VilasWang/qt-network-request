@@ -43,7 +43,8 @@ void NetworkDownloadRequest::start()
     const QUrl &url = m_url;
     if (!url.isValid())
     {
-        m_strError = QString("Network error: Invalid URL format - %1").arg(url.toString());
+        setError(ErrorCategory::Configuration, ErrorCode::InvalidUrl,
+                 QString("Network error: Invalid URL format - %1").arg(url.toString()));
         qDebug() << "[NetworkDownloadRequest]" << m_strError;
         emit response(ToFailedResult());
         return;
@@ -55,6 +56,7 @@ void NetworkDownloadRequest::start()
         m_pFile = std::move(NetworkRequestUtility::createAndOpenFile(m_upContext.get(), m_strError));
         if (!m_pFile || !m_pFile->isOpen())
         {
+            setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed, m_strError);
             qDebug() << "[NetworkDownloadRequest] Failed to create/open file:" << m_strError;
             emit response(ToFailedResult());
             return;
@@ -62,7 +64,8 @@ void NetworkDownloadRequest::start()
     }
     catch (const std::exception &e)
     {
-        m_strError = QString("File system error: Exception occurred while creating file - %1").arg(e.what());
+        setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed,
+                 QString("File system error: Exception occurred while creating file - %1").arg(e.what()));
         qDebug() << "[NetworkDownloadRequest]" << m_strError;
         emit response(ToFailedResult());
         return;
@@ -107,7 +110,8 @@ void NetworkDownloadRequest::start()
     m_pNetworkReply = m_pNetworkManager->get(request);
     if (!m_pNetworkReply)
     {
-        m_strError = "Network operation failed: Unable to create network request";
+        setError(ErrorCategory::Network, ErrorCode::InvalidReply,
+                 "Network operation failed: Unable to create network request");
         qDebug() << "[NetworkDownloadRequest]" << m_strError;
         emit response(ToFailedResult());
         return;
@@ -170,7 +174,8 @@ void NetworkDownloadRequest::onReadyRead()
         if (written == -1)
         {
             qDebug() << "[NetworkDownloadRequest] Write error:" << m_pFile->errorString();
-            m_strError = QString("File operation failed: Write operation failed - %1").arg(m_pFile->errorString());
+            setError(ErrorCategory::FileIo, ErrorCode::FileWriteFailed,
+                     QString("File operation failed: Write operation failed - %1").arg(m_pFile->errorString()));
         }
         else
         {
@@ -188,7 +193,7 @@ void NetworkDownloadRequest::onFinished()
 {
     if (!m_pNetworkReply)
     {
-        m_strError = "Network error: Invalid reply";
+        setError(ErrorCategory::Network, ErrorCode::InvalidReply, "Network error: Invalid reply");
         emit response(ToFailedResult());
         return;
     }

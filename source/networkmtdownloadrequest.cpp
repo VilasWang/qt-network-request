@@ -199,7 +199,7 @@ void NetworkMTDownloadRequest::start()
 
     if (!requestFileSize())
     {
-        m_strError = "Network error: Invalid URL format";
+        setError(ErrorCategory::Configuration, ErrorCode::InvalidUrl, "Network error: Invalid URL format");
         emit response(ToFailedResult());
     }
 }
@@ -215,7 +215,7 @@ void NetworkMTDownloadRequest::startMTDownload()
     m_downloadTimer.start();
     if (m_nFileSize <= 0)
     {
-        m_strError = "Server error: Content-Length header not provided";
+        setError(ErrorCategory::Protocol, ErrorCode::ContentLengthMissing, "Server error: Content-Length header not provided");
         qDebug() << "[QMultiThreadNetwork]" << m_strError;
 
         emit response(ToFailedResult());
@@ -224,6 +224,7 @@ void NetworkMTDownloadRequest::startMTDownload()
     m_strDstFilePath = NetworkRequestUtility::getFilePath(m_upContext.get(), m_strError);
     if (m_strDstFilePath.isEmpty())
     {
+        setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed, m_strError);
         emit response(ToFailedResult());
         return;
     }
@@ -232,7 +233,7 @@ void NetworkMTDownloadRequest::startMTDownload()
     m_strTempFilePath = generateTempFilePath(m_strDstFilePath);
     if (m_strTempFilePath.isEmpty())
     {
-        m_strError = "Failed to generate temporary file path";
+        setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed, "Failed to generate temporary file path");
         emit response(ToFailedResult());
         return;
     }
@@ -246,7 +247,8 @@ void NetworkMTDownloadRequest::startMTDownload()
     m_mappedFile = std::make_unique<MemoryMappedFile>();
     if (!m_mappedFile->open(m_strTempFilePath, m_nFileSize))
     {
-        m_strError = QString("Memory mapping error: Failed to create memory mapped file - %1").arg(m_mappedFile->lastError());
+        setError(ErrorCategory::FileIo, ErrorCode::MemoryMappingFailed,
+                 QString("Memory mapping error: Failed to create memory mapped file - %1").arg(m_mappedFile->lastError()));
         qDebug() << "[QMultiThreadNetwork]" << m_strError;
         emit response(ToFailedResult());
         return;
@@ -313,7 +315,8 @@ void NetworkMTDownloadRequest::startMTDownload()
         else
         {
             abort();
-            m_strError = QString("Download error: Part %1 failed - %2").arg(i).arg(downloader->errorString());
+            setError(ErrorCategory::Network, ErrorCode::Unknown,
+                     QString("Download error: Part %1 failed - %2").arg(i).arg(downloader->errorString()));
             emit response(ToFailedResult());
             return;
         }
@@ -345,7 +348,7 @@ void NetworkMTDownloadRequest::onSubPartFinished(int index, bool bSuccess, const
         }
         if (m_strError.isEmpty())
         {
-            m_strError = strErr;
+            setError(ErrorCategory::Network, ErrorCode::Unknown, strErr);
         }
     }
 
@@ -373,7 +376,8 @@ void NetworkMTDownloadRequest::onSubPartFinished(int index, bool bSuccess, const
             // Rename temporary file to final name
             if (!renameTempFileToFinal())
             {
-                m_strError = QString("Failed to rename temporary file to final destination: %1").arg(m_strError);
+                setError(ErrorCategory::FileIo, ErrorCode::FileRenameFailed,
+                         QString("Failed to rename temporary file to final destination: %1").arg(m_strError));
                 emit response(ToFailedResult());
                 return;
             }
@@ -440,7 +444,7 @@ void NetworkMTDownloadRequest::onFinished()
 {
     if (!m_pNetworkReply)
     {
-        m_strError = QString("Network error: Invalid reply");
+        setError(ErrorCategory::Network, ErrorCode::InvalidReply, QString("Network error: Invalid reply"));
         emit response(ToFailedResult());
         return;
     }
@@ -485,7 +489,7 @@ void NetworkMTDownloadRequest::onFinished()
         m_strError = QString("HTTP error: Failed to retrieve file size - Status code %1").arg(statusCode);
         qDebug() << "[QMultiThreadNetwork]" << m_strError;
 
-        emit response(ToFailedResult());
+        emit response(ToFailedResult(statusCode));
         return;
     }
     clearProgress();

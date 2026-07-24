@@ -81,6 +81,8 @@ void NetworkRequest::start()
 {
     m_bAbortManual = false;
     m_nProgress = 0;
+    m_error = ErrorInfo{};
+    m_strError.clear();
     m_spResult = QSharedPointer<ResponseResult>::create();
 
     // Layer3: Idle/stall timeout
@@ -105,6 +107,9 @@ void NetworkRequest::onHeartbeat()
         if (m_idleTimeoutCount >= m_idleThreshold)
         {
             qWarning() << "[QMultiThreadNetwork] Request idle timeout, taskId:" << m_upContext->task.id;
+            setError(ErrorCategory::Timeout, ErrorCode::TimeoutIdle,
+                     QStringLiteral("Request idle timeout"),
+                     static_cast<int>(QNetworkReply::TimeoutError));
             abort();
             return;
         }
@@ -117,6 +122,9 @@ void NetworkRequest::onHeartbeat()
         m_transferElapsed.elapsed() > m_upContext->behavior.transferTimeout)
     {
         qWarning() << "[QMultiThreadNetwork] Request transfer timeout (legacy), taskId:" << m_upContext->task.id;
+        setError(ErrorCategory::Timeout, ErrorCode::TimeoutTransfer,
+                 QStringLiteral("Request transfer timeout"),
+                 static_cast<int>(QNetworkReply::TimeoutError));
         if (m_pNetworkReply)
         {
             m_pNetworkReply->abort();
@@ -132,10 +140,18 @@ void NetworkRequest::resetIdleTimer()
 
 void NetworkRequest::onError(QNetworkReply::NetworkError code)
 {
-    Q_UNUSED(code);
-
-    m_strError = m_pNetworkReply->errorString();
+    m_error = makeNetworkError(code, m_pNetworkReply->errorString());
+    m_strError = m_error.message;
     qDebug() << "[QMultiThreadNetwork] Error" << QString("[%1]").arg(NetworkRequestUtility::getRequestTypeString(m_upContext->type)) << m_strError;
+}
+
+void NetworkRequest::setError(ErrorCategory category, ErrorCode code, const QString& msg, int nativeCode)
+{
+    m_error.category = category;
+    m_error.code = code;
+    m_error.nativeCode = nativeCode;
+    m_error.message = msg;
+    m_strError = msg;
 }
 
 void NetworkRequest::onAuthenticationRequired(QNetworkReply *r, QAuthenticator *a)
@@ -366,9 +382,21 @@ QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToFailedResult(
     {
         m_spResult = QSharedPointer<ResponseResult>::create();
     }
-    m_spResult->success = false;
+    // Ensure a failed result always carries an error category.
+    if (m_error.category == ErrorCategory::None)
+    {
+        if (statusCode >= 400)
+            m_error = makeHttpError(statusCode, m_strError);
+        else
+        {
+            m_error.category = ErrorCategory::Unknown;
+            m_error.code = ErrorCode::Unknown;
+        }
+    }
+    if (m_error.message.isEmpty())
+        m_error.message = m_strError;
+    m_spResult->error = m_error;
     m_spResult->statusCode = statusCode;
-    m_spResult->errorMessage = m_strError;
     m_spResult->body = body;
     m_spResult->headers = headers;
     m_spResult->task = m_upContext->task;
@@ -382,9 +410,8 @@ QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToSuccessResult
     {
         m_spResult = QSharedPointer<ResponseResult>::create();
     }
-    m_spResult->success = true;
+    m_spResult->error = ErrorInfo{};
     m_spResult->statusCode = statusCode;
-    m_spResult->errorMessage.clear();
     m_spResult->body = body;
     m_spResult->headers = headers;
     m_spResult->task = m_upContext->task;

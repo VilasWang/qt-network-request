@@ -337,3 +337,143 @@ std::unique_ptr<QFile> NetworkRequestUtility::openFile(const QString& strFilePat
     qDebug() << "[QMultiThreadNetwork]" << errMessage;
     return nullptr;
 }
+
+namespace QtNetworkRequest
+{
+    ErrorInfo makeNetworkError(QNetworkReply::NetworkError code, const QString& message)
+    {
+        ErrorInfo info;
+        info.nativeCode = static_cast<int>(code);
+        info.message = message;
+
+        switch (code)
+        {
+        case QNetworkReply::NoError:
+            info.category = ErrorCategory::None;
+            info.code = ErrorCode::NoError;
+            break;
+        case QNetworkReply::OperationCanceledError:
+            info.category = ErrorCategory::Cancelled;
+            info.code = ErrorCode::OperationCancelled;
+            break;
+        case QNetworkReply::TimeoutError:
+            info.category = ErrorCategory::Timeout;
+            info.code = ErrorCode::TimeoutTransfer;
+            break;
+        case QNetworkReply::ConnectionRefusedError:
+            info.category = ErrorCategory::Network;
+            info.code = ErrorCode::ConnectionRefused;
+            break;
+        case QNetworkReply::HostNotFoundError:
+            info.category = ErrorCategory::Network;
+            info.code = ErrorCode::HostNotFound;
+            break;
+        case QNetworkReply::RemoteHostClosedError:
+            info.category = ErrorCategory::Network;
+            info.code = ErrorCode::RemoteHostClosed;
+            break;
+        case QNetworkReply::TemporaryNetworkFailureError:
+            info.category = ErrorCategory::Network;
+            info.code = ErrorCode::TemporaryNetworkFailure;
+            break;
+        case QNetworkReply::ProxyConnectionRefusedError:
+        case QNetworkReply::ProxyConnectionClosedError:
+        case QNetworkReply::ProxyNotFoundError:
+        case QNetworkReply::ProxyTimeoutError:
+        case QNetworkReply::ProxyAuthenticationRequiredError:
+        case QNetworkReply::UnknownProxyError:
+            info.category = ErrorCategory::Network;
+            info.code = ErrorCode::ProxyError;
+            break;
+        case QNetworkReply::TooManyRedirectsError:
+            info.category = ErrorCategory::Network;
+            info.code = ErrorCode::TooManyRedirects;
+            break;
+        case QNetworkReply::SslHandshakeFailedError:
+            info.category = ErrorCategory::Ssl;
+            info.code = ErrorCode::SslHandshakeFailed;
+            break;
+        default:
+            info.category = ErrorCategory::Network;
+            info.code = ErrorCode::Unknown;
+            break;
+        }
+        return info;
+    }
+
+    ErrorInfo makeHttpError(int statusCode, const QString& message)
+    {
+        ErrorInfo info;
+        if (statusCode >= 500)
+        {
+            info.category = ErrorCategory::Http;
+            info.code = ErrorCode::HttpServerError;
+        }
+        else if (statusCode >= 400)
+        {
+            info.category = ErrorCategory::Http;
+            info.code = ErrorCode::HttpClientError;
+        }
+        else
+        {
+            info.category = ErrorCategory::Unknown;
+            info.code = ErrorCode::Unknown;
+        }
+        info.message = message.isEmpty()
+            ? QString("HTTP error: status code %1").arg(statusCode)
+            : message;
+        return info;
+    }
+
+    const char* toString(ErrorCategory category)
+    {
+        switch (category)
+        {
+        case ErrorCategory::None: return "None";
+        case ErrorCategory::Cancelled: return "Cancelled";
+        case ErrorCategory::Timeout: return "Timeout";
+        case ErrorCategory::Network: return "Network";
+        case ErrorCategory::Ssl: return "Ssl";
+        case ErrorCategory::Http: return "Http";
+        case ErrorCategory::FileIo: return "FileIo";
+        case ErrorCategory::Protocol: return "Protocol";
+        case ErrorCategory::Configuration: return "Configuration";
+        case ErrorCategory::Unknown: return "Unknown";
+        }
+        return "Unknown";
+    }
+
+    const char* toString(ErrorCode code)
+    {
+        switch (code)
+        {
+        case ErrorCode::NoError: return "NoError";
+        case ErrorCode::OperationCancelled: return "OperationCancelled";
+        case ErrorCode::TimeoutTotal: return "TimeoutTotal";
+        case ErrorCode::TimeoutIdle: return "TimeoutIdle";
+        case ErrorCode::TimeoutTransfer: return "TimeoutTransfer";
+        case ErrorCode::ConnectionRefused: return "ConnectionRefused";
+        case ErrorCode::HostNotFound: return "HostNotFound";
+        case ErrorCode::RemoteHostClosed: return "RemoteHostClosed";
+        case ErrorCode::TemporaryNetworkFailure: return "TemporaryNetworkFailure";
+        case ErrorCode::ProxyError: return "ProxyError";
+        case ErrorCode::TooManyRedirects: return "TooManyRedirects";
+        case ErrorCode::SslHandshakeFailed: return "SslHandshakeFailed";
+        case ErrorCode::HttpClientError: return "HttpClientError";
+        case ErrorCode::HttpServerError: return "HttpServerError";
+        case ErrorCode::InvalidUrl: return "InvalidUrl";
+        case ErrorCode::UnsupportedProtocol: return "UnsupportedProtocol";
+        case ErrorCode::UnsupportedRequestType: return "UnsupportedRequestType";
+        case ErrorCode::InvalidReply: return "InvalidReply";
+        case ErrorCode::ContentLengthMissing: return "ContentLengthMissing";
+        case ErrorCode::FileOpenFailed: return "FileOpenFailed";
+        case ErrorCode::FileWriteFailed: return "FileWriteFailed";
+        case ErrorCode::FileReadFailed: return "FileReadFailed";
+        case ErrorCode::MemoryMappingFailed: return "MemoryMappingFailed";
+        case ErrorCode::FileRenameFailed: return "FileRenameFailed";
+        case ErrorCode::TerminatedWithoutResponse: return "TerminatedWithoutResponse";
+        case ErrorCode::Unknown: return "Unknown";
+        }
+        return "Unknown";
+    }
+}

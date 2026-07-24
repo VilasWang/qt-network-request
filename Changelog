@@ -1,3 +1,10 @@
+version 2.2.0    2026-07-23
+
+- Feat: structured errors — new public header include/networkerror.h (ErrorCategory / ErrorCode / ErrorInfo)
+- Break: ResponseResult flat error fields removed (success/cancelled/timeout/errorCode/errorMessage); use ResponseResult::error plus isSuccess()/isCancelled()/isTimeout(); statusCode retained
+- Refactor: map QNetworkReply::NetworkError and HTTP status into stable library error codes (makeNetworkError/makeHttpError)
+
+
 version 2.1.6    2026-07-22
 
 - Feat: RequestContextBuilder fluent API (replaces manual RequestContext field assignment)

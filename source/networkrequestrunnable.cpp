@@ -74,10 +74,10 @@ void NetworkRequestRunnable::run()
 
                 auto rsp = QSharedPointer<ResponseResult>::create();
                 rsp->task.id = taskId;
-                rsp->success = false;
-                rsp->timeout = true;
-                rsp->errorCode = static_cast<int>(QNetworkReply::TimeoutError);
-                rsp->errorMessage = QStringLiteral("Request total timeout (%1ms)").arg(totalMs);
+                rsp->error.category = ErrorCategory::Timeout;
+                rsp->error.code = ErrorCode::TimeoutTotal;
+                rsp->error.nativeCode = static_cast<int>(QNetworkReply::TimeoutError);
+                rsp->error.message = QStringLiteral("Request total timeout (%1ms)").arg(totalMs);
                 emit response(rsp);
 
                 emit exitLoop();
@@ -105,7 +105,16 @@ void NetworkRequestRunnable::run()
 
                 rsp->task.startTime = startTime;
                 rsp->task.endTime = QDateTime::currentDateTime();
-                rsp->cancelled = m_bAbort;
+                // If cancelled and the request didn't already classify the error
+                // as cancellation/timeout, mark it as a user cancellation.
+                if (m_bAbort && rsp->error.category != ErrorCategory::Cancelled
+                              && rsp->error.category != ErrorCategory::Timeout)
+                {
+                    rsp->error.category = ErrorCategory::Cancelled;
+                    rsp->error.code = ErrorCode::OperationCancelled;
+                    if (rsp->error.message.isEmpty())
+                        rsp->error.message = QStringLiteral("Operation canceled");
+                }
                 emit response(rsp);
             });
             pRequest->start();
@@ -118,8 +127,9 @@ void NetworkRequestRunnable::run()
                 auto rsp = QSharedPointer<ResponseResult>::create();
                 rsp->task.startTime = startTime;
                 rsp->task.endTime = QDateTime::currentDateTime();
-                rsp->success = false;
-                rsp->errorMessage = QString("[QMultiThreadNetwork] Configuration error: Unsupported request type (%1)").arg((qint32)type);
+                rsp->error.category = ErrorCategory::Configuration;
+                rsp->error.code = ErrorCode::UnsupportedRequestType;
+                rsp->error.message = QString("[QMultiThreadNetwork] Configuration error: Unsupported request type (%1)").arg((qint32)type);
                 emit response(rsp);
             }
         }
@@ -146,9 +156,18 @@ void NetworkRequestRunnable::run()
     if (!m_responseSent.load())
     {
         auto rsp = QSharedPointer<ResponseResult>::create();
-        rsp->success = false;
-        rsp->cancelled = m_bAbort;
-        rsp->errorMessage = QStringLiteral("Request terminated without response");
+        if (m_bAbort)
+        {
+            rsp->error.category = ErrorCategory::Cancelled;
+            rsp->error.code = ErrorCode::OperationCancelled;
+            rsp->error.message = QStringLiteral("Operation canceled");
+        }
+        else
+        {
+            rsp->error.category = ErrorCategory::Unknown;
+            rsp->error.code = ErrorCode::TerminatedWithoutResponse;
+            rsp->error.message = QStringLiteral("Request terminated without response");
+        }
         emit response(rsp);
     }
     pRequest.reset();

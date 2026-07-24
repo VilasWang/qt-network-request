@@ -2,7 +2,9 @@
 
 #include <memory>
 #include <QString>
+#include <QNetworkReply>
 #include "requestcontext.h"
+#include "networkerror.h"
 
 class QFile;
 class QUrl;
@@ -41,4 +43,7 @@ namespace QtNetworkRequest
         NetworkRequestUtility(const NetworkRequestUtility &) = delete;
         NetworkRequestUtility &operator=(const NetworkRequestUtility &) = delete;
     };
+
+    // 将 Qt 网络错误码映射为结构化错误 (内部使用, 依赖 Qt 类型)
+    ErrorInfo makeNetworkError(QNetworkReply::NetworkError code, const QString& message);
 }

@@ -447,7 +447,7 @@ void QtNetworkRequest::NetworkDownloadManager::onResponse(QSharedPointer<QtNetwo
             }
             m_activeDownloadCount--;
 
-            if (rsp->success)
+            if (rsp->isSuccess())
             {
                 info.task.state = QtNetworkRequest::NetworkDownloadTask::State::Completed;
                 info.task.progress = 100;
@@ -522,9 +522,9 @@ void QtNetworkRequest::NetworkDownloadManager::onResponse(QSharedPointer<QtNetwo
             else
             {
                 info.task.state = QtNetworkRequest::NetworkDownloadTask::State::Error;
-                info.task.errorMessage = rsp->errorMessage;
+                info.task.errorMessage = rsp->error.message;
                 info.task.speed = 0;
-                emit taskStateChanged(info.task.id, QtNetworkRequest::NetworkDownloadTask::State::Error, rsp->errorMessage);
+                emit taskStateChanged(info.task.id, QtNetworkRequest::NetworkDownloadTask::State::Error, rsp->error.message);
                 emit taskCompleted(info.task.id, false);
             }
 
