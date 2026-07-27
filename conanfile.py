@@ -13,7 +13,7 @@ import os
 
 class QtNetworkRequestConan(ConanFile):
     name = "qtnetworkrequest"
-    version = "2.1.6"
+    version = "2.2.1"
     license = "MIT"
     author = "Your Name <your.email@example.com>"
     url = "https://github.com/your-org/qt-network-request"
@@ -128,9 +128,9 @@ class QtNetworkRequestConan(ConanFile):
 
     def package_id(self):
         # ── Qt version affects binary ABI — encode it in package id ────────────
-        # Different Qt versions trigger different #if branches in source:
-        #   5.9 → tryTake/cancel, 5.12 → TLS 1.3, 5.14 → QRecursiveMutex,
-        #   5.15 → setTransferTimeout, Qt6 → different APIs entirely
+        # All Qt version #if branches are centralized in source/qtcompat.h:
+        #   5.9 → QThreadPool::tryTake, 5.12 → TLS 1.3, 5.13 → Http2AllowedAttribute,
+        #   5.14 → QRecursiveMutex / Qt::SkipEmptyParts, 5.15 → setTransferTimeout / errorOccurred
         del self.info.options.qt
         self.info.requires["qt"].full_version_mode()
 

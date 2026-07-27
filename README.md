@@ -29,7 +29,7 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 - **Multi-threaded Architecture**: Each request executes in separate threads using a managed thread pool
 - **Concurrent Operations**: Support for both single and batch request modes
 - **Multi-threaded Downloads**: Large file downloads with multiple channels for faster performance (auto-detects CPU cores when threadCount=0)
-- **Protocol Support**: HTTP(S)/FTP with full request method support (GET/POST/PUT/DELETE/HEAD)
+- **Protocol Support**: HTTP(S)/FTP with full request method support (GET/POST/PUT/DELETE/HEAD/PATCH/OPTIONS)
 - **Asynchronous API**: Non-blocking operations with signal/slot progress reporting
 - **Thread Safety**: All public methods are thread-safe with atomic operations
 
@@ -37,7 +37,8 @@ A high-performance, thread-safe C++ library that provides multi-threaded HTTP(S)
 
 - **Memory-Mapped Files**: Efficient file I/O for large downloads using platform-specific APIs
 - **Batch Operations**: Group multiple requests with aggregated progress tracking
-- **Retry with Exponential Backoff**: Automatic retry of transient failures (connection refused, timeout, SSL errors)
+- **Retry with Exponential Backoff**: Automatic retry of transient failures (connection refused, timeout, SSL errors) via pluggable strategy
+- **Extensible Architecture**: Template Method + Strategy + State patterns enable clean extension points; self-registering factory eliminates switch-case for new request types
 - **Proxy Support**: Per-request proxy or global proxy with two-level cascade
 - **Persistent Cookie Jar**: File-backed cookie storage shared across all requests
 - **Request Priority Queue**: Higher-priority requests execute first when threads are saturated

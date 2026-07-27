@@ -1,3 +1,15 @@
+version 2.2.1    2026-07-27
+
+- Refactor: consolidate Network*Request classes with design patterns (Template Method, Strategy, State, Registry)
+  * Phase 1: centralize all #if QT_VERSION blocks into source/qtcompat.h (15+ sites → 1 file)
+  * Phase 2: extract duplicated progress throttle into reusable ProgressThrottle component
+  * Phase 3: add shared helper methods to NetworkRequest base class (prepareRequest, evaluateOutcome, handleFailure, collectResponse, disposeReply) to eliminate ~250 lines of duplicated code in subclasses
+  * Phase 4: replace implicit phase switching in NetworkMTDownloadRequest (HEAD → Range probe → multi-download) with explicit state machine (ProbeState, RangeProbeState, MultiDownloadState)
+  * Phase 5: replace hard-coded switch-case in NetworkRequestFactory with self-registering priority-based NetworkRequestRegistry
+  * New internal files: qtcompat.h, progressthrottle.h/.cpp, requeststrategies.h/.cpp, networkrequestregistry.h/.cpp, networkmtdownloadrequest_p.h, networkmtdownloadrequest_states.cpp
+  * All 5 test suites passing (UnitTests, BuilderTests, UtilityTests, DownloaderTests, UiTests)
+
+
 version 2.2.0    2026-07-23
 
 - Feat: structured errors — new public header include/networkerror.h (ErrorCategory / ErrorCode / ErrorInfo)
