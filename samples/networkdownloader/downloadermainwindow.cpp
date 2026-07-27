@@ -54,7 +54,7 @@ QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidg
 
     // Set fixed widths for non-expanding columns
     ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnFileSize), 100);   // File size - fixed
-    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnDownloaded), 100); // Downloaded - fixed
+    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnDownloaded), 130); // Downloaded - fixed
     ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnProgress), 120);   // Progress - fixed
     ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnSpeed), 100);      // Speed - fixed
     ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnTime), 80);        // Time - fixed
