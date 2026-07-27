@@ -71,7 +71,7 @@ jobs:
           host: ${{ matrix.platform == 'macos' && 'mac' || matrix.platform }}
           target: 'desktop'
           arch: ${{ matrix.qt_arch }}
-          modules: 'qtnetwork qtwidgets qtxml qttest qtnetworkauth'
+          modules: 'qtnetworkauth'
           cache: true
 
       - name: Install system dependencies (Linux)
