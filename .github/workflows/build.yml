@@ -1,4 +1,4 @@
-name: Multi-Platform Build
+name: Build & CI
 
 on:
   push:
@@ -17,30 +17,27 @@ env:
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
+    name: ${{ matrix.platform }} · ${{ github.event_name == 'pull_request' && 'PR' || 'Push' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Windows configuration
           - os: windows-2022
             platform: windows
             build_type: Release
             qt_arch: win64_msvc2019_64
             cmake_generator: 'Visual Studio 17 2022'
             cmake_arch: x64
-            artifact_name: windows-msvc2022-release
+            artifact_name: windows-release
 
-          # Linux configuration
           - os: ubuntu-22.04
             platform: linux
             build_type: Release
             qt_arch: gcc_64
             cmake_generator: 'Unix Makefiles'
-            artifact_name: linux-gcc-release
+            artifact_name: linux-release
 
-          # macOS configuration
           - os: macos-latest
             platform: macos
             build_type: Release
@@ -54,33 +51,29 @@ jobs:
         with:
           submodules: recursive
 
-      # ============ Platform-Specific Setup ============
+      # ============ Platform Setup ============
 
-      # Windows setup
-      - name: Setup Windows environment
+      - name: Setup MSVC (Windows)
         if: matrix.platform == 'windows'
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.cmake_arch }}
 
-      - name: Setup Qt (Windows)
-        if: matrix.platform == 'windows'
-        uses: jurplel/install-qt-action@v3
-        with:
-          version: ${{ env.QT_VERSION }}
-          host: 'windows'
-          target: 'desktop'
-          arch: ${{ matrix.qt_arch }}
-          modules: 'qtnetworkauth'
-          cache: true
-
-      - name: Install CMake (Windows)
-        if: matrix.platform == 'windows'
+      - name: Install CMake
         uses: jwlawson/actions-setup-cmake@v2
         with:
           cmake-version: ${{ env.CMAKE_VERSION }}
 
-      # Linux setup
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: ${{ matrix.platform == 'macos' && 'mac' || matrix.platform }}
+          target: 'desktop'
+          arch: ${{ matrix.qt_arch }}
+          modules: 'qtnetwork qtwidgets qtxml qttest qtnetworkauth'
+          cache: true
+
       - name: Install system dependencies (Linux)
         if: matrix.platform == 'linux'
         run: |
@@ -89,72 +82,13 @@ jobs:
             build-essential \
             libssl-dev \
             libgl1-mesa-dev \
-            libglib2.0-0 \
-            libxkbcommon-x11-0 \
-            libxcb-icccm4 \
-            libxcb-image0 \
-            libxcb-keysyms1 \
-            libxcb-randr0 \
-            libxcb-render-util0 \
-            libxcb-xinerama0 \
-            libxcb-xfixes0 \
-            xvfb \
-            dbus-x11
+            xvfb
 
-      - name: Setup Qt (Linux)
-        if: matrix.platform == 'linux'
-        uses: jurplel/install-qt-action@v3
-        with:
-          version: ${{ env.QT_VERSION }}
-          host: 'linux'
-          target: 'desktop'
-          arch: ${{ matrix.qt_arch }}
-          modules: 'qtnetworkauth'
-          cache: true
-
-      - name: Install CMake (Linux)
-        if: matrix.platform == 'linux'
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: ${{ env.CMAKE_VERSION }}
-
-      # macOS setup
       - name: Install system dependencies (macOS)
         if: matrix.platform == 'macos'
-        run: |
-          brew install openssl@3
+        run: brew install openssl@3
 
-      - name: Setup Qt (macOS)
-        if: matrix.platform == 'macos'
-        uses: jurplel/install-qt-action@v3
-        with:
-          version: ${{ env.QT_VERSION }}
-          host: 'mac'
-          target: 'desktop'
-          arch: ${{ matrix.qt_arch }}
-          modules: 'qtnetworkauth'
-          cache: true
-
-      - name: Install CMake (macOS)
-        if: matrix.platform == 'macos'
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: ${{ env.CMAKE_VERSION }}
-
-      # ============ Caching Strategy ============
-
-      - name: Cache CMake build
-        uses: actions/cache@v4
-        with:
-          path: |
-            build
-            ${{ github.workspace }}/build/**/CMakeCache.txt
-            ${{ github.workspace }}/build/**/CMakeFiles
-          key: ${{ matrix.artifact_name }}-cmake-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: |
-            ${{ matrix.artifact_name }}-cmake-
-
-      # ============ Configuration & Build ============
+      # ============ Configure & Build ============
 
       - name: Configure CMake (Windows)
         if: matrix.platform == 'windows'
@@ -190,79 +124,24 @@ jobs:
       - name: Build project
         run: cmake --build build --config ${{ matrix.build_type }} --parallel
 
-      # ============ Target Verification ============
+      # ============ Test ============
 
-      - name: Verify all targets built (Windows)
+      - name: Run tests (Windows)
         if: matrix.platform == 'windows'
-        run: |
-          $buildDir = "build\${{ matrix.build_type }}"
-          $missing = @()
-          @("QNetworkRequest.dll", "QtRequester.exe", "QtDownloader.exe", "UnitTests.exe") | ForEach-Object {
-            if (-not (Test-Path "$buildDir\$_")) { $missing += $_ }
-          }
-          if ($missing.Count -gt 0) {
-            Write-Host "Missing targets: $($missing -join ', ')"
-            exit 1
-          }
-          Write-Host "All targets built successfully"
+        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure --timeout 120
 
-      - name: Verify all targets built (Linux)
+      - name: Run tests (Linux)
         if: matrix.platform == 'linux'
-        run: |
-          buildDir="build/${{ matrix.build_type }}"
-          missing=""
-          # All targets land flat in build/<config>/ via set_output_directories()
-          for f in "libQNetworkRequest.so" "QtRequester" "QtDownloader" "UnitTests"; do
-            if [ ! -f "$buildDir/$f" ] && [ ! -x "$buildDir/$f" ] 2>/dev/null; then
-              missing="$missing $f"
-            fi
-          done
-          if [ -n "$missing" ]; then
-            echo "Missing targets:$missing"
-            exit 1
-          fi
-          echo "All targets built successfully"
+        run: xvfb-run --auto-servernum ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure --timeout 120
 
-      - name: Verify all targets built (macOS)
+      - name: Run tests (macOS)
         if: matrix.platform == 'macos'
-        run: |
-          buildDir="build/${{ matrix.build_type }}"
-          missing=""
-          for f in "libQNetworkRequest.dylib" "QtRequester" "QtDownloader" "UnitTests"; do
-            if [ ! -f "$buildDir/$f" ] && [ ! -x "$buildDir/$f" ] 2>/dev/null; then
-              missing="$missing $f"
-            fi
-          done
-          if [ -n "$missing" ]; then
-            echo "Missing targets:$missing"
-            exit 1
-          fi
-          echo "All targets built successfully"
+        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure --timeout 120
 
-      # ============ Testing ============
-
-      - name: Run unit tests (Windows)
-        if: matrix.platform == 'windows'
-        run: |
-          cd build\test
-          ctest -C ${{ matrix.build_type }} --output-on-failure
-
-      - name: Run unit tests (Linux)
-        if: matrix.platform == 'linux'
-        run: |
-          cd build/test
-          xvfb-run --auto-servernum ctest --output-on-failure -C ${{ matrix.build_type }}
-
-      - name: Run unit tests (macOS)
-        if: matrix.platform == 'macos'
-        run: |
-          cd build/test
-          ctest --output-on-failure -C ${{ matrix.build_type }}
-
-      # ============ Artifact Collection ============
+      # ============ Artifacts (push only, skip PR) ============
 
       - name: Prepare artifacts (Windows)
-        if: matrix.platform == 'windows'
+        if: matrix.platform == 'windows' && github.event_name != 'pull_request'
         shell: cmd
         run: |
           mkdir artifacts\library artifacts\requester artifacts\downloader artifacts\tests
@@ -275,7 +154,7 @@ jobs:
           copy "ThirdParty\openssl\1.1.1\bin\libssl-1_1-x64.dll" artifacts\library\
 
       - name: Prepare artifacts (Linux)
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && github.event_name != 'pull_request'
         run: |
           mkdir -p artifacts/library artifacts/requester artifacts/downloader artifacts/tests
           cp "build/${{ matrix.build_type }}/libQNetworkRequest.so" artifacts/library/ 2>/dev/null || true
@@ -284,7 +163,7 @@ jobs:
           cp "build/${{ matrix.build_type }}/UnitTests" artifacts/tests/ 2>/dev/null || true
 
       - name: Prepare artifacts (macOS)
-        if: matrix.platform == 'macos'
+        if: matrix.platform == 'macos' && github.event_name != 'pull_request'
         run: |
           mkdir -p artifacts/library artifacts/requester artifacts/downloader artifacts/tests
           cp "build/${{ matrix.build_type }}/libQNetworkRequest.dylib" artifacts/library/ 2>/dev/null || true
@@ -293,6 +172,7 @@ jobs:
           cp "build/${{ matrix.build_type }}/UnitTests" artifacts/tests/ 2>/dev/null || true
 
       - name: Upload build artifacts
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
@@ -300,7 +180,7 @@ jobs:
           retention-days: 7
 
       - name: Upload build logs on failure
-        if: failure()
+        if: failure() && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}-logs
