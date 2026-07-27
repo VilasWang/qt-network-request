@@ -31,6 +31,9 @@ namespace QtNetworkRequest
 
 		void setRequestContext(std::unique_ptr<RequestContext> context);
 
+		// 判断错误是否可重试（瞬态错误）。static 以便策略类复用，避免重复定义。
+		static bool isTransientError(QNetworkReply::NetworkError err);
+
 #ifndef QT_NO_SSL
 		// Merge global + per-request SSL config into an effective configuration.
 		static SslConfig resolveSslConfig(const SslConfig *perRequest);
@@ -59,8 +62,6 @@ namespace QtNetworkRequest
 		bool tryRetry();
 		// 子类重写以清理请求特有资源（如文件句柄）
 		virtual void cleanupForRetry();
-		// 判断错误是否可重试（瞬态错误）
-		bool isTransientError(QNetworkReply::NetworkError err);
 
 		// ── Shared helper methods (consolidated from duplicated subclass code) ──
 
@@ -74,7 +75,8 @@ namespace QtNetworkRequest
 
 		/// Attempt retry or redirect.  @return true if the caller should return immediately
 		/// (retry was scheduled or redirect restarted the request).
-		bool handleFailure();
+		/// Virtual: MTDownloadRequest overrides to prevent state-machine corruption on redirect.
+		virtual bool handleFailure();
 
 		/// Populate responseHeaders + read body from reply into result.
 		void collectResponse(QMap<QByteArray, QByteArray>& outHeaders, QByteArray& outBody);

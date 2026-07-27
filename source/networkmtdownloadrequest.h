@@ -47,6 +47,11 @@ namespace QtNetworkRequest
 		void onSubPartDownloadProgress(int index, qint64 bytesReceived, qint64 bytesTotal);
 
 	protected:
+		/// MTDownload uses state-machine based failure handling (handleProbeFinished etc.)
+		/// and must never call the base handleFailure() which would corrupt the state via start().
+		bool handleFailure() override { return false; }
+
+	protected:
 		void cleanupForRetry() Q_DECL_OVERRIDE { clearDownloaders(); clearProgress(); }
 
 	private:

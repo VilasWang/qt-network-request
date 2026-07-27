@@ -1,4 +1,5 @@
 #include "requeststrategies.h"
+#include "networkrequest.h"
 #include <QNetworkReply>
 
 namespace QtNetworkRequest
@@ -7,30 +8,11 @@ namespace QtNetworkRequest
 // ============================================================================
 // DefaultRetryStrategy
 // ============================================================================
-static bool isTransientError(QNetworkReply::NetworkError err)
-{
-	switch (err)
-	{
-	case QNetworkReply::ConnectionRefusedError:
-	case QNetworkReply::HostNotFoundError:
-	case QNetworkReply::TimeoutError:
-	case QNetworkReply::OperationCanceledError:
-	case QNetworkReply::SslHandshakeFailedError:
-	case QNetworkReply::TemporaryNetworkFailureError:
-	case QNetworkReply::UnknownNetworkError:
-	case QNetworkReply::RemoteHostClosedError:
-	case QNetworkReply::TooManyRedirectsError:
-		return true;
-	default:
-		return false;
-	}
-}
-
 bool DefaultRetryStrategy::shouldRetry(QNetworkReply::NetworkError err,
 										int attemptCount,
 										int maxRetries) const
 {
-	return attemptCount < maxRetries && isTransientError(err);
+	return attemptCount < maxRetries && NetworkRequest::isTransientError(err);
 }
 
 int DefaultRetryStrategy::retryDelayMs(int attemptCount) const
