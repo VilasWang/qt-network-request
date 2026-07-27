@@ -10,6 +10,7 @@ add_library(QNetworkRequest SHARED
     networkcookiejar.cpp
     networkdownloadrequest.cpp
     networkmtdownloadrequest.cpp
+    networkmtdownloadrequest_states.cpp
     networkreply.cpp
     networkrequest.cpp
     networkrequestmanager.cpp
@@ -27,6 +28,7 @@ add_library(QNetworkRequest SHARED
     networkcookiejar.h
     networkdownloadrequest.h
     networkmtdownloadrequest.h
+    networkmtdownloadrequest_p.h
     networkrequest.h
     networkrequestrunnable.h
     networkuploadrequest.h

@@ -1,4 +1,5 @@
 #include "networkmtdownloadrequest.h"
+#include "networkmtdownloadrequest_p.h"
 #include "memorymappedfile.h"
 #include "qtcompat.h"
 #include "networkrequestregistry.h"
@@ -84,136 +85,41 @@ void NetworkMTDownloadRequest::abort()
     clearProgress();
 }
 
-bool NetworkMTDownloadRequest::requestFileSize()
+void NetworkMTDownloadRequest::transitionTo(std::unique_ptr<IMDTDownloadState> newState)
 {
-    if (!m_url.isValid())
-    {
-        return false;
-    }
-    const QUrl& url = m_url;
-    m_nFileSize = -1;
-
-    if (nullptr == m_pNetworkManager)
-    {
-        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
-    }
-    // Per-request proxy applies after pool's global proxy
-    applyProxyConfig(m_pNetworkManager);
-    QNetworkRequest request(url);
-    QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
-
-#ifndef QT_NO_SSL
-    applySslConfig(request);
-#endif
-
-    m_pNetworkReply = m_pNetworkManager->head(request);
-    if (m_pNetworkReply)
-    {
-        connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
-        QtCompat::connectErrorSignal(m_pNetworkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
-#ifndef QT_NO_SSL
-        connectSslErrorHandling(m_pNetworkReply);
-#endif
-    }
-
-    // Layer2b: transfer timeout via elapsed timer (no-op on Qt >= 5.15)
-    QtCompat::startTransferTimer(m_transferElapsed);
-    return true;
-}
-
-bool NetworkMTDownloadRequest::requestRangeProbe()
-{
-    if (!m_url.isValid() || m_nFileSize <= 0)
-    {
-        // Can't probe — assume Range is unsupported, fall back to single thread
-        m_upContext->downloadConfig->threadCount = 1;
-        startMTDownload();
-        return false;
-    }
-
-    if (nullptr == m_pNetworkManager)
-    {
-        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
-    }
-    // Per-request proxy applies after pool's global proxy
-    applyProxyConfig(m_pNetworkManager);
-
-    QNetworkRequest request(m_url);
-    request.setRawHeader("Range", "bytes=0-0");
-    QtCompat::setHttp2Allowed(request, false);
-    QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
-    request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
-
-#ifndef QT_NO_SSL
-    applySslConfig(request);
-#endif
-
-    qDebug() << "[QMultiThreadNetwork] Probing Range support with bytes=0-0...";
-
-    m_pNetworkReply = m_pNetworkManager->get(request);
-    if (m_pNetworkReply)
-    {
-        connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onRangeProbeFinished()));
-#ifndef QT_NO_SSL
-        connectSslErrorHandling(m_pNetworkReply);
-#endif
-        return true;
-    }
-
-    // Probe request failed — assume Range is unsupported
-    m_upContext->downloadConfig->threadCount = 1;
-    startMTDownload();
-    return false;
-}
-
-void NetworkMTDownloadRequest::onRangeProbeFinished()
-{
-    if (!m_pNetworkReply)
-    {
-        m_upContext->downloadConfig->threadCount = 1;
-        startMTDownload();
-        return;
-    }
-
-    int statusCode = m_pNetworkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    bool probeSuccess = (statusCode == 206);
-
-    m_bRangeSupportProbed = true;
-    m_bRangeSupported = probeSuccess;
-
-    if (probeSuccess)
-    {
-        qDebug() << "[QMultiThreadNetwork] Range probe succeeded (206) — using multi-threaded download";
-    }
-    else
-    {
-        qDebug() << "[QMultiThreadNetwork] Range probe returned" << statusCode
-                 << "instead of 206 — server/CDN does not honor Range, falling back to single-threaded download";
-        m_upContext->downloadConfig->threadCount = 1;
-    }
-
-    m_pNetworkReply->deleteLater();
-    m_pNetworkReply = nullptr;
-
-    startMTDownload();
+	qDebug() << "[MTDownload] State transition:" << (m_state ? m_state->name() : QStringLiteral("null"))
+			 << "→" << (newState ? newState->name() : QStringLiteral("null"));
+	m_state = std::move(newState);
+	if (m_state)
+		m_state->enter(this);
 }
 
 void NetworkMTDownloadRequest::start()
 {
-    NetworkRequest::start();
+	NetworkRequest::start();
 
-    m_nSuccess = 0;
-    m_nFailed = 0;
-    m_nThreadCount = 1;
+	m_nSuccess = 0;
+	m_nFailed = 0;
+	m_nThreadCount = 1;
 
-    if (!requestFileSize())
-    {
-        setError(ErrorCategory::Configuration, ErrorCode::InvalidUrl, "Network error: Invalid URL format");
-        emit response(ToFailedResult());
-    }
+	// Initialize state machine — ProbeState handles HEAD request and transitions onward
+	transitionTo(std::make_unique<ProbeState>());
 }
 
-void NetworkMTDownloadRequest::startMTDownload()
+void NetworkMTDownloadRequest::onFinished()
+{
+	if (m_state && m_pNetworkReply)
+		m_state->onFinished(this, m_pNetworkReply);
+}
+
+void NetworkMTDownloadRequest::onError(QNetworkReply::NetworkError code)
+{
+	NetworkRequest::onError(code);
+	if (m_state)
+		m_state->onError(this, code);
+}
+
+void NetworkMTDownloadRequest::startMTDownloadInternal()
 {
     if (m_bAbortManual)
     {
@@ -449,97 +355,183 @@ void NetworkMTDownloadRequest::onSubPartDownloadProgress(int index, qint64 bytes
 	}
 }
 
-void NetworkMTDownloadRequest::onFinished()
+// ============================================================================
+// State-aware phase methods — called by state classes
+// ============================================================================
+
+void NetworkMTDownloadRequest::doProbeRequest()
 {
-    if (!m_pNetworkReply)
-    {
-        setError(ErrorCategory::Network, ErrorCode::InvalidReply, QString("Network error: Invalid reply"));
-        emit response(ToFailedResult());
-        return;
-    }
+	if (!m_url.isValid()) return;
+	m_nFileSize = -1;
 
-    auto [bSuccess, statusCode] = evaluateOutcome();
-    if (!bSuccess)
-    {
-        // Handle redirection (special: redirect restarts with requestFileSize, not start())
-        if (statusCode == 301 || statusCode == 302)
-        {
-            const QVariant &redirectionTarget = m_pNetworkReply->attribute(QNetworkRequest::RedirectionTargetAttribute);
-            const QUrl &redirectUrl = m_url.resolved(redirectionTarget.toUrl());
-            if (redirectUrl.isValid() && m_url != redirectUrl &&
-                ++m_nRedirectionCount <= m_upContext->behavior.maxRedirectionCount)
-            {
-                qDebug() << "[QMultiThreadNetwork] url:" << m_url.toString() << "redirectUrl:" << redirectUrl.toString();
-                m_url = redirectUrl;
+	if (nullptr == m_pNetworkManager)
+		m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
 
-                m_pNetworkReply->deleteLater();
-                m_pNetworkReply = nullptr;
+	applyProxyConfig(m_pNetworkManager);
 
-                requestFileSize();
-                return;
-            }
-        }
-        else
-        {
-            bool bHttpProxy = isHttpProxy(m_url.scheme()) || isHttpsProxy(m_url.scheme());
-            if (bHttpProxy)
-                qDebug() << "[NetworkMTDownloadRequest]" << QString("HTTP error: status code %1").arg(statusCode);
-        }
+	QNetworkRequest request(m_url);
+	QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
+#ifndef QT_NO_SSL
+	applySslConfig(request);
+#endif
 
-        if (tryRetry())
-            return;
-        m_strError = QString("HTTP error: Failed to retrieve file size - Status code %1").arg(statusCode);
-        qDebug() << "[QMultiThreadNetwork]" << m_strError;
+	m_pNetworkReply = m_pNetworkManager->head(request);
+	if (m_pNetworkReply)
+	{
+		connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
+		QtCompat::connectErrorSignal(m_pNetworkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
+#ifndef QT_NO_SSL
+		connectSslErrorHandling(m_pNetworkReply);
+#endif
+	}
+	QtCompat::startTransferTimer(m_transferElapsed);
+}
 
-        emit response(ToFailedResult(statusCode));
-        return;
-    }
-    clearProgress();
+void NetworkMTDownloadRequest::handleProbeFinished(QNetworkReply* reply)
+{
+	if (!reply)
+	{
+		setError(ErrorCategory::Network, ErrorCode::InvalidReply, QString("Network error: Invalid reply"));
+		emit response(ToFailedResult());
+		return;
+	}
 
-    for (auto& headerpair : m_pNetworkReply->rawHeaderPairs())
-    {
-        QString headerLine = QString("%1: %2\n").arg(QString::fromUtf8(headerpair.first)).arg(QString::fromUtf8(headerpair.second));
-        qDebug() << headerLine;
-    }
+	auto [bSuccess, statusCode] = evaluateOutcome();
+	if (!bSuccess)
+	{
+		if (statusCode == 301 || statusCode == 302)
+		{
+			const QVariant& redirectionTarget = reply->attribute(QNetworkRequest::RedirectionTargetAttribute);
+			const QUrl& redirectUrl = m_url.resolved(redirectionTarget.toUrl());
+			if (redirectUrl.isValid() && m_url != redirectUrl &&
+				++m_nRedirectionCount <= m_upContext->behavior.maxRedirectionCount)
+			{
+				qDebug() << "[MTDownload] HEAD redirect:" << m_url.toString() << "→" << redirectUrl.toString();
+				m_url = redirectUrl;
+				reply->deleteLater();
+				m_pNetworkReply = nullptr;
+				doProbeRequest();
+				return;
+			}
+		}
+		else
+		{
+			bool bHttpProxy = isHttpProxy(m_url.scheme()) || isHttpsProxy(m_url.scheme());
+			if (bHttpProxy)
+				qDebug() << "[MTDownload]" << QString("HTTP error: status code %1").arg(statusCode);
+		}
 
-    const QVariant &var = m_pNetworkReply->header(QNetworkRequest::ContentLengthHeader);
-    m_nFileSize = var.toLongLong();
-    m_bytesTotal = m_nFileSize;
-    qDebug() << "[QMultiThreadNetwork] File size:" << m_nFileSize;
+		if (tryRetry())
+			return;
+		m_strError = QString("HTTP error: Failed to retrieve file size - Status code %1").arg(statusCode);
+		qDebug() << "[MTDownload]" << m_strError;
+		emit response(ToFailedResult(statusCode));
+		return;
+	}
 
-    // Check if the server advertises Range support. Some CDNs (Cloudflare,
-    // Varnish) return Accept-Ranges: bytes but ignore the Range header and
-    // return 200 with the full body. A probe GET with "bytes=0-0" verifies
-    // whether the server actually honors range requests.
-    QByteArray acceptRanges = m_pNetworkReply->rawHeader("Accept-Ranges");
-    bool serverClaimsRange = acceptRanges.toLower().contains("bytes");
+	clearProgress();
 
-    // Preserve response headers before the reply is destroyed — the
-    // Content-Disposition filename (among others) is needed later when
-    // onSubPartDownloadFinished constructs the final response.
-    m_responseHeaders.clear();
-    foreach (const QByteArray &header, m_pNetworkReply->rawHeaderList())
-        m_responseHeaders[header] = m_pNetworkReply->rawHeader(header);
-    // Expose the final URL (after redirects) so the app layer can extract the
-    // real filename from the path basename when Content-Disposition is missing.
-    m_responseHeaders["X-Final-Url"] = m_url.toString().toUtf8();
+	// Read Content-Length
+	const QVariant& var = reply->header(QNetworkRequest::ContentLengthHeader);
+	m_nFileSize = var.toLongLong();
+	m_bytesTotal = m_nFileSize;
+	qDebug() << "[MTDownload] File size:" << m_nFileSize;
 
-    m_pNetworkReply->deleteLater();
-    m_pNetworkReply = nullptr;
+	// Check Accept-Ranges
+	QByteArray acceptRanges = reply->rawHeader("Accept-Ranges");
+	bool serverClaimsRange = acceptRanges.toLower().contains("bytes");
 
-    if (serverClaimsRange && m_nFileSize > 0)
-    {
-        requestRangeProbe();
-    }
-    else
-    {
-        // No Accept-Ranges: treat as equivalent to a failed probe
-        m_bRangeSupportProbed = true;
-        m_bRangeSupported = false;
-        qDebug() << "[QMultiThreadNetwork] Server does not advertise Accept-Ranges, using single-threaded download";
-        m_upContext->downloadConfig->threadCount = 1;
-        startMTDownload();
-    }
+	// Preserve response headers
+	m_responseHeaders.clear();
+	foreach (const QByteArray& header, reply->rawHeaderList())
+		m_responseHeaders[header] = reply->rawHeader(header);
+	m_responseHeaders["X-Final-Url"] = m_url.toString().toUtf8();
+
+	reply->deleteLater();
+	m_pNetworkReply = nullptr;
+
+	if (serverClaimsRange && m_nFileSize > 0)
+	{
+		transitionTo(std::make_unique<RangeProbeState>());
+	}
+	else
+	{
+		m_bRangeSupportProbed = true;
+		m_bRangeSupported = false;
+		qDebug() << "[MTDownload] Server does not advertise Accept-Ranges, falling back to single-thread";
+		m_upContext->downloadConfig->threadCount = 1;
+		transitionTo(std::make_unique<MultiDownloadState>());
+	}
+}
+
+void NetworkMTDownloadRequest::doRangeProbeRequest()
+{
+	if (!m_url.isValid() || m_nFileSize <= 0)
+	{
+		m_upContext->downloadConfig->threadCount = 1;
+		transitionTo(std::make_unique<MultiDownloadState>());
+		return;
+	}
+
+	if (nullptr == m_pNetworkManager)
+		m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
+
+	applyProxyConfig(m_pNetworkManager);
+
+	QNetworkRequest request(m_url);
+	request.setRawHeader("Range", "bytes=0-0");
+	QtCompat::setHttp2Allowed(request, false);
+	QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
+	request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
+#ifndef QT_NO_SSL
+	applySslConfig(request);
+#endif
+
+	qDebug() << "[MTDownload] Probing Range support with bytes=0-0...";
+	m_pNetworkReply = m_pNetworkManager->get(request);
+	if (m_pNetworkReply)
+	{
+		connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
+#ifndef QT_NO_SSL
+		connectSslErrorHandling(m_pNetworkReply);
+#endif
+		return;
+	}
+
+	m_upContext->downloadConfig->threadCount = 1;
+	transitionTo(std::make_unique<MultiDownloadState>());
+}
+
+void NetworkMTDownloadRequest::handleRangeProbeFinished(QNetworkReply* reply)
+{
+	if (!reply)
+	{
+		m_upContext->downloadConfig->threadCount = 1;
+		transitionTo(std::make_unique<MultiDownloadState>());
+		return;
+	}
+
+	int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+	bool probeSuccess = (statusCode == 206);
+
+	m_bRangeSupportProbed = true;
+	m_bRangeSupported = probeSuccess;
+
+	qDebug() << "[MTDownload] Range probe result:" << statusCode
+			 << (probeSuccess ? "(206 - supported)" : "(not supported)");
+
+	if (!probeSuccess)
+		m_upContext->downloadConfig->threadCount = 1;
+
+	reply->deleteLater();
+	m_pNetworkReply = nullptr;
+
+	transitionTo(std::make_unique<MultiDownloadState>());
+}
+
+void NetworkMTDownloadRequest::doMultiDownload()
+{
+	startMTDownloadInternal();
 }
 
 void NetworkMTDownloadRequest::clearDownloaders()

@@ -16,31 +16,48 @@ class QFile;
 namespace QtNetworkRequest
 {
 	class Downloader;
+	class IMDTDownloadState;
+	class ProbeState;
+	class RangeProbeState;
+	class MultiDownloadState;
 
 	// Multi-threaded download request (here thread refers to download channel. A file is divided into multiple parts, downloaded simultaneously by multiple download channels)
 	class NetworkMTDownloadRequest : public NetworkRequest
 	{
 		Q_OBJECT;
 
+		// Phase states access internal members for their phase-specific logic
+		friend class ProbeState;
+		friend class RangeProbeState;
+		friend class MultiDownloadState;
+
 	public:
 		explicit NetworkMTDownloadRequest(QObject *parent = 0);
 		~NetworkMTDownloadRequest();
+
+		/// Transition to a new phase state. The old state is destroyed.
+		void transitionTo(std::unique_ptr<IMDTDownloadState> newState);
 
 	public Q_SLOTS:
 		void start() Q_DECL_OVERRIDE;
 		void abort() Q_DECL_OVERRIDE;
 		void onFinished() Q_DECL_OVERRIDE;
+		void onError(QNetworkReply::NetworkError code) Q_DECL_OVERRIDE;
 		void onSubPartFinished(int index, bool bSuccess, const QString &strErr);
 		void onSubPartDownloadProgress(int index, qint64 bytesReceived, qint64 bytesTotal);
-		void onRangeProbeFinished();
 
 	protected:
 		void cleanupForRetry() Q_DECL_OVERRIDE { clearDownloaders(); clearProgress(); }
 
 	private:
-		bool requestFileSize();
-		bool requestRangeProbe();
-		void startMTDownload();
+		// Phase methods called by state objects
+		void doProbeRequest();
+		void handleProbeFinished(QNetworkReply* reply);
+		void doRangeProbeRequest();
+		void handleRangeProbeFinished(QNetworkReply* reply);
+		void doMultiDownload();
+
+		void startMTDownloadInternal();
 		void clearDownloaders();
 		void clearProgress();
 		QString generateTempFilePath(const QString& originalPath);
@@ -66,6 +83,8 @@ namespace QtNetworkRequest
 
 		bool m_bRangeSupportProbed{ false };  // Whether we've completed a range probe
 		bool m_bRangeSupported{ false };      // Whether the server actually honors Range requests
+
+		std::unique_ptr<IMDTDownloadState> m_state;  // Current phase state
 	};
 
 	// Used for downloading files (or part of a file)
