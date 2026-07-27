@@ -12,9 +12,7 @@
 #include <QEvent>
 #include <QDebug>
 #include <QCoreApplication>
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
-#include <QRecursiveMutex>
-#endif
+#include "qtcompat.h"
 #include "networkrequestrunnable.h"
 #include "networkreply.h"
 #include "networkrequestevent.h"
@@ -105,11 +103,7 @@ private:
     static std::atomic<quint64> ms_uiSessionId;
     std::atomic<bool> m_bStopAllFlag;
 
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
-    mutable QRecursiveMutex m_mutex;
-#else
-    mutable QMutex m_mutex;
-#endif
+    mutable QtCompat::Mutex m_mutex;
     QThreadPool *m_pThreadPool;
 
     QHash<quint64, std::shared_ptr<NetworkRequestRunnable>> m_mapRunnable;
@@ -306,8 +300,7 @@ void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
             {
                 rsp->task = r->task();
 
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 9, 0))
-                if (!m_pThreadPool->tryTake(r.get()))
+                if (QtCompat::retireIfRunning(m_pThreadPool, r.get()))
                 {
                     r->quit();
                     // run() is still executing on a worker thread. Keep the
@@ -316,11 +309,6 @@ void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
                     // would destroy it mid-run (use-after-free).
                     m_retiredRunnables.insert(r->requestId(), r);
                 }
-#else
-                m_pThreadPool->cancel(r.get());
-                r->quit();
-                m_retiredRunnables.insert(r->requestId(), r);
-#endif
                 // r will be naturally released when leaving scope for the
                 // not-started case; running runnables are owned by
                 // m_retiredRunnables until finished() fires.
@@ -367,18 +355,12 @@ void NetworkRequestManagerPrivate::stopBatchRequests(quint64 uiBatchId)
             std::shared_ptr<NetworkRequestRunnable> r = iter.value();
             if (r.get() && r->batchId() == uiBatchId)
             {
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 9, 0))
-                if (!m_pThreadPool->tryTake(r.get()))
+                if (QtCompat::retireIfRunning(m_pThreadPool, r.get()))
                 {
                     r->quit();
                     // Still running: keep alive until finished() (see stopRequest).
                     m_retiredRunnables.insert(r->requestId(), r);
                 }
-#else
-                m_pThreadPool->cancel(r.get());
-                r->quit();
-                m_retiredRunnables.insert(r->requestId(), r);
-#endif
                 iter = m_mapRunnable.erase(iter);
             }
             else
@@ -449,18 +431,12 @@ void NetworkRequestManagerPrivate::stopSessionRequest(quint64 uiSessionId)
         std::shared_ptr<NetworkRequestRunnable> r = iter.value();
         if (r.get() && r->sessionId() == uiSessionId)
         {
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 9, 0))
-            if (!m_pThreadPool->tryTake(r.get()))
+            if (QtCompat::retireIfRunning(m_pThreadPool, r.get()))
             {
                 r->quit();
                 // Still running: keep alive until finished() (see stopRequest).
                 m_retiredRunnables.insert(r->requestId(), r);
             }
-#else
-            m_pThreadPool->cancel(r.get());
-            r->quit();
-            m_retiredRunnables.insert(r->requestId(), r);
-#endif
             iter = m_mapRunnable.erase(iter);
         }
         else
@@ -503,18 +479,12 @@ void NetworkRequestManagerPrivate::stopAllRequest()
             std::shared_ptr<NetworkRequestRunnable> r = iter.value();
             if (r.get())
             {
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 9, 0))
-                if (!m_pThreadPool->tryTake(r.get()))
+                if (QtCompat::retireIfRunning(m_pThreadPool, r.get()))
                 {
                     r->quit();
                     // Still running: keep alive until finished() (see stopRequest).
                     m_retiredRunnables.insert(r->requestId(), r);
                 }
-#else
-                m_pThreadPool->cancel(r.get());
-                r->quit();
-                m_retiredRunnables.insert(r->requestId(), r);
-#endif
             }
         }
         m_mapRunnable.clear();

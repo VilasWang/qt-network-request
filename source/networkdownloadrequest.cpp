@@ -10,22 +10,32 @@
 #include "networkrequestmanager.h"
 #include "networkrequestutility.h"
 #include "networkrequestevent.h"
+#include "qtcompat.h"
+#include "networkrequestregistry.h"
+
+// Self-registration: single-threaded download
+namespace {
+	[[maybe_unused]] static const int _regDownload = []() -> int {
+		using namespace QtNetworkRequest;
+		NetworkRequestRegistry::instance().registerCreator(
+			RequestType::Download, 5,
+			[](RequestContext*) -> NetworkRequest* {
+				return new NetworkDownloadRequest();
+			});
+		return 0;
+	}();
+}
 
 using namespace QtNetworkRequest;
 
 NetworkDownloadRequest::NetworkDownloadRequest(QObject *parent)
     : NetworkRequest(parent), m_pFile(nullptr)
 {
-	m_timer.setInterval(m_mIntervalMs);
-	connect(&m_timer, &QTimer::timeout, this, [this]()
-		{
-			m_readyToEmitProgress = true;
-		});
+	m_throttle = std::make_unique<ProgressThrottle>(250, this);
 }
 
 NetworkDownloadRequest::~NetworkDownloadRequest()
 {
-    m_timer.stop();
     // Improved destructor - ensure proper resource cleanup
     if (m_pFile && m_pFile->isOpen())
     {
@@ -71,27 +81,7 @@ void NetworkDownloadRequest::start()
         return;
     }
 
-    // Get thread-affine NAM from pool
-    if (nullptr == m_pNetworkManager)
-    {
-        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
-    }
-    // Per-request proxy applies after pool's global proxy
-    applyProxyConfig(m_pNetworkManager);
-
-    // Set cookies
-    for (const QNetworkCookie &cookie : m_upContext->cookies)
-    {
-        if (m_pNetworkManager->cookieJar())
-        {
-            m_pNetworkManager->cookieJar()->insertCookie(cookie);
-        }
-    }
-
-    QNetworkRequest request(url);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-    request.setTransferTimeout(m_upContext->behavior.transferTimeout);
-#endif
+    QNetworkRequest request = prepareRequest();
     // NOTE: Do NOT set "Accept-Encoding" manually. Qt transparently negotiates
     // and decompresses gzip/deflate only when it adds the header itself; a manual
     // header disables auto-decompression and would persist raw compressed bytes.
@@ -99,17 +89,6 @@ void NetworkDownloadRequest::start()
     // Qt manages via its connection pool (keep-alive is the HTTP/1.1 default, and
     // the header is forbidden under HTTP/2 which Qt may negotiate).
     request.setRawHeader("User-Agent", "QtNetworkRequest/2.0");
-
-    // Set custom headers
-    auto iter = m_upContext->headers.cbegin();
-    for (; iter != m_upContext->headers.cend(); ++iter)
-    {
-        request.setRawHeader(iter.key(), iter.value());
-    }
-
-#ifndef QT_NO_SSL
-    applySslConfig(request);
-#endif
 
     m_pNetworkReply = m_pNetworkManager->get(request);
     if (!m_pNetworkReply)
@@ -124,11 +103,7 @@ void NetworkDownloadRequest::start()
     // Connect signals
     connect(m_pNetworkReply, SIGNAL(readyRead()), this, SLOT(onReadyRead()));
     connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-    connect(m_pNetworkReply, SIGNAL(errorOccurred(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
-#else
-    connect(m_pNetworkReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
-#endif
+    QtCompat::connectErrorSignal(m_pNetworkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
 
     if (m_upContext->behavior.showProgress)
     {
@@ -140,19 +115,11 @@ void NetworkDownloadRequest::start()
     connectSslErrorHandling(m_pNetworkReply);
 #endif
 
-#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
-    // Layer2b: Qt < 5.15 transfer timeout via elapsed timer
-    if (m_upContext->behavior.transferTimeout > 0)
-    {
-        m_transferElapsed.start();
-    }
-#endif
+    // Layer2b: transfer timeout via elapsed timer (no-op on Qt >= 5.15)
+    QtCompat::startTransferTimer(m_transferElapsed);
 
-    // Start the progress-throttle timer so onDownloadProgress() is allowed to
-    // emit at most once per interval. Mirrors NetworkUploadRequest and
-    // NetworkMTDownloadRequest; without it a single-thread download would never
-    // set m_readyToEmitProgress and downloadProgress() would never fire.
-    m_timer.start();
+    // Start the progress throttle so onDownloadProgress() fires at most once per interval.
+    m_throttle->start();
 }
 
 void NetworkDownloadRequest::onReadyRead()
@@ -202,77 +169,32 @@ void NetworkDownloadRequest::onFinished()
         return;
     }
 
-    bool bSuccess = (m_pNetworkReply->error() == QNetworkReply::NoError);
-    int statusCode = m_pNetworkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    const QUrl &url = m_url;
-    Q_ASSERT(url.isValid());
+    auto [bSuccess, statusCode] = evaluateOutcome();
+    if (!bSuccess && handleFailure())
+        return;
 
-    // Check HTTP status code
-    bool bHttpProxy = isHttpProxy(url.scheme()) || isHttpsProxy(url.scheme());
-    if (bHttpProxy)
-    {
-        bSuccess = bSuccess && (statusCode >= 200 && statusCode < 300);
-    }
-    if (!bSuccess)
-    {
-        if (tryRetry())
-            return;
-        // Handle redirection
-        if (statusCode == 301 || statusCode == 302)
-        {
-            const QVariant &redirectionTarget = m_pNetworkReply->attribute(QNetworkRequest::RedirectionTargetAttribute);
-            const QUrl &redirectUrl = url.resolved(redirectionTarget.toUrl());
-            if (redirectUrl.isValid() && url != redirectUrl && ++m_nRedirectionCount <= m_upContext->behavior.maxRedirectionCount)
-            {
-                qDebug() << "[NetworkDownloadRequest] Redirecting from:" << url.toString()
-                         << "to:" << redirectUrl.toString();
-                m_url = redirectUrl.toString();
-
-                // Clean up current resources
-                m_pNetworkReply->deleteLater();
-                m_pNetworkReply = nullptr;
-
-                CloseFile(true);
-
-                // Restart request
-                start();
-                return;
-            }
-        }
-        else if (bHttpProxy)
-        {
-            qDebug() << "[NetworkDownloadRequest]" << QString("HTTP error: status code %1").arg(statusCode);
-        }
-    }
-
-    // Clean up file
+    // Clean up file (delete on failure, keep on success)
     CloseFile(!bSuccess);
 
     // Get response header information
     QMap<QByteArray, QByteArray> responseHeaders;
-    if (!m_bAbortManual && m_pNetworkReply->isOpen()) // Not ended by calling abort()
+    if (bSuccess)
     {
-        if (bSuccess)
+        if (!m_bAbortManual && m_pNetworkReply->isOpen())
         {
             foreach(const QByteArray & header, m_pNetworkReply->rawHeaderList())
             {
                 responseHeaders[header] = m_pNetworkReply->rawHeader(header);
             }
         }
-    }
-
-    if (bSuccess)
-    {
-        qDebug() << "[NetworkDownloadRequest] Download completed successfully:" << url.toString();
+        qDebug() << "[NetworkDownloadRequest] Download completed successfully:" << m_url.toString();
     }
     else
     {
         qDebug() << "[NetworkDownloadRequest] Download failed:" << m_strError;
     }
 
-    // Clean up current resources
-    m_pNetworkReply->deleteLater();
-    m_pNetworkReply = nullptr;
+    disposeReply();
 
     m_nBytesReceived = m_nBytesWritten;
     if (m_spResult)
@@ -292,22 +214,22 @@ void NetworkDownloadRequest::onDownloadProgress(qint64 iReceived, qint64 iTotal)
     if (iReceived > 0)
         resetIdleTimer();
 
-    if (m_bAbortManual || !m_readyToEmitProgress || iReceived <= 0 || iTotal <= 0)
+    if (m_bAbortManual)
         return;
 
-    int progress = static_cast<int>(iReceived * 100 / iTotal);
-    if (m_nProgress < progress)
-    {
-        m_readyToEmitProgress = false;
-
-        m_nProgress = progress;
-        NetworkProgressEvent *event = new NetworkProgressEvent;
-        event->uiId = m_upContext->task.id;
-        event->uiBatchId = m_upContext->task.batchId;
-        event->iBytes = iReceived;
-        event->iTotalBytes = iTotal;
-        QCoreApplication::postEvent(NetworkRequestManager::globalInstance(), event);
-    }
+    m_throttle->report(iReceived, iTotal, [this](qint64 bytes, qint64 total) {
+        int progress = static_cast<int>(bytes * 100 / total);
+        if (m_nProgress < progress)
+        {
+            m_nProgress = progress;
+            NetworkProgressEvent *event = new NetworkProgressEvent;
+            event->uiId = m_upContext->task.id;
+            event->uiBatchId = m_upContext->task.batchId;
+            event->iBytes = bytes;
+            event->iTotalBytes = total;
+            QCoreApplication::postEvent(NetworkRequestManager::globalInstance(), event);
+        }
+    });
 }
 
 void NetworkDownloadRequest::CloseFile(bool bRemove)

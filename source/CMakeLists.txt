@@ -16,6 +16,9 @@ add_library(QNetworkRequest SHARED
     networkrequestrunnable.cpp
     networkuploadrequest.cpp
     networkrequestutility.cpp
+    progressthrottle.cpp
+    networkrequestregistry.cpp
+    requeststrategies.cpp
 
     # ── Private headers (AUTOMOC) ────────────────────────────────────────────
     memorymappedfile.h
@@ -29,6 +32,10 @@ add_library(QNetworkRequest SHARED
     networkuploadrequest.h
     networkrequestutility.h
     sharedcookiejar.h
+    networkrequestregistry.h
+    progressthrottle.h
+    qtcompat.h
+    requeststrategies.h
 
     # ── Public headers (AUTOMOC) ─────────────────────────────────────────────
     ${CMAKE_SOURCE_DIR}/include/networkrequestmanager.h

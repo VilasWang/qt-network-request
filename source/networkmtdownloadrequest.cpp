@@ -1,6 +1,7 @@
 #include "networkmtdownloadrequest.h"
 #include "memorymappedfile.h"
-#include <QtGlobal> // Add Qt version check support
+#include "qtcompat.h"
+#include "networkrequestregistry.h"
 #include <QThread>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -21,6 +22,29 @@
 #include "networkrequestmanager.h"
 #include "networkrequestutility.h"
 #include "networkrequestevent.h"
+
+// Self-registration: multi-thread download (higher priority than single-thread),
+// also for explicit MTDownload type.
+namespace {
+	[[maybe_unused]] static const int _regMTDownload = []() -> int {
+		using namespace QtNetworkRequest;
+		// MTDownload type — explicit multi-thread download
+		NetworkRequestRegistry::instance().registerCreator(
+			RequestType::MTDownload, 10,
+			[](RequestContext*) -> NetworkRequest* {
+				return new NetworkMTDownloadRequest();
+			});
+		// Download type with threadCount > 1 (or auto) — higher priority than single-thread
+		NetworkRequestRegistry::instance().registerCreator(
+			RequestType::Download, 10,
+			[](RequestContext* ctx) -> NetworkRequest* {
+				if (ctx && ctx->downloadConfig && (ctx->downloadConfig->threadCount > 1 || ctx->downloadConfig->threadCount == 0))
+					return new NetworkMTDownloadRequest();
+				return nullptr; // fall through to single-thread DownloadRequest
+			});
+		return 0;
+	}();
+}
 
 using namespace QtNetworkRequest;
 
@@ -76,9 +100,7 @@ bool NetworkMTDownloadRequest::requestFileSize()
     // Per-request proxy applies after pool's global proxy
     applyProxyConfig(m_pNetworkManager);
     QNetworkRequest request(url);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-    request.setTransferTimeout(m_upContext->behavior.transferTimeout);
-#endif
+    QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
 
 #ifndef QT_NO_SSL
     applySslConfig(request);
@@ -88,23 +110,14 @@ bool NetworkMTDownloadRequest::requestFileSize()
     if (m_pNetworkReply)
     {
         connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-        connect(m_pNetworkReply, SIGNAL(errorOccurred(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
-#else
-        connect(m_pNetworkReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
-#endif
+        QtCompat::connectErrorSignal(m_pNetworkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
 #ifndef QT_NO_SSL
         connectSslErrorHandling(m_pNetworkReply);
 #endif
     }
 
-#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
-    // Layer2b: Qt < 5.15 transfer timeout via elapsed timer
-    if (m_upContext->behavior.transferTimeout > 0)
-    {
-        m_transferElapsed.start();
-    }
-#endif
+    // Layer2b: transfer timeout via elapsed timer (no-op on Qt >= 5.15)
+    QtCompat::startTransferTimer(m_transferElapsed);
     return true;
 }
 
@@ -127,12 +140,8 @@ bool NetworkMTDownloadRequest::requestRangeProbe()
 
     QNetworkRequest request(m_url);
     request.setRawHeader("Range", "bytes=0-0");
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 13, 0))
-    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
-#endif
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-    request.setTransferTimeout(m_upContext->behavior.transferTimeout);
-#endif
+    QtCompat::setHttp2Allowed(request, false);
+    QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
     request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
 
 #ifndef QT_NO_SSL
@@ -449,19 +458,10 @@ void NetworkMTDownloadRequest::onFinished()
         return;
     }
 
-    bool bSuccess = (m_pNetworkReply->error() == QNetworkReply::NoError);
-    int statusCode = m_pNetworkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    const QUrl& url = m_url;
-    Q_ASSERT(url.isValid());
-    // Check HTTP status code
-    bool bHttpProxy = isHttpProxy(url.scheme()) || isHttpsProxy(url.scheme());
-    if (bHttpProxy)
-    {
-        bSuccess = bSuccess && (statusCode >= 200 && statusCode < 300);
-    }
+    auto [bSuccess, statusCode] = evaluateOutcome();
     if (!bSuccess)
     {
-        // Handle redirection
+        // Handle redirection (special: redirect restarts with requestFileSize, not start())
         if (statusCode == 301 || statusCode == 302)
         {
             const QVariant &redirectionTarget = m_pNetworkReply->attribute(QNetworkRequest::RedirectionTargetAttribute);
@@ -479,9 +479,11 @@ void NetworkMTDownloadRequest::onFinished()
                 return;
             }
         }
-        else if (bHttpProxy)
+        else
         {
-            qDebug() << "[NetworkMTDownloadRequest]" << QString("HTTP error: status code %1").arg(statusCode);
+            bool bHttpProxy = isHttpProxy(m_url.scheme()) || isHttpsProxy(m_url.scheme());
+            if (bHttpProxy)
+                qDebug() << "[NetworkMTDownloadRequest]" << QString("HTTP error: status code %1").arg(statusCode);
         }
 
         if (tryRetry())
@@ -648,11 +650,7 @@ Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessMa
       , m_ignorePolicy(SslConfig::IgnorePolicy::Never)
 #endif
 {
-	m_timer.setInterval(m_mIntervalMs);
-	connect(&m_timer, &QTimer::timeout, this, [this]()
-		{
-			m_readyToEmitProgress = true;
-		});
+	m_throttle = std::make_unique<ProgressThrottle>(250, this);
 }
 
 Downloader::~Downloader()
@@ -663,7 +661,7 @@ Downloader::~Downloader()
 void Downloader::abort()
 {
     m_bAbortManual = true;
-    m_timer.stop();
+    m_throttle->stop();
     if (m_pNetworkReply)
     {
         if (m_pNetworkReply->isRunning())
@@ -729,16 +727,11 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
     QNetworkRequest request;
     request.setUrl(url);
     request.setRawHeader("Range", range.toLocal8Bit());
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-    if (m_transferTimeout > 0)
-        request.setTransferTimeout(m_transferTimeout);
-#endif
+    QtCompat::setTransferTimeout(request, m_transferTimeout);
     // Force HTTP/1.1 — when HTTP/2 multiplexes concurrent Range requests
     // onto a single connection, CDNs (Cloudflare, Varnish) may drop the
     // Range header and return 200 with the full body.
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 13, 0))
-    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
-#endif
+    QtCompat::setHttp2Allowed(request, false);
     request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
 
 #ifndef QT_NO_SSL
@@ -758,28 +751,21 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
     {
         connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
         connect(m_pNetworkReply, SIGNAL(readyRead()), this, SLOT(onReadyRead()));
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-        connect(m_pNetworkReply, SIGNAL(errorOccurred(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
-#else
-        connect(m_pNetworkReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
-#endif
+        QtCompat::connectErrorSignal(m_pNetworkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
 #ifndef QT_NO_SSL
         connect(m_pNetworkReply, &QNetworkReply::sslErrors, this, &Downloader::onSslErrors);
 #endif
 
         connect(m_pNetworkReply, &QNetworkReply::downloadProgress, this, [this](qint64 bytesReceived, qint64 bytesTotal)
             {
-                if (!m_bAbortManual && m_readyToEmitProgress && bytesReceived > 0 && bytesTotal > 0)
-                {
-                    m_readyToEmitProgress = false;
-                }
+                m_throttle->report(bytesReceived, bytesTotal, nullptr);
                 // N6: Forward data arrival for Layer3 idle timeout
                 if (bytesReceived > 0)
                     emit dataReceived();
                 emit downloadProgress(m_nIndex, bytesReceived, bytesTotal); 
             });
     }
-    m_timer.start();
+    m_throttle->start();
     return true;
 }
 

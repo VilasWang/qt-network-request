@@ -8,9 +8,28 @@
 
 #include "networkrequestutility.h"
 #include "networkrequestmanager.h"
-#include <QtGlobal> // Add header file for Qt version checking
+#include "qtcompat.h"
+#include "networkrequestregistry.h"
 #include "QThread"
 #include "QHttpMultiPart"
+
+// Self-registration: register for all common request types
+namespace {
+	[[maybe_unused]] static const int _regCommonRequests = []() -> int {
+		using namespace QtNetworkRequest;
+		for (auto type : {RequestType::Get, RequestType::Post, RequestType::Put,
+						  RequestType::Delete, RequestType::Head,
+						  RequestType::Patch, RequestType::Options})
+		{
+			NetworkRequestRegistry::instance().registerCreator(
+				type, 5,
+				[](RequestContext*) -> NetworkRequest* {
+					return new NetworkCommonRequest();
+				});
+		}
+		return 0;
+	}();
+}
 
 using namespace QtNetworkRequest;
 
@@ -66,41 +85,14 @@ void NetworkCommonRequest::start()
         }
     }
 
-    if (nullptr == m_pNetworkManager)
-    {
-        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
-    }
-    // Per-request proxy applies after pool's global proxy
-    applyProxyConfig(m_pNetworkManager);
-    for (QNetworkCookie &cookie : m_upContext->cookies)
-    {
-        if (m_pNetworkManager->cookieJar())
-        {
-            m_pNetworkManager->cookieJar()->insertCookie(cookie);
-        }
-    }
+    QNetworkRequest request = prepareRequest();
 
-    QNetworkRequest request(url);
-
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-    request.setTransferTimeout(m_upContext->behavior.transferTimeout);
-#endif
-
-    // Set default User-Agent if not provided
+    // Set default User-Agent if not provided (prepareRequest sets custom headers,
+    // but we add User-Agent as a default if missing)
     if (!m_upContext->headers.contains("User-Agent") && !m_upContext->headers.contains("user-agent"))
     {
         request.setRawHeader("User-Agent", "QtNetworkRequest/2.0");
     }
-
-    auto iter = m_upContext->headers.cbegin();
-    for (; iter != m_upContext->headers.cend(); ++iter)
-    {
-        request.setRawHeader(iter.key(), iter.value());
-    }
-
-#ifndef QT_NO_SSL
-    applySslConfig(request);
-#endif
 
     if (m_upContext->type == RequestType::Get)
     {
@@ -214,24 +206,15 @@ void NetworkCommonRequest::start()
 
     connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
     connect(m_pNetworkReply, &QNetworkReply::readyRead, this, [this]() { resetIdleTimer(); });
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-    connect(m_pNetworkReply, SIGNAL(errorOccurred(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
-#else
-    connect(m_pNetworkReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
-#endif
+    QtCompat::connectErrorSignal(m_pNetworkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
     connect(m_pNetworkManager, SIGNAL(authenticationRequired(QNetworkReply *, QAuthenticator *)),
             SLOT(onAuthenticationRequired(QNetworkReply *, QAuthenticator *)));
 #ifndef QT_NO_SSL
     connectSslErrorHandling(m_pNetworkReply);
 #endif
 
-#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
-    // Layer2b: Qt < 5.15 transfer timeout via elapsed timer
-    if (m_upContext->behavior.transferTimeout > 0)
-    {
-        m_transferElapsed.start();
-    }
-#endif
+    // Layer2b: transfer timeout via elapsed timer (no-op on Qt >= 5.15)
+    QtCompat::startTransferTimer(m_transferElapsed);
 }
 
 void NetworkCommonRequest::onFinished()
@@ -244,64 +227,17 @@ void NetworkCommonRequest::onFinished()
         return;
     }
 
-    bool bSuccess = (m_pNetworkReply->error() == QNetworkReply::NoError);
-    int statusCode = m_pNetworkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    const QUrl &url = m_url;
-    Q_ASSERT(url.isValid());
-
-    bool bHttpProxy = isHttpProxy(url.scheme()) || isHttpsProxy(url.scheme());
-    if (bHttpProxy)
-    {
-        bSuccess = bSuccess && (statusCode >= 200 && statusCode < 300);
-    }
-    if (!bSuccess)
-    {
-        if (tryRetry())
-            return;
-        // Handle redirection
-        if (statusCode == 301 || statusCode == 302)
-        {
-            const QVariant &redirectionTarget = m_pNetworkReply->attribute(QNetworkRequest::RedirectionTargetAttribute);
-            const QUrl &redirectUrl = url.resolved(redirectionTarget.toUrl());
-            if (redirectUrl.isValid() && url != redirectUrl && ++m_nRedirectionCount <= m_upContext->behavior.maxRedirectionCount)
-            {
-                qDebug() << "[NetworkCommonRequest] Redirecting from:" << url.toString()
-                         << "to:" << redirectUrl.toString();
-                m_url = redirectUrl;
-
-                // Clean up current resources
-                m_pNetworkReply->deleteLater();
-                m_pNetworkReply = nullptr;
-
-                // Restart request
-                start();
-                return;
-            }
-        }
-        else if (bHttpProxy)
-        {
-            qDebug() << "[NetworkCommonRequest]" << QString("HTTP error: status code %1").arg(statusCode);
-        }
-    }
+    auto [bSuccess, statusCode] = evaluateOutcome();
+    if (!bSuccess && handleFailure())
+        return;
 
     // Get response header information
     QMap<QByteArray, QByteArray> responseHeaders;
     QByteArray body;
-    if (!m_bAbortManual && m_pNetworkReply->isOpen()) // Not ended by calling abort()
-    {
-        if (bSuccess)
-        {
-            body = m_pNetworkReply->readAll();
-            foreach(const QByteArray & header, m_pNetworkReply->rawHeaderList())
-            {
-                responseHeaders[header] = m_pNetworkReply->rawHeader(header);
-            }
-        }
-    }
+    if (bSuccess)
+        collectResponse(responseHeaders, body);
 
-    // Clean up current resources
-    m_pNetworkReply->deleteLater();
-    m_pNetworkReply = nullptr;
+    disposeReply();
 
     m_nBytesReceived = body.size();
     if (m_spResult)

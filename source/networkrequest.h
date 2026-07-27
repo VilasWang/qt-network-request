@@ -11,6 +11,7 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QNetworkAccessManager>
+#include "qtcompat.h"
 #ifndef QT_NO_SSL
 #include <QSslError>
 #endif
@@ -61,6 +62,32 @@ namespace QtNetworkRequest
 		// 判断错误是否可重试（瞬态错误）
 		bool isTransientError(QNetworkReply::NetworkError err);
 
+		// ── Shared helper methods (consolidated from duplicated subclass code) ──
+
+		/// Acquire NAM, set cookies, return a pre-configured QNetworkRequest.
+		/// Subclasses call this at the start of their start() to avoid duplicating
+		/// the NAM acquisition + proxy + cookie + header + SSL + transferTimeout setup.
+		QNetworkRequest prepareRequest();
+
+		/// Check success: NoError + HTTP proxy 2xx.  @return (success, httpStatusCode)
+		std::pair<bool, int> evaluateOutcome();
+
+		/// Attempt retry or redirect.  @return true if the caller should return immediately
+		/// (retry was scheduled or redirect restarted the request).
+		bool handleFailure();
+
+		/// Populate responseHeaders + read body from reply into result.
+		void collectResponse(QMap<QByteArray, QByteArray>& outHeaders, QByteArray& outBody);
+
+		/// Cleanup reply with deleteLater() and null the pointer.
+		void disposeReply();
+
+		// ── Strategy hooks (for future strategy-pattern injection) ──
+		// Currently unused — reserved for Phase 3 full migration
+		// virtual QNetworkRequest  buildRequest()      = 0;
+		// virtual QNetworkReply*  executeRequest(QNetworkRequest&) = 0;
+		// virtual bool            processResponseBody(QNetworkReply*) { return true; }
+
 	public Q_SLOTS:
 		virtual void start();
 		virtual void abort();
@@ -101,9 +128,9 @@ namespace QtNetworkRequest
 		void resetIdleTimer();            // call on data arrival to reset idle counter
 		virtual void onHeartbeat();       // heartbeat callback (Layer3 idle + Layer2b transfer)
 
-#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
-		QElapsedTimer m_transferElapsed;  // Layer2b: transfer timeout timer for Qt < 5.15
-#endif
+		// Layer2b: transfer timeout timer.
+		// On Qt >= 5.15 setTransferTimeout() is used; on < 5.15 heartbeat-based.
+		QElapsedTimer m_transferElapsed;
 	};
 
 	// Factory class

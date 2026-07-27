@@ -10,6 +10,7 @@
 #include <QDebug>
 #include <QFile>
 #include "responseresult.h"
+#include "qtcompat.h"
 
 using namespace QtNetworkRequest;
 
@@ -166,11 +167,7 @@ QString NetworkRequestUtility::getSaveFileName(const RequestContext* context)
     {
         if (pair.first.compare("response-content-disposition", Qt::CaseInsensitive) == 0 || pair.first.compare("content-disposition", Qt::CaseInsensitive) == 0)
         {
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
-            const QStringList &strlist = pair.second.split(";", Qt::SkipEmptyParts);
-#else
-            const QStringList &strlist = pair.second.split(";", QString::SkipEmptyParts);
-#endif
+            const QStringList &strlist = pair.second.split(";", QtCompat::kSkipEmptyParts);
             foreach (QString str, strlist)
             {
                 str = str.trimmed();

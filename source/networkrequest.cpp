@@ -1,13 +1,16 @@
 ﻿#include "networkrequest.h"
 #include <QDebug>
 #include <QThread>
+#include <QNetworkCookie>
 #include "networkdownloadrequest.h"
 #include "networkuploadrequest.h"
 #include "networkcommonrequest.h"
 #include "networkmtdownloadrequest.h"
 #include "networkrequestutility.h"
 #include "networkrequestmanager.h"
+#include "networkrequestregistry.h"
 #include "sharedcookiejar.h"
+#include "qtcompat.h"
 
 using namespace QtNetworkRequest;
 
@@ -116,10 +119,7 @@ void NetworkRequest::onHeartbeat()
     }
 
     // Layer2b: Transfer timeout for Qt < 5.15 (reuses heartbeat timer)
-#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
-    if (m_transferElapsed.isValid() &&
-        m_upContext &&
-        m_transferElapsed.elapsed() > m_upContext->behavior.transferTimeout)
+    if (QtCompat::isTransferTimedOut(m_transferElapsed, m_upContext->behavior.transferTimeout))
     {
         qWarning() << "[QMultiThreadNetwork] Request transfer timeout (legacy), taskId:" << m_upContext->task.id;
         setError(ErrorCategory::Timeout, ErrorCode::TimeoutTransfer,
@@ -130,7 +130,6 @@ void NetworkRequest::onHeartbeat()
             m_pNetworkReply->abort();
         }
     }
-#endif
 }
 
 void NetworkRequest::resetIdleTimer()
@@ -261,11 +260,7 @@ static QSsl::SslProtocol toQSslProtocol(SslConfig::TlsProtocol p)
     case SslConfig::TlsProtocol::TlsV1_1: return QSsl::TlsV1_1OrLater;
     case SslConfig::TlsProtocol::TlsV1_2: return QSsl::TlsV1_2OrLater;
     case SslConfig::TlsProtocol::TlsV1_3:
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
-        return QSsl::TlsV1_3OrLater;
-#else
-        return QSsl::TlsV1_2OrLater;  // fallback for Qt < 5.12
-#endif
+        return QtCompat::kHasTlsV1_3 ? QSsl::TlsV1_3OrLater : QSsl::TlsV1_2OrLater;
     case SslConfig::TlsProtocol::AnyProtocol: return QSsl::AnyProtocol;
     default: return QSsl::TlsV1_2OrLater;
     }
@@ -367,6 +362,131 @@ bool NetworkRequest::isTransientError(QNetworkReply::NetworkError err)
     }
 }
 
+// ============================================================================
+// Shared helper methods — consolidated from duplicated subclass code
+// ============================================================================
+
+QNetworkRequest NetworkRequest::prepareRequest()
+{
+    // Acquire thread-affine NAM from pool (once)
+    if (nullptr == m_pNetworkManager)
+    {
+        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
+    }
+
+    // Per-request proxy applies after pool's global proxy
+    applyProxyConfig(m_pNetworkManager);
+
+    // Set cookies
+    for (QNetworkCookie &cookie : m_upContext->cookies)
+    {
+        if (m_pNetworkManager->cookieJar())
+        {
+            m_pNetworkManager->cookieJar()->insertCookie(cookie);
+        }
+    }
+
+    QNetworkRequest request(m_url);
+    QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
+
+    // Set custom headers
+    auto iter = m_upContext->headers.cbegin();
+    for (; iter != m_upContext->headers.cend(); ++iter)
+    {
+        request.setRawHeader(iter.key(), iter.value());
+    }
+
+#ifndef QT_NO_SSL
+    applySslConfig(request);
+#endif
+
+    return request;
+}
+
+std::pair<bool, int> NetworkRequest::evaluateOutcome()
+{
+    if (!m_pNetworkReply)
+        return {false, 0};
+
+    bool bSuccess = (m_pNetworkReply->error() == QNetworkReply::NoError);
+    int statusCode = m_pNetworkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
+    bool bHttpProxy = isHttpProxy(m_url.scheme()) || isHttpsProxy(m_url.scheme());
+    if (bHttpProxy)
+    {
+        bSuccess = bSuccess && (statusCode >= 200 && statusCode < 300);
+    }
+
+    return {bSuccess, statusCode};
+}
+
+bool NetworkRequest::handleFailure()
+{
+    auto [bSuccess, statusCode] = evaluateOutcome();
+    if (bSuccess)
+        return false;
+
+    // 1) Try retry first
+    if (tryRetry())
+        return true;
+
+    // 2) Handle redirection (301/302)
+    if (statusCode == 301 || statusCode == 302)
+    {
+        const QVariant &redirectionTarget = m_pNetworkReply->attribute(QNetworkRequest::RedirectionTargetAttribute);
+        const QUrl &redirectUrl = m_url.resolved(redirectionTarget.toUrl());
+        if (redirectUrl.isValid() && m_url != redirectUrl &&
+            ++m_nRedirectionCount <= m_upContext->behavior.maxRedirectionCount)
+        {
+            qDebug() << "[QMultiThreadNetwork] Redirecting from:" << m_url.toString()
+                     << "to:" << redirectUrl.toString();
+            m_url = redirectUrl;
+
+            // Clean up current resources
+            m_pNetworkReply->deleteLater();
+            m_pNetworkReply = nullptr;
+
+            // Subclass-specific cleanup
+            cleanupForRetry();
+
+            // Restart request
+            start();
+            return true;
+        }
+    }
+    else
+    {
+        bool bHttpProxy = isHttpProxy(m_url.scheme()) || isHttpsProxy(m_url.scheme());
+        if (bHttpProxy)
+        {
+            qDebug() << "[QMultiThreadNetwork]" << QString("HTTP error: status code %1").arg(statusCode);
+        }
+    }
+
+    return false; // caller should emit failure
+}
+
+void NetworkRequest::collectResponse(QMap<QByteArray, QByteArray>& outHeaders, QByteArray& outBody)
+{
+    if (!m_bAbortManual && m_pNetworkReply && m_pNetworkReply->isOpen())
+    {
+        outBody = m_pNetworkReply->readAll();
+        foreach (const QByteArray &header, m_pNetworkReply->rawHeaderList())
+        {
+            outHeaders[header] = m_pNetworkReply->rawHeader(header);
+        }
+    }
+}
+
+void NetworkRequest::disposeReply()
+{
+    if (m_pNetworkReply)
+    {
+        m_pNetworkReply->deleteLater();
+        m_pNetworkReply = nullptr;
+    }
+}
+
 void NetworkRequest::setRequestContext(std::unique_ptr<RequestContext> context)
 {
     if (context)
@@ -421,53 +541,11 @@ QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToSuccessResult
 
 std::unique_ptr<NetworkRequest> NetworkRequestFactory::create(std::unique_ptr<RequestContext> context)
 {
-    std::unique_ptr<NetworkRequest> pRequest;
     if (nullptr == context)
-    {
-        return pRequest;
-    }
-    switch (context->type)
-    {
-    case RequestType::Download:
-    {
-	if (context->downloadConfig->threadCount > 1 || context->downloadConfig->threadCount == 0)
-		{
-            pRequest = std::make_unique<NetworkMTDownloadRequest>();
-		}
-        else
-		{
-			pRequest = std::make_unique<NetworkDownloadRequest>();
-        }
-    }
-    break;
-    case RequestType::MTDownload:
-    {
-        pRequest = std::make_unique<NetworkMTDownloadRequest>();
-    }
-    break;
-    case RequestType::Upload:
-    {
-        pRequest = std::make_unique<NetworkUploadRequest>();
-    }
-    break;
-    case RequestType::Post:
-    case RequestType::Get:
-    case RequestType::Put:
-    case RequestType::Delete:
-    case RequestType::Head:
-    case RequestType::Patch:
-    case RequestType::Options:
-    {
-        pRequest = std::make_unique<NetworkCommonRequest>();
-    }
-    break;
-    /*New type add to here*/
-    default:
-        break;
-    }
-    if (pRequest)
-    {
-        pRequest->setRequestContext(std::move(context));
-    }
-    return pRequest;
+        return nullptr;
+
+    // Delegate to the self-registering factory.
+    // Each NetworkRequest subclass registers itself via static initializers,
+    // so new types don't require modifications here.
+    return NetworkRequestRegistry::instance().create(std::move(context));
 }

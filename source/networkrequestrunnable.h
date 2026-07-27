@@ -8,6 +8,7 @@
 #include "requestcontext.h"
 #include "responseresult.h"
 #include <QSharedPointer>
+#include "qtcompat.h"
 
 namespace QtNetworkRequest
 {
@@ -49,10 +50,6 @@ namespace QtNetworkRequest
 		std::atomic<bool> m_bAbort;
 		std::atomic<bool> m_bRunning{ false };        // true while run() is executing
 		std::atomic<bool> m_responseSent{ false };   // CAS gate: ensures exactly one response is emitted
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
-        mutable QRecursiveMutex m_mutex;
-#else
-        mutable QMutex m_mutex;
-#endif
+        mutable QtCompat::Mutex m_mutex;
 	};
 }

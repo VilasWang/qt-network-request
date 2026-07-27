@@ -10,22 +10,32 @@
 #include "networkrequestmanager.h"
 #include "networkrequestutility.h"
 #include "networkrequestevent.h"
+#include "qtcompat.h"
+#include "networkrequestregistry.h"
+
+// Self-registration: upload
+namespace {
+	[[maybe_unused]] static const int _regUpload = []() -> int {
+		using namespace QtNetworkRequest;
+		NetworkRequestRegistry::instance().registerCreator(
+			RequestType::Upload, 5,
+			[](RequestContext*) -> NetworkRequest* {
+				return new NetworkUploadRequest();
+			});
+		return 0;
+	}();
+}
 
 using namespace QtNetworkRequest;
 
 NetworkUploadRequest::NetworkUploadRequest(QObject *parent /* = nullptr */)
 	: NetworkRequest(parent)
 {
-	m_timer.setInterval(m_mIntervalMs);
-	connect(&m_timer, &QTimer::timeout, this, [this]()
-		{
-			m_readyToEmitProgress = true;
-		});
+	m_throttle = std::make_unique<ProgressThrottle>(250, this);
 }
 
 NetworkUploadRequest::~NetworkUploadRequest()
 {
-	m_timer.stop();
 	// Improved destructor - ensure proper resource cleanup
 	if (m_pFile && m_pFile->isOpen())
 	{
@@ -78,9 +88,7 @@ void NetworkUploadRequest::start()
 	}
 
 	QNetworkRequest request(url);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-	request.setTransferTimeout(m_upContext->behavior.transferTimeout);
-#endif
+	QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/octet-stream");
 	// Let Qt automatically handle Content-Length, remove manual setting
 	// request.setHeader(QNetworkRequest::ContentLengthHeader, bytes.length());
@@ -196,11 +204,7 @@ void NetworkUploadRequest::start()
 	}
 
 	connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-	connect(m_pNetworkReply, SIGNAL(errorOccurred(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
-#else
-	connect(m_pNetworkReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(onError(QNetworkReply::NetworkError)));
-#endif
+	QtCompat::connectErrorSignal(m_pNetworkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
 	connect(m_pNetworkManager, SIGNAL(authenticationRequired(QNetworkReply *, QAuthenticator *)),
 			SLOT(onAuthenticationRequired(QNetworkReply *, QAuthenticator *)));
 #ifndef QT_NO_SSL
@@ -211,14 +215,9 @@ void NetworkUploadRequest::start()
 		connect(m_pNetworkReply, SIGNAL(uploadProgress(qint64, qint64)), this, SLOT(onUploadProgress(qint64, qint64)));
 	}
 
-#if (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
-    // Layer2b: Qt < 5.15 transfer timeout via elapsed timer
-    if (m_upContext->behavior.transferTimeout > 0)
-    {
-        m_transferElapsed.start();
-    }
-#endif
-	m_timer.start();
+	// Layer2b: transfer timeout via elapsed timer (no-op on Qt >= 5.15)
+	QtCompat::startTransferTimer(m_transferElapsed);
+	m_throttle->start();
 }
 
 void NetworkUploadRequest::onFinished()
@@ -232,72 +231,22 @@ void NetworkUploadRequest::onFinished()
 
 	CloseFile();
 
-	bool bSuccess = (m_pNetworkReply->error() == QNetworkReply::NoError);
-	int statusCode = m_pNetworkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-	const QUrl &url = m_url;
-	Q_ASSERT(url.isValid());
-
-	bool bHttpProxy = isHttpProxy(url.scheme()) || isHttpsProxy(url.scheme());
-	if (bHttpProxy)
-	{
-		bSuccess = bSuccess && (statusCode >= 200 && statusCode < 300);
-	}
-	if (!bSuccess)
-	{
-		if (tryRetry())
-			return;
-		// Handle redirection
-		if (statusCode == 301 || statusCode == 302)
-		{
-			const QVariant &redirectionTarget = m_pNetworkReply->attribute(QNetworkRequest::RedirectionTargetAttribute);
-			const QUrl &redirectUrl = url.resolved(redirectionTarget.toUrl());
-			if (redirectUrl.isValid() && url != redirectUrl && ++m_nRedirectionCount <= m_upContext->behavior.maxRedirectionCount)
-			{
-				qDebug() << "[NetworkUploadRequest] Redirecting from:" << url.toString()
-						 << "to:" << redirectUrl.toString();
-				m_url = redirectUrl.toString();
-
-				// Clean up current resources
-				m_pNetworkReply->deleteLater();
-				m_pNetworkReply = nullptr;
-
-				// Restart request
-				start();
-				return;
-			}
-		}
-		else if (bHttpProxy)
-		{
-			qDebug() << "[NetworkUploadRequest]" << QString("HTTP error: status code %1").arg(statusCode);
-		}
-	}
+	auto [bSuccess, statusCode] = evaluateOutcome();
+	if (!bSuccess && handleFailure())
+		return;
 
 	// Get response header information
 	QMap<QByteArray, QByteArray> responseHeaders;
 	QByteArray body;
-	if (!m_bAbortManual && m_pNetworkReply->isOpen()) // Not ended by calling abort()
-	{
-		if (bSuccess)
-		{
-			body = m_pNetworkReply->readAll();
-            foreach(const QByteArray & header, m_pNetworkReply->rawHeaderList())
-            {
-                responseHeaders[header] = m_pNetworkReply->rawHeader(header);
-            }
-		}
-	}
 	if (bSuccess)
-	{
-		qDebug() << "[NetworkDownloadRequest] Upload completed successfully:" << url.toString();
-	}
-	else
-	{
-		qDebug() << "[NetworkDownloadRequest] Upload failed:" << m_strError;
-	}
+		collectResponse(responseHeaders, body);
 
-	// Clean up current resources
-	m_pNetworkReply->deleteLater();
-	m_pNetworkReply = nullptr;
+	if (bSuccess)
+		qDebug() << "[NetworkDownloadRequest] Upload completed successfully:" << m_url.toString();
+	else
+		qDebug() << "[NetworkDownloadRequest] Upload failed:" << m_strError;
+
+	disposeReply();
 
     m_nBytesSent = qMax(m_nBytesSent, m_nLastSentBytes);
     if (m_spResult)
@@ -320,22 +269,23 @@ void NetworkUploadRequest::onUploadProgress(qint64 iSent, qint64 iTotal)
     if (iSent > 0)
         resetIdleTimer();
 
-	if (m_bAbortManual || !m_readyToEmitProgress || iSent <= 0 || iTotal <= 0)
+	if (m_bAbortManual)
 		return;
-	m_readyToEmitProgress = false;
 
-	int progress = iSent * 100 / iTotal;
-	if (m_nProgress < progress)
-	{
-		m_nProgress = progress;
-		NetworkProgressEvent *event = new NetworkProgressEvent;
-		event->bDownload = false;
-		event->uiId = m_upContext->task.id;
-		event->uiBatchId = m_upContext->task.batchId;
-		event->iBytes = iSent;
-		event->iTotalBytes = iTotal;
-		QCoreApplication::postEvent(NetworkRequestManager::globalInstance(), event);
-	}
+	m_throttle->report(iSent, iTotal, [this](qint64 bytes, qint64 total) {
+		int progress = bytes * 100 / total;
+		if (m_nProgress < progress)
+		{
+			m_nProgress = progress;
+			NetworkProgressEvent *event = new NetworkProgressEvent;
+			event->bDownload = false;
+			event->uiId = m_upContext->task.id;
+			event->uiBatchId = m_upContext->task.batchId;
+			event->iBytes = bytes;
+			event->iTotalBytes = total;
+			QCoreApplication::postEvent(NetworkRequestManager::globalInstance(), event);
+		}
+	});
 }
 
 void NetworkUploadRequest::CloseFile()

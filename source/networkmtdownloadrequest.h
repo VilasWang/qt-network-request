@@ -6,10 +6,10 @@
 #include <QPointer>
 #include <QMutex>
 #include <QElapsedTimer>
-#include <QTimer>
 
 #include "networkrequest.h"
 #include "memorymappedfile.h"
+#include "progressthrottle.h"
 
 class QFile;
 
@@ -131,9 +131,7 @@ namespace QtNetworkRequest
 		QList<QSslError::SslError> m_resolvedIgnoreErrorTypes;
 #endif
 
-		QTimer m_timer;
-		int m_mIntervalMs{ 250 };
-		bool m_readyToEmitProgress = false;  // throttle flag: true when timer fired, ready to send progress
+		std::unique_ptr<ProgressThrottle> m_throttle;
 	};
 }
 

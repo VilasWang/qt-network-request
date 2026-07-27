@@ -2,9 +2,9 @@
 
 #include <QObject>
 #include <memory>
-#include <QTimer>
 
 #include "networkrequest.h"
+#include "progressthrottle.h"
 
 #ifndef QT_NO_SSL
 #include <QSslError>
@@ -37,9 +37,7 @@ namespace QtNetworkRequest
 
 	private:
 		std::unique_ptr<QFile> m_pFile;
-		QTimer m_timer;
-		int m_mIntervalMs{ 250 };
-		bool m_readyToEmitProgress = false;  // throttle flag: true when timer fired, ready to send progress
+		std::unique_ptr<ProgressThrottle> m_throttle;
 		qint64 m_nBytesWritten{ 0 };
 	};
 }
