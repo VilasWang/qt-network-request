@@ -1,5 +1,7 @@
 # QtMultiThreadNetwork
 
+> **[English](#) | 中文** — 完整中英双语版请查看 [README.md](README.md)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://www.qt.io)
 [![Qt Version](https://img.shields.io/badge/Qt-5.6.3%2B-green.svg)](https://www.qt.io)
