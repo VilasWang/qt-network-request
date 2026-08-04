@@ -19,6 +19,9 @@ private slots:
     void testTaskAndSessionIds();
     void testConfigsAndUserContext();
     void testBuildConsumesBuilder();
+    void testQueryParamBuilder();
+    void testQueryParamsMapBuilder();
+    void testAuthBuilder();
 };
 
 #endif // TEST_REQUESTBUILDER_H

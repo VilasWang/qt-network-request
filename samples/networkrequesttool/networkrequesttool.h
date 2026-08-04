@@ -4,6 +4,7 @@
 #include <QtWidgets/QMainWindow>
 #include "ui_NetworkRequestTool.h"
 #include "requestcontext.h"
+#include "authconfig.h"
 #include "responseresult.h"
 #include <QListWidgetItem>
 #include <QDateTime>
@@ -46,10 +47,13 @@ struct RequestSettings
     int retryDelayMs = 1000;
 
     // Auth
-    QString authType; // "None", "Basic", "Bearer"
+    QString authType; // "None", "Basic", "Bearer", "ApiKey"
     QString authUsername;
     QString authPassword;
     QString authToken;
+    QString authApiKey;
+    QString authApiValue;
+    QString authApiLocation; // "Header" / "Query"
 };
 
 class NetworkRequestTool : public QMainWindow
@@ -94,9 +98,15 @@ private:
     void updateBodyTypeFromContentType(const QString &contentType);
     void updateHeader(const QString &key, const QString &value);
     QString buildUrlWithParams();
+    QString baseUrlFromInput() const;
     QMap<QByteArray, QByteArray> getHeaders();
     QString getRequestBody();
+    QMap<QString, QString> getQueryParams() const;
+    QMap<QString, QString> getFormUrlEncodedMap() const;
+    QByteArray readBinaryFile(const QString &path) const;
     void applyAuthHeader();
+    AuthConfig buildAuthConfig() const;
+    std::unique_ptr<RequestContext> buildRequestContext();
     void applyRequestSettings(std::unique_ptr<RequestContext> &req);
     RequestType getRequestType();
     void clearResponse();
@@ -106,6 +116,8 @@ private:
     void clearResponseBody();
     void clearResponseHeaders();
     void displayResponseHeaders(const QMap<QByteArray, QByteArray> &headers);
+    void displayResponseCookies(const QList<QNetworkCookie> &cookies);
+    void clearResponseCookies();
     bool isJsonResponse(const QMap<QByteArray, QByteArray> &headers);
     bool isXmlResponse(const QMap<QByteArray, QByteArray> &headers);
     bool isOctetStreamResponse(const QMap<QByteArray, QByteArray> &headers);
@@ -141,6 +153,7 @@ private:
     QListWidgetItem *currentHistoryItem;
     RequestSettings m_settings;
     QLabel *m_labelResponseInfo;
+    QString m_binaryFilePath;
 };
 
 } // namespace QtNetworkRequest

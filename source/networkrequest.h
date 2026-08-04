@@ -81,6 +81,17 @@ namespace QtNetworkRequest
 		/// Populate responseHeaders + read body from reply into result.
 		void collectResponse(QMap<QByteArray, QByteArray>& outHeaders, QByteArray& outBody);
 
+		/// Apply auth-generated headers to the request.
+		/// User-set headers with the same name take priority (not overwritten).
+		void applyAuthConfig(QNetworkRequest &request);
+
+		/// Auto-set Content-Type header based on BodyType when not explicitly set by user.
+		void applyBodyTypeContentType(QNetworkRequest &request);
+
+		/// Returns the effective request body as QByteArray.
+		/// Uses binaryBody for BodyType::Binary, otherwise body.toUtf8().
+		QByteArray effectiveRequestBody() const;
+
 		/// Cleanup reply with deleteLater() and null the pointer.
 		void disposeReply();
 
