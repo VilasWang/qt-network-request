@@ -188,6 +188,14 @@ void NetworkRequestTool::initializeConnections()
     // Form data
     connect(ui.btn_add_body, &QPushButton::clicked, this, &NetworkRequestTool::onAddBodyParam);
     connect(ui.btn_remove_body, &QPushButton::clicked, this, &NetworkRequestTool::onRemoveBodyParam);
+    connect(ui.btn_binary_browse, &QPushButton::clicked, this, [=]() {
+        QString path = QFileDialog::getOpenFileName(this, "Select binary file");
+        if (!path.isEmpty())
+        {
+            m_binaryFilePath = path;
+            ui.lineEdit_binary_path->setText(path);
+        }
+    });
     connect(ui.cmb_body_type, &QComboBox::currentTextChanged, this, &NetworkRequestTool::onBodyTypeComboChanged);
     connect(ui.table_body, &QTableWidget::cellChanged, this, &NetworkRequestTool::onBodyParamTypeChanged);
 
@@ -361,6 +369,11 @@ void NetworkRequestTool::onBodyTypeChanged(const QString &bodyType)
             connect(ui.textEdit_body, &QTextEdit::textChanged, this, &NetworkRequestTool::onBodyTextChanged, Qt::UniqueConnection);
         }
     }
+    else if (bodyType == "binary")
+    {
+        ui.stackedWidget_body->setCurrentWidget(ui.page_binary);
+        ui.textEdit_body->setEnabled(false);
+    }
     else
     {
         ui.stackedWidget_body->setCurrentWidget(ui.page_form);
@@ -484,47 +497,16 @@ void NetworkRequestTool::updateContentTypeHeader()
 
 void NetworkRequestTool::onSendRequest()
 {
-    QString url = buildUrlWithParams();
-    if (url.isEmpty())
+    QString raw = ui.lineEdit_url->text().trimmed();
+    if (raw.isEmpty() || !QUrl(raw).isValid())
     {
         QMessageBox::warning(this, "Error", "Please enter a valid URL");
         return;
     }
 
-    applyAuthHeader();
+    applyAuthHeader();   // preview header write-back (Approach A)
 
-    std::unique_ptr<RequestContext> req = std::make_unique<RequestContext>();
-    req->url = url;
-    req->type = getRequestType();
-    req->headers = getHeaders();
-    req->body = getRequestBody();
-    req->behavior.maxRedirectionCount = 3;
-    applyRequestSettings(req);
-    if (req->type == RequestType::Download || req->type == RequestType::MTDownload)
-    {
-        // 示例代码，此工具无这两种type
-        req->downloadConfig = std::make_unique<DownloadConfig>();
-        req->downloadConfig->saveFileName = "";
-        req->downloadConfig->saveDir = "";
-        req->downloadConfig->overwriteFile = true;
-        req->downloadConfig->threadCount = 32;
-        req->behavior.showProgress = true;
-    }
-    else if (req->type == RequestType::Upload)
-    {
-        // 示例代码，此工具无这这种type
-        req->uploadConfig = std::make_unique<UploadConfig>();
-        req->uploadConfig->filePath = "your file path";
-        req->uploadConfig->usePutMethod = true;
-        req->behavior.showProgress = true;
-    }
-    if (req->type == RequestType::Post && currentBodyType == "form-data")
-    {
-        req->uploadConfig = std::make_unique<UploadConfig>();
-        req->uploadConfig->useFormData = true;
-		req->uploadConfig->files = files;
-		req->uploadConfig->kvPairs = kvPairs;
-    }
+    std::unique_ptr<RequestContext> req = buildRequestContext();
 
     // Create network request
     std::shared_ptr<NetworkReply> pReply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
@@ -535,7 +517,7 @@ void NetworkRequestTool::onSendRequest()
 
         clearResponse();
         appendToResponseBody("Sending request...\n", QColor(0, 120, 212));
-        appendToResponseBody("URL: " + url + "\n", QColor(204, 204, 204));
+        appendToResponseBody("URL: " + raw + "\n", QColor(204, 204, 204));
         appendToResponseBody("Method: " + currentMethod + "\n\n", QColor(204, 204, 204));
     }
 }
@@ -651,21 +633,102 @@ QString NetworkRequestTool::getRequestBody()
     else if (currentBodyType == "x-www-form-urlencoded")
     {
         QUrlQuery query;
-        // Iterate through form data table
-        for (int i = 0; i < ui.table_body->rowCount(); ++i)
-        {
-            QTableWidgetItem *keyItem = ui.table_body->item(i, 0);
-            QTableWidgetItem *valueItem = ui.table_body->item(i, 1);
-
-            if (keyItem && valueItem && !keyItem->text().isEmpty())
-            {
-                query.addQueryItem(keyItem->text(), valueItem->text());
-            }
-        }
+        auto params = getFormUrlEncodedMap();
+        for (auto it = params.cbegin(); it != params.cend(); ++it)
+            query.addQueryItem(it.key(), it.value());
         return query.toString();
     }
 
     return QString();
+}
+
+QString NetworkRequestTool::baseUrlFromInput() const
+{
+    QString raw = ui.lineEdit_url->text().trimmed();
+    QUrl url(raw);
+    if (!url.isValid())
+        return raw;
+    return url.adjusted(QUrl::RemoveQuery).toString();
+}
+
+QMap<QString, QString> NetworkRequestTool::getQueryParams() const
+{
+    QMap<QString, QString> params;
+    int rows = ui.table_params->rowCount();
+    for (int i = 0; i < rows; ++i)
+    {
+        QTableWidgetItem *keyItem = ui.table_params->item(i, 0);
+        QTableWidgetItem *valueItem = ui.table_params->item(i, 1);
+        if (keyItem && valueItem && !keyItem->text().isEmpty())
+            params.insert(keyItem->text(), valueItem->text());
+    }
+    return params;
+}
+
+QMap<QString, QString> NetworkRequestTool::getFormUrlEncodedMap() const
+{
+    QMap<QString, QString> params;
+    int rows = ui.table_body->rowCount();
+    for (int i = 0; i < rows; ++i)
+    {
+        QTableWidgetItem *keyItem = ui.table_body->item(i, 0);
+        QTableWidgetItem *valueItem = ui.table_body->item(i, 1);
+        if (keyItem && valueItem && !keyItem->text().isEmpty())
+            params.insert(keyItem->text(), valueItem->text());
+    }
+    return params;
+}
+
+QByteArray NetworkRequestTool::readBinaryFile(const QString &path) const
+{
+    if (path.isEmpty())
+        return QByteArray();
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return QByteArray();
+    return file.readAll();
+}
+
+std::unique_ptr<RequestContext> NetworkRequestTool::buildRequestContext()
+{
+    RequestContextBuilder builder;
+    builder.url(baseUrlFromInput())
+        .type(getRequestType())
+        .headers(getHeaders())
+        .queryParams(getQueryParams())
+        .authConfig(buildAuthConfig());
+
+    // Body type -> builder method mapping
+    if (currentBodyType == "raw")
+    {
+        const QString text = ui.textEdit_body->toPlainText();
+        if (currentRawType == "JSON")
+            builder.bodyJson(text);
+        else if (currentRawType == "XML")
+            builder.bodyXml(text);
+        else
+            builder.bodyRaw(text);
+    }
+    else if (currentBodyType == "x-www-form-urlencoded")
+    {
+        builder.bodyFormUrlEncoded(getFormUrlEncodedMap());
+    }
+    else if (currentBodyType == "binary")
+    {
+        builder.bodyBinary(readBinaryFile(m_binaryFilePath));
+    }
+    // form-data is handled via UploadConfig below; "none" sets no body.
+
+    auto req = builder.build();
+    applyRequestSettings(req);
+    if (req->type == RequestType::Post && currentBodyType == "form-data")
+    {
+        req->uploadConfig = std::make_unique<UploadConfig>();
+        req->uploadConfig->useFormData = true;
+        req->uploadConfig->files = files;
+        req->uploadConfig->kvPairs = kvPairs;
+    }
+    return req;
 }
 
 void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
@@ -681,12 +744,16 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
         displayResponseHeaders(rsp->headers);
 
         m_highlighter.reset();
-        if (isJsonResponse(rsp->headers))
+        QByteArray contentType = rsp->contentType().toLower();
+        if (contentType.contains("application/json"))
         {
             m_highlighter = std::make_unique<JsonSyntaxHighlighter>(ui.textEdit_response_body->document());
-            displayJsonResponse(rsp->body);
+            QJsonDocument doc = rsp->json();
+            QString pretty = doc.isNull() ? rsp->body
+                                          : QString::fromUtf8(doc.toJson(QJsonDocument::Indented));
+            displayJsonResponse(pretty);
         }
-        else if (isXmlResponse(rsp->headers))
+        else if (contentType.contains("xml"))
         {
             m_highlighter = std::make_unique<XmlSyntaxHighlighter>(ui.textEdit_response_body->document());
             appendToResponseBody(rsp->body, QColor(16, 124, 16));
@@ -695,6 +762,8 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
         {
             appendToResponseBody(rsp->body, QColor(16, 124, 16));
         }
+
+        displayResponseCookies(rsp->cookies);
     }
     else
     {
@@ -708,6 +777,30 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
                        .arg(bytesToString(rsp->performance.bytesReceived))
                        .arg(bytesToString(rsp->performance.bytesSent));
     m_labelResponseInfo->setText(info);
+}
+
+void NetworkRequestTool::displayResponseCookies(const QList<QNetworkCookie> &cookies)
+{
+    if (!ui.textEdit_response_cookies)
+        return;
+    if (cookies.isEmpty())
+    {
+        ui.textEdit_response_cookies->setPlainText("(no cookies)");
+        return;
+    }
+    QStringList lines;
+    for (const QNetworkCookie &c : cookies)
+    {
+        QString line = QString("%1 = %2").arg(QString::fromUtf8(c.name()), QString::fromUtf8(c.value()));
+        if (!c.domain().isEmpty())
+            line += QString("; Domain=%1").arg(c.domain());
+        if (!c.path().isEmpty())
+            line += QString("; Path=%1").arg(c.path());
+        if (!c.expirationDate().isNull())
+            line += QString("; Expires=%1").arg(c.expirationDate().toString(Qt::ISODate));
+        lines.append(line);
+    }
+    ui.textEdit_response_cookies->setPlainText(lines.join("\n"));
 }
 
 bool NetworkRequestTool::isJsonResponse(const QMap<QByteArray, QByteArray> &headers)
@@ -780,6 +873,15 @@ void NetworkRequestTool::clearResponse()
 {
     clearResponseBody();
     clearResponseHeaders();
+    clearResponseCookies();
+}
+
+void NetworkRequestTool::clearResponseCookies()
+{
+    if (ui.textEdit_response_cookies)
+    {
+        ui.textEdit_response_cookies->clear();
+    }
 }
 
 void NetworkRequestTool::clearResponseBody()
@@ -1132,6 +1234,10 @@ void NetworkRequestTool::onBodyTypeComboChanged(const QString &type)
         ui.cmb_raw_type->setEnabled(false);
         ui.textEdit_body->clear();
     }
+    else if (type == "binary")
+    {
+        ui.stackedWidget_body->setCurrentWidget(ui.page_binary);
+    }
     else
     {
         ui.stackedWidget_body->setCurrentWidget(ui.page_form);
@@ -1284,7 +1390,7 @@ void NetworkRequestTool::onSettingsClicked()
     authLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
     auto *authTypeCombo = new QComboBox();
-    authTypeCombo->addItems({"None", "Basic", "Bearer"});
+    authTypeCombo->addItems({"None", "Basic", "Bearer", "ApiKey"});
     authTypeCombo->setCurrentText(m_settings.authType);
     auto *authUserEdit = new QLineEdit(m_settings.authUsername);
     authUserEdit->setPlaceholderText("Username");
@@ -1293,22 +1399,39 @@ void NetworkRequestTool::onSettingsClicked()
     authPassEdit->setEchoMode(QLineEdit::Password);
     auto *authTokenEdit = new QLineEdit(m_settings.authToken);
     authTokenEdit->setPlaceholderText("Token");
+    auto *authApiKeyEdit = new QLineEdit(m_settings.authApiKey);
+    authApiKeyEdit->setPlaceholderText("Header / Query key");
+    auto *authApiValueEdit = new QLineEdit(m_settings.authApiValue);
+    authApiValueEdit->setPlaceholderText("API key value");
+    auto *authApiLocCombo = new QComboBox();
+    authApiLocCombo->addItems({"Header", "Query"});
+    authApiLocCombo->setCurrentText(m_settings.authApiLocation.isEmpty() ? "Header" : m_settings.authApiLocation);
 
     authLayout->addRow("Type:", authTypeCombo);
     authLayout->addRow("User:", authUserEdit);
     authLayout->addRow("Password:", authPassEdit);
     authLayout->addRow("Token:", authTokenEdit);
+    authLayout->addRow("API Key:", authApiKeyEdit);
+    authLayout->addRow("API Value:", authApiValueEdit);
+    authLayout->addRow("API Location:", authApiLocCombo);
 
     auto onAuthTypeChanged = [=](const QString &type) {
         bool isBasic = (type == "Basic");
         bool isBearer = (type == "Bearer");
+        bool isApiKey = (type == "ApiKey");
         authUserEdit->setVisible(isBasic);
         authPassEdit->setVisible(isBasic);
         authTokenEdit->setVisible(isBearer);
+        authApiKeyEdit->setVisible(isApiKey);
+        authApiValueEdit->setVisible(isApiKey);
+        authApiLocCombo->setVisible(isApiKey);
         // Hide the label row when the field is hidden so the layout collapses
         authLayout->labelForField(authUserEdit)->setVisible(isBasic);
         authLayout->labelForField(authPassEdit)->setVisible(isBasic);
         authLayout->labelForField(authTokenEdit)->setVisible(isBearer);
+        authLayout->labelForField(authApiKeyEdit)->setVisible(isApiKey);
+        authLayout->labelForField(authApiValueEdit)->setVisible(isApiKey);
+        authLayout->labelForField(authApiLocCombo)->setVisible(isApiKey);
     };
     connect(authTypeCombo, &QComboBox::currentTextChanged, onAuthTypeChanged);
     onAuthTypeChanged(authTypeCombo->currentText());
@@ -1402,6 +1525,9 @@ void NetworkRequestTool::onSettingsClicked()
         m_settings.authUsername = authUserEdit->text();
         m_settings.authPassword = authPassEdit->text();
         m_settings.authToken = authTokenEdit->text();
+        m_settings.authApiKey = authApiKeyEdit->text();
+        m_settings.authApiValue = authApiValueEdit->text();
+        m_settings.authApiLocation = authApiLocCombo->currentText();
         m_settings.proxyEnabled = proxyCheck->isChecked();
         m_settings.proxyHost = proxyHostEdit->text();
         m_settings.proxyPort = static_cast<quint16>(proxyPortSpin->value());
@@ -1426,10 +1552,35 @@ void NetworkRequestTool::applyAuthHeader()
     {
         updateHeader("Authorization", "Bearer " + m_settings.authToken);
     }
+    else if (m_settings.authType == "ApiKey")
+    {
+        // Header placement: write a preview header (the library will skip it as
+        // it is already present). Query placement: do NOT write to headers, the
+        // library appends it to the URL query instead.
+        if (m_settings.authApiLocation != "Query" && !m_settings.authApiKey.isEmpty())
+            updateHeader(m_settings.authApiKey, m_settings.authApiValue);
+    }
+}
+
+AuthConfig NetworkRequestTool::buildAuthConfig() const
+{
+    if (m_settings.authType == "Basic" && !m_settings.authUsername.isEmpty())
+        return AuthConfig::basic(m_settings.authUsername, m_settings.authPassword);
+    if (m_settings.authType == "Bearer" && !m_settings.authToken.isEmpty())
+        return AuthConfig::bearer(m_settings.authToken);
+    if (m_settings.authType == "ApiKey" && !m_settings.authApiKey.isEmpty())
+    {
+        ApiKeyPlacement loc = (m_settings.authApiLocation == "Query")
+            ? ApiKeyPlacement::QueryParam
+            : ApiKeyPlacement::Header;
+        return AuthConfig::apiKeyAuth(m_settings.authApiKey, m_settings.authApiValue, loc);
+    }
+    return AuthConfig(); // None
 }
 
 void NetworkRequestTool::applyRequestSettings(std::unique_ptr<RequestContext> &req)
 {
+    req->behavior.maxRedirectionCount = 3;
     req->behavior.transferTimeout = m_settings.transferTimeoutMs;
     req->behavior.retryOnFailed = m_settings.retryEnabled;
     req->behavior.maxRetryCount = m_settings.maxRetryCount;

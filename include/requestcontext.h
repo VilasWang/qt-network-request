@@ -36,6 +36,8 @@ SOFTWARE.
 
 #include "taskdata.h"
 #include "proxyconfig.h"
+#include "authconfig.h"
+#include <QUrlQuery>
 #ifndef QT_NO_SSL
 #include "sslconfig.h"
 #endif
@@ -46,6 +48,19 @@ namespace QtNetworkRequest
 {
 	struct DownloadConfig;
 	struct UploadConfig;
+
+	/// Explicit body content type for automatic Content-Type header detection.
+	/// When BodyType::None (default), behavior is unchanged from prior versions.
+	enum class BodyType : int8_t
+	{
+		None           = 0,  // No body / backward-compatible (default)
+		Raw            = 1,  // Plain text, no automatic Content-Type
+		Json           = 2,  // application/json
+		Xml            = 3,  // application/xml
+		FormUrlEncoded = 4,  // application/x-www-form-urlencoded
+		Binary         = 5,  // application/octet-stream (uses binaryBody field)
+		FormData       = 6,  // multipart/form-data (handled by uploadConfig)
+	};
 
 	// 请求上下文 (Input)
 	struct RequestContext
@@ -61,6 +76,17 @@ namespace QtNetworkRequest
 		// case Post:   POST parameters. e.g., "a=b&c=d". or json data
 		QString body;
 		QList<QNetworkCookie> cookies;
+
+		// Authentication configuration
+		AuthConfig authConfig;
+
+		// Body type awareness (for automatic Content-Type detection)
+		BodyType bodyType{ BodyType::None };
+		// Binary body data (used when bodyType == Binary)
+		QByteArray binaryBody;
+
+		// Query parameters (auto-appended to URL)
+		QMap<QString, QString> queryParams;
 
 		TaskData task;
 
@@ -162,10 +188,85 @@ namespace QtNetworkRequest
 			return *this;
 		}
 
+		// --- body type ---
+		RequestContextBuilder &bodyType(BodyType v)
+		{
+			m_context->bodyType = v;
+			return *this;
+		}
+		RequestContextBuilder &bodyJson(const QString &json)
+		{
+			m_context->body = json;
+			m_context->bodyType = BodyType::Json;
+			return *this;
+		}
+		RequestContextBuilder &bodyXml(const QString &xml)
+		{
+			m_context->body = xml;
+			m_context->bodyType = BodyType::Xml;
+			return *this;
+		}
+		RequestContextBuilder &bodyFormUrlEncoded(const QMap<QString, QString> &params)
+		{
+			QUrlQuery q;
+			for (auto it = params.cbegin(); it != params.cend(); ++it)
+				q.addQueryItem(it.key(), it.value());
+			m_context->body = q.toString(QUrl::FullyEncoded);
+			m_context->bodyType = BodyType::FormUrlEncoded;
+			return *this;
+		}
+		RequestContextBuilder &bodyRaw(const QString &text)
+		{
+			m_context->body = text;
+			m_context->bodyType = BodyType::Raw;
+			return *this;
+		}
+		RequestContextBuilder &bodyBinary(const QByteArray &data)
+		{
+			m_context->binaryBody = data;
+			m_context->bodyType = BodyType::Binary;
+			return *this;
+		}
+
 		// --- cookies ---
 		RequestContextBuilder &cookie(const QNetworkCookie &v)
 		{
 			m_context->cookies.append(v);
+			return *this;
+		}
+
+		// --- authentication ---
+		RequestContextBuilder &authConfig(const AuthConfig &v)
+		{
+			m_context->authConfig = v;
+			return *this;
+		}
+		RequestContextBuilder &authBasic(const QString &user, const QString &pass)
+		{
+			m_context->authConfig = AuthConfig::basic(user, pass);
+			return *this;
+		}
+		RequestContextBuilder &authBearer(const QString &token)
+		{
+			m_context->authConfig = AuthConfig::bearer(token);
+			return *this;
+		}
+		RequestContextBuilder &authApiKey(const QString &key, const QString &value,
+		                                  ApiKeyPlacement placement = ApiKeyPlacement::Header)
+		{
+			m_context->authConfig = AuthConfig::apiKeyAuth(key, value, placement);
+			return *this;
+		}
+
+		// --- query parameters ---
+		RequestContextBuilder &queryParam(const QString &key, const QString &value)
+		{
+			m_context->queryParams.insert(key, value);
+			return *this;
+		}
+		RequestContextBuilder &queryParams(const QMap<QString, QString> &v)
+		{
+			m_context->queryParams = v;
 			return *this;
 		}
 

@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <QThread>
 #include <QNetworkCookie>
+#include <QUrlQuery>
 #include "networkdownloadrequest.h"
 #include "networkuploadrequest.h"
 #include "networkcommonrequest.h"
@@ -386,15 +387,42 @@ QNetworkRequest NetworkRequest::prepareRequest()
         }
     }
 
-    QNetworkRequest request(m_url);
+    // --- Build URL: append queryParams and API Key (QueryParam placement) ---
+    QUrl url = m_url;
+    bool bHasQueryParams = !m_upContext->queryParams.isEmpty();
+    bool bHasApiKeyQuery = (m_upContext->authConfig.type == AuthType::ApiKey
+                            && m_upContext->authConfig.apiKeyPlacement == ApiKeyPlacement::QueryParam);
+    if (bHasQueryParams || bHasApiKeyQuery)
+    {
+        QUrlQuery query(url);
+        if (bHasQueryParams)
+        {
+            for (auto it = m_upContext->queryParams.cbegin(); it != m_upContext->queryParams.cend(); ++it)
+                query.addQueryItem(it.key(), it.value());
+        }
+        if (bHasApiKeyQuery)
+        {
+            const AuthConfig &auth = m_upContext->authConfig;
+            query.addQueryItem(auth.apiKey, auth.apiValue);
+        }
+        url.setQuery(query);
+    }
+
+    QNetworkRequest request(url);
     QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
 
-    // Set custom headers
+    // Set custom headers (user-set headers take priority)
     auto iter = m_upContext->headers.cbegin();
     for (; iter != m_upContext->headers.cend(); ++iter)
     {
         request.setRawHeader(iter.key(), iter.value());
     }
+
+    // Apply authentication headers (only if user hasn't explicitly set them)
+    applyAuthConfig(request);
+
+    // Auto-detect Content-Type based on BodyType (only if user hasn't set it)
+    applyBodyTypeContentType(request);
 
 #ifndef QT_NO_SSL
     applySslConfig(request);
@@ -466,6 +494,80 @@ bool NetworkRequest::handleFailure()
     return false; // caller should emit failure
 }
 
+void NetworkRequest::applyAuthConfig(QNetworkRequest &request)
+{
+    const AuthConfig &auth = m_upContext->authConfig;
+    if (auth.type == AuthType::None || !auth.isValid())
+        return;
+
+    switch (auth.type)
+    {
+    case AuthType::Basic:
+    case AuthType::Bearer:
+    {
+        QByteArray authVal = auth.authorizationHeaderValue();
+        // Case-insensitive: don't overwrite user-set Authorization header
+        if (!request.hasRawHeader("Authorization") &&
+            !request.hasRawHeader("authorization"))
+        {
+            request.setRawHeader("Authorization", authVal);
+        }
+        break;
+    }
+    case AuthType::ApiKey:
+    {
+        if (auth.apiKeyPlacement == ApiKeyPlacement::Header)
+        {
+            QByteArray keyBytes = auth.apiKeyHeaderName();
+            if (!request.hasRawHeader(keyBytes))
+            {
+                request.setRawHeader(keyBytes, auth.apiKeyHeaderValue());
+            }
+        }
+        // QueryParam placement handled in prepareRequest() URL building
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+void NetworkRequest::applyBodyTypeContentType(QNetworkRequest &request)
+{
+    // Only auto-set Content-Type if user hasn't explicitly set it
+    if (request.hasRawHeader("Content-Type") ||
+        request.hasRawHeader("content-type"))
+        return;
+
+    switch (m_upContext->bodyType)
+    {
+    case BodyType::Json:
+        request.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
+        break;
+    case BodyType::Xml:
+        request.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/xml"));
+        break;
+    case BodyType::FormUrlEncoded:
+        request.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/x-www-form-urlencoded"));
+        break;
+    case BodyType::Binary:
+        request.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/octet-stream"));
+        break;
+    case BodyType::None:
+    case BodyType::Raw:
+    case BodyType::FormData:
+        // No automatic Content-Type for these types
+        break;
+    }
+}
+
+QByteArray NetworkRequest::effectiveRequestBody() const
+{
+    if (m_upContext->bodyType == BodyType::Binary && !m_upContext->binaryBody.isEmpty())
+        return m_upContext->binaryBody;
+    return m_upContext->body.toUtf8();
+}
+
 void NetworkRequest::collectResponse(QMap<QByteArray, QByteArray>& outHeaders, QByteArray& outBody)
 {
     if (!m_bAbortManual && m_pNetworkReply && m_pNetworkReply->isOpen())
@@ -474,6 +576,14 @@ void NetworkRequest::collectResponse(QMap<QByteArray, QByteArray>& outHeaders, Q
         foreach (const QByteArray &header, m_pNetworkReply->rawHeaderList())
         {
             outHeaders[header] = m_pNetworkReply->rawHeader(header);
+        }
+
+        // Extract parsed cookies from Set-Cookie response headers
+        if (m_spResult)
+        {
+            QVariant cookieVar = m_pNetworkReply->header(QNetworkRequest::SetCookieHeader);
+            if (cookieVar.isValid())
+                m_spResult->cookies = cookieVar.value<QList<QNetworkCookie>>();
         }
     }
 }

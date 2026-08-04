@@ -48,6 +48,8 @@ set_tests_properties(UnitTests PROPERTIES TIMEOUT 120)
 add_executable(BuilderTests
     main_requestbuilder.cpp
     test_requestbuilder.cpp
+    test_bodytype.cpp
+    httptestserver.cpp
 )
 
 target_link_libraries(BuilderTests
@@ -71,6 +73,37 @@ endif()
 
 add_test(NAME BuilderTests COMMAND BuilderTests)
 set_tests_properties(BuilderTests PROPERTIES TIMEOUT 60)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AuthTests — authentication system integration tests
+# ══════════════════════════════════════════════════════════════════════════════
+add_executable(AuthTests
+    main_auth.cpp
+    test_auth.cpp
+    httptestserver.cpp
+)
+
+target_link_libraries(AuthTests
+    QNetworkRequest
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Test
+)
+
+target_include_directories(AuthTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+set_output_directories(AuthTests)
+
+if(WIN32)
+    copy_openssl_dlls(AuthTests "${OPENSSL_BIN_DIR}")
+    copy_library_artifact(AuthTests QNetworkRequest)
+endif()
+
+add_test(NAME AuthTests COMMAND AuthTests)
+set_tests_properties(AuthTests PROPERTIES TIMEOUT 120)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # UtilityTests — pure NetworkRequestUtility unit tests (filesystem only)

@@ -161,6 +161,105 @@ void TestQtRequester::testApplyAuthHeader()
 }
 
 // ---------------------------------------------------------------------------
+// 5b. buildAuthConfig produces the correct AuthConfig for ApiKey (Header/Query)
+// ---------------------------------------------------------------------------
+void TestQtRequester::testBuildAuthConfigApiKey()
+{
+    NetworkRequestTool tool;
+
+    tool.m_settings.authType = "ApiKey";
+    tool.m_settings.authApiKey = "X-Api-Key";
+    tool.m_settings.authApiValue = "secret";
+    tool.m_settings.authApiLocation = "Header";
+    AuthConfig cfg = tool.buildAuthConfig();
+    QVERIFY(cfg.type == AuthType::ApiKey);
+    QCOMPARE(cfg.apiKey, QString("X-Api-Key"));
+    QCOMPARE(cfg.apiValue, QString("secret"));
+    QVERIFY(cfg.apiKeyPlacement == ApiKeyPlacement::Header);
+
+    tool.m_settings.authApiLocation = "Query";
+    AuthConfig cfgQuery = tool.buildAuthConfig();
+    QVERIFY(cfgQuery.type == AuthType::ApiKey);
+    QVERIFY(cfgQuery.apiKeyPlacement == ApiKeyPlacement::QueryParam);
+
+    // Empty key -> None
+    tool.m_settings.authApiKey.clear();
+    AuthConfig cfgNone = tool.buildAuthConfig();
+    QVERIFY(cfgNone.type == AuthType::None);
+}
+
+// ---------------------------------------------------------------------------
+// 5c. buildRequestContext routes table_params into req->queryParams
+// ---------------------------------------------------------------------------
+void TestQtRequester::testBuildRequestContextQueryParams()
+{
+    NetworkRequestTool tool;
+    tool.show();
+    QTest::qWait(50);
+
+    auto *paramsTable = tool.findChild<QTableWidget *>("table_params");
+    QVERIFY(paramsTable);
+    paramsTable->setRowCount(1);
+    paramsTable->setItem(0, 0, new QTableWidgetItem("q"));
+    paramsTable->setItem(0, 1, new QTableWidgetItem("hello"));
+    tool.ui.lineEdit_url->setText("https://example.com/api");
+
+    auto req = tool.buildRequestContext();
+    QVERIFY(req != nullptr);
+    QVERIFY(req->queryParams.contains("q"));
+    QCOMPARE(req->queryParams.value("q"), QString("hello"));
+    // base URL must not contain the query string (library appends it later)
+    QVERIFY(!req->url.contains("q=hello"));
+}
+
+// ---------------------------------------------------------------------------
+// 5d. buildRequestContext routes a picked binary file into req->binaryBody
+// ---------------------------------------------------------------------------
+void TestQtRequester::testBuildRequestContextBinary()
+{
+    NetworkRequestTool tool;
+    tool.show();
+    QTest::qWait(50);
+
+    QTemporaryFile tmp;
+    tmp.open();
+    // Build 7 bytes: 'A','B','C',0x00,'D','E','F'. Avoid hex escape "\x00DEF"
+    // (the \x escape greedily consumes all following hex digits -> out-of-range).
+    char raw[] = {'A', 'B', 'C', '\0', 'D', 'E', 'F'};
+    QByteArray data(raw, 7);
+    tmp.write(data);
+    QString path = tmp.fileName();
+    tmp.close();
+
+    tool.currentBodyType = "binary";
+    tool.m_binaryFilePath = path;
+
+    auto req = tool.buildRequestContext();
+    QVERIFY(req != nullptr);
+    QVERIFY(req->bodyType == BodyType::Binary);
+    QCOMPARE(req->binaryBody, data);
+}
+
+// ---------------------------------------------------------------------------
+// 5e. buildRequestContext carries the authConfig from settings
+// ---------------------------------------------------------------------------
+void TestQtRequester::testBuildRequestContextAuth()
+{
+    NetworkRequestTool tool;
+    tool.show();
+    QTest::qWait(50);
+
+    tool.m_settings.authType = "Bearer";
+    tool.m_settings.authToken = "tok-xyz";
+    tool.ui.lineEdit_url->setText("https://example.com/api");
+
+    auto req = tool.buildRequestContext();
+    QVERIFY(req != nullptr);
+    QVERIFY(req->authConfig.type == AuthType::Bearer);
+    QCOMPARE(req->authConfig.token, QString("tok-xyz"));
+}
+
+// ---------------------------------------------------------------------------
 // 6. Save / Load persistent storage
 // ---------------------------------------------------------------------------
 void TestQtRequester::testSaveAndLoadDisk()

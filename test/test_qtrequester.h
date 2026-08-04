@@ -20,6 +20,10 @@ private slots:
     void testGetRequestBody();
     void testMethodSwitchesBody();
     void testApplyAuthHeader();
+    void testBuildAuthConfigApiKey();
+    void testBuildRequestContextQueryParams();
+    void testBuildRequestContextBinary();
+    void testBuildRequestContextAuth();
     void testSaveAndLoadDisk();
     void testEndToEndGet();
 

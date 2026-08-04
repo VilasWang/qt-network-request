@@ -83,6 +83,10 @@ namespace QtNetworkRequest
 		InvalidReply,
 		ContentLengthMissing,
 
+		// 认证
+		AuthInvalid,          // Invalid or missing authentication credentials
+		AuthTypeUnsupported,  // Authentication type recognized but not yet implemented
+
 		// 文件 / IO
 		FileOpenFailed,
 		FileWriteFailed,

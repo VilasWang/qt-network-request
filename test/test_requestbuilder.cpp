@@ -17,7 +17,7 @@ void TestRequestBuilder::testBasicFields()
 
     QVERIFY(ctx != nullptr);
     QCOMPARE(ctx->url, QString("http://example.com/api"));
-    QCOMPARE(ctx->type, RequestType::Post);
+    QVERIFY(ctx->type == RequestType::Post);
     QCOMPARE(ctx->body, QString("hello=world"));
 }
 
@@ -132,7 +132,7 @@ void TestRequestBuilder::testConfigsAndUserContext()
     QCOMPARE(ctx->userContext.toString(), QString("ctx-token"));
 #ifndef QT_NO_SSL
     QVERIFY(ctx->sslConfig != nullptr);
-    QCOMPARE(ctx->sslConfig->peerVerifyMode, SslConfig::PeerVerifyMode::VerifyNone);
+    QVERIFY(ctx->sslConfig->peerVerifyMode == SslConfig::PeerVerifyMode::VerifyNone);
 #endif
 }
 
@@ -146,4 +146,57 @@ void TestRequestBuilder::testBuildConsumesBuilder()
 
     auto second = builder.build();
     QVERIFY(second == nullptr);
+}
+
+void TestRequestBuilder::testQueryParamBuilder()
+{
+    auto ctx = RequestContextBuilder()
+        .url("https://example.com/api")
+        .type(RequestType::Get)
+        .queryParam("page", "1")
+        .queryParam("limit", "50")
+        .build();
+
+    QCOMPARE(ctx->queryParams.size(), 2);
+    QCOMPARE(ctx->queryParams["page"], QString("1"));
+    QCOMPARE(ctx->queryParams["limit"], QString("50"));
+}
+
+void TestRequestBuilder::testQueryParamsMapBuilder()
+{
+    QMap<QString, QString> params;
+    params["sort"] = "desc";
+    params["filter"] = "active";
+
+    auto ctx = RequestContextBuilder()
+        .url("https://example.com/api")
+        .type(RequestType::Get)
+        .queryParams(params)
+        .build();
+
+    QCOMPARE(ctx->queryParams.size(), 2);
+    QCOMPARE(ctx->queryParams["sort"], QString("desc"));
+    QCOMPARE(ctx->queryParams["filter"], QString("active"));
+}
+
+void TestRequestBuilder::testAuthBuilder()
+{
+    auto ctx = RequestContextBuilder()
+        .url("https://example.com/api")
+        .type(RequestType::Get)
+        .authBearer("test-token")
+        .build();
+
+    QVERIFY(ctx->authConfig.type == AuthType::Bearer);
+    QCOMPARE(ctx->authConfig.token, QString("test-token"));
+
+    // Verify builder can also set via AuthConfig directly
+    auto ctx2 = RequestContextBuilder()
+        .url("https://example.com/api")
+        .type(RequestType::Get)
+        .authConfig(AuthConfig::basic("admin", "123"))
+        .build();
+
+    QVERIFY(ctx2->authConfig.type == AuthType::Basic);
+    QCOMPARE(ctx2->authConfig.username, QString("admin"));
 }
