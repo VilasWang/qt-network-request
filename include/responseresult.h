@@ -30,6 +30,8 @@ SOFTWARE.
 #include <QByteArray>
 #include <QVariant>
 #include <QSharedPointer>
+#include <QJsonDocument>
+#include <QNetworkCookie>
 #include "taskdata.h"
 #include "networkerror.h"
 
@@ -45,6 +47,9 @@ namespace QtNetworkRequest
 		int statusCode{ 0 };   // HTTP 状态码 (成功时也有意义)
 		QByteArray body;
 		QMap<QByteArray, QByteArray> headers;
+
+		// Parsed cookies extracted from Set-Cookie response headers
+		QList<QNetworkCookie> cookies;
 
 		TaskData task;
 
@@ -63,6 +68,20 @@ namespace QtNetworkRequest
 		bool isSuccess() const { return !error.isError(); }
 		bool isCancelled() const { return error.category == ErrorCategory::Cancelled; }
 		bool isTimeout() const { return error.category == ErrorCategory::Timeout; }
+
+		/// Parse response body as JSON document.
+		/// Returns a default-constructed (null) QJsonDocument on parse failure.
+		QJsonDocument json() const { return QJsonDocument::fromJson(body); }
+
+		/// Convenience accessor for the Content-Type response header.
+		QByteArray contentType() const
+		{
+			auto it = headers.find("Content-Type");
+			if (it != headers.end()) return it.value();
+			it = headers.find("content-type");
+			if (it != headers.end()) return it.value();
+			return {};
+		}
 	};
 }
 

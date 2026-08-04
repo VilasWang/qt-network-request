@@ -59,7 +59,7 @@ void NetworkCommonRequest::start()
             m_nBytesSent = fi.size();
         }
         else
-            m_nBytesSent = m_upContext->body.toUtf8().size();
+            m_nBytesSent = effectiveRequestBody().size();
     }
 
     const QUrl &url = m_url;
@@ -85,6 +85,16 @@ void NetworkCommonRequest::start()
         }
     }
 
+    // Validate authentication configuration
+    if (m_upContext->authConfig.type != AuthType::None && !m_upContext->authConfig.isValid())
+    {
+        setError(ErrorCategory::Configuration, ErrorCode::AuthInvalid,
+                 QString("Authentication error: Invalid credentials for auth type %1")
+                     .arg(static_cast<int>(m_upContext->authConfig.type)));
+        emit response(ToFailedResult());
+        return;
+    }
+
     QNetworkRequest request = prepareRequest();
 
     // Set default User-Agent if not provided (prepareRequest sets custom headers,
@@ -100,7 +110,7 @@ void NetworkCommonRequest::start()
     }
     else if (m_upContext->type == RequestType::Patch)
     {
-        const QByteArray &bytes = m_upContext->body.toUtf8();
+        const QByteArray &bytes = effectiveRequestBody();
         m_pNetworkReply = m_pNetworkManager->sendCustomRequest(request, "PATCH", bytes);
     }
     else if (m_upContext->type == RequestType::Options)
@@ -112,13 +122,14 @@ void NetworkCommonRequest::start()
         bool bFormData = m_upContext->uploadConfig && m_upContext->uploadConfig->useFormData && !m_upContext->uploadConfig->files.isEmpty();
         if (!bFormData)
         {
-            if (!request.hasRawHeader("Content-Type"))
+            // Only default to application/x-www-form-urlencoded when bodyType is None (backward compat)
+            if (m_upContext->bodyType == BodyType::None &&
+                !request.hasRawHeader("Content-Type") && !request.hasRawHeader("content-type"))
             {
-                // Use application/x-www-form-urlencoded by default
                 request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
             }
 
-            const QByteArray &bytes = m_upContext->body.toUtf8();
+            const QByteArray &bytes = effectiveRequestBody();
             // Let Qt automatically handle Content-Length, remove manual setting
             // request.setHeader(QNetworkRequest::ContentLengthHeader, bytes.length());
 
@@ -192,7 +203,7 @@ void NetworkCommonRequest::start()
                 }
                 else
                 {
-                    const QByteArray &bytes = m_upContext->body.toUtf8();
+                    const QByteArray &bytes = effectiveRequestBody();
                     m_pNetworkReply = m_pNetworkManager->put(request, bytes);
                 }
             }    else if (m_upContext->type == RequestType::Delete)
