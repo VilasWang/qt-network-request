@@ -5,9 +5,13 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QMimeDatabase>
+#include <QUrlQuery>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include "networkrequestutility.h"
 #include "networkrequestmanager.h"
+#include "oauth2tokencache.h"
 #include "qtcompat.h"
 #include "networkrequestregistry.h"
 #include "QThread"
@@ -95,6 +99,18 @@ void NetworkCommonRequest::start()
         return;
     }
 
+    // OAuth2: fetch a fresh token before sending. Non-OAuth2 requests proceed directly.
+    if (m_upContext->authConfig.type == AuthType::OAuth2)
+    {
+        fetchOAuth2Token([this]() { performSend(); });
+        return;
+    }
+
+    performSend();
+}
+
+void NetworkCommonRequest::performSend()
+{
     QNetworkRequest request = prepareRequest();
 
     // Set default User-Agent if not provided (prepareRequest sets custom headers,
@@ -226,6 +242,105 @@ void NetworkCommonRequest::start()
 
     // Layer2b: transfer timeout via elapsed timer (no-op on Qt >= 5.15)
     QtCompat::startTransferTimer(m_transferElapsed);
+}
+
+void NetworkCommonRequest::fetchOAuth2Token(std::function<void()> onReady)
+{
+    const auto &oa = m_upContext->authConfig.oauth2Config;
+
+    // Build cache key: tokenUrl|clientId|grant|scopes
+    const QString cacheKey = OAuth2TokenCache::makeKey(
+        oa.tokenUrl, oa.clientId,
+        QString::number(static_cast<int>(oa.grant)), oa.scopes);
+
+    // Check cache first (synchronous fast path)
+    auto &cache = OAuth2TokenCache::instance();
+    OAuth2TokenEntry cachedEntry;
+    if (cache.find(cacheKey, cachedEntry) && cachedEntry.isValid())
+    {
+        m_upContext->authConfig.token = cachedEntry.accessToken;
+        onReady();
+        return;
+    }
+
+    // Build token request body
+    QUrlQuery params;
+    params.addQueryItem("client_id", oa.clientId);
+    params.addQueryItem("client_secret", oa.clientSecret);
+    if (!oa.scopes.isEmpty())
+        params.addQueryItem("scope", oa.scopes);
+
+    switch (oa.grant)
+    {
+    case OAuth2GrantType::ClientCredentials:
+        params.addQueryItem("grant_type", "client_credentials");
+        break;
+    case OAuth2GrantType::Password:
+        params.addQueryItem("grant_type", "password");
+        params.addQueryItem("username", oa.username);
+        params.addQueryItem("password", oa.password);
+        break;
+    case OAuth2GrantType::RefreshToken:
+        params.addQueryItem("grant_type", "refresh_token");
+        params.addQueryItem("refresh_token", oa.refreshToken);
+        break;
+    }
+
+    QNetworkRequest tokenReq(QUrl(oa.tokenUrl));
+    tokenReq.setHeader(QNetworkRequest::ContentTypeHeader,
+                       "application/x-www-form-urlencoded");
+
+    // Acquire a thread-affine NAM for the token request
+    QNetworkAccessManager *nam = NetworkRequestManager::acquireThreadNam();
+    const QByteArray postBody = params.toString().toUtf8();
+    QNetworkReply *reply = nam->post(tokenReq, postBody);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, cacheKey, onReady]() {
+        reply->deleteLater();
+
+        if (reply->error() != QNetworkReply::NoError)
+        {
+            setError(ErrorCategory::Network, ErrorCode::TemporaryNetworkFailure,
+                     QString("OAuth2 token request failed: %1").arg(reply->errorString()));
+            emit response(ToFailedResult());
+            return;
+        }
+
+        const QByteArray body = reply->readAll();
+        const QJsonDocument doc = QJsonDocument::fromJson(body);
+        if (!doc.isObject())
+        {
+            setError(ErrorCategory::Configuration, ErrorCode::AuthInvalid,
+                     "OAuth2 token response is not valid JSON");
+            emit response(ToFailedResult());
+            return;
+        }
+
+        const QJsonObject obj = doc.object();
+        const QString accessToken  = obj["access_token"].toString();
+        const QString refreshToken = obj["refresh_token"].toString();
+        const int expiresIn        = obj["expires_in"].toInt(3600);
+
+        if (accessToken.isEmpty())
+        {
+            setError(ErrorCategory::Configuration, ErrorCode::AuthInvalid,
+                     "OAuth2 token response missing access_token");
+            emit response(ToFailedResult());
+            return;
+        }
+
+        // Cache the result
+        OAuth2TokenEntry entry;
+        entry.accessToken  = accessToken;
+        entry.refreshToken = refreshToken;
+        entry.expiresAt    = QDateTime::currentDateTime().addSecs(expiresIn);
+        OAuth2TokenCache::instance().store(cacheKey, entry);
+
+        // Set the token on the auth config so applyAuthConfig can use it
+        m_upContext->authConfig.token = accessToken;
+
+        onReady();
+    });
 }
 
 void NetworkCommonRequest::onFinished()

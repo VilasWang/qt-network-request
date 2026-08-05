@@ -1407,7 +1407,7 @@ void NetworkRequestTool::onSettingsClicked()
     authLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
     auto *authTypeCombo = new QComboBox();
-    authTypeCombo->addItems({"None", "Basic", "Bearer", "ApiKey"});
+    authTypeCombo->addItems({"None", "Basic", "Bearer", "ApiKey", "OAuth2"});
     authTypeCombo->setCurrentText(m_settings.authType);
     auto *authUserEdit = new QLineEdit(m_settings.authUsername);
     authUserEdit->setPlaceholderText("Username");
@@ -1432,25 +1432,80 @@ void NetworkRequestTool::onSettingsClicked()
     authLayout->addRow("API Value:", authApiValueEdit);
     authLayout->addRow("API Location:", authApiLocCombo);
 
+    // OAuth2 fields
+    auto *oauthGrantCombo = new QComboBox();
+    oauthGrantCombo->addItems({"Client Credentials", "Password", "Refresh Token"});
+    if (!m_settings.oauthGrantType.isEmpty())
+        oauthGrantCombo->setCurrentText(m_settings.oauthGrantType);
+    auto *oauthClientIdEdit = new QLineEdit(m_settings.oauthClientId);
+    oauthClientIdEdit->setPlaceholderText("Client ID");
+    auto *oauthClientSecretEdit = new QLineEdit(m_settings.oauthClientSecret);
+    oauthClientSecretEdit->setPlaceholderText("Client Secret");
+    oauthClientSecretEdit->setEchoMode(QLineEdit::Password);
+    auto *oauthScopesEdit = new QLineEdit(m_settings.oauthScopes);
+    oauthScopesEdit->setPlaceholderText("scope1 scope2 (optional)");
+    auto *oauthTokenUrlEdit = new QLineEdit(m_settings.oauthTokenUrl);
+    oauthTokenUrlEdit->setPlaceholderText("https://auth.example.com/oauth/token");
+    auto *oauthUserEdit = new QLineEdit(m_settings.oauthUsername);
+    oauthUserEdit->setPlaceholderText("Username (Password grant)");
+    auto *oauthPassEdit = new QLineEdit(m_settings.oauthPassword);
+    oauthPassEdit->setPlaceholderText("Password (Password grant)");
+    oauthPassEdit->setEchoMode(QLineEdit::Password);
+    auto *oauthRefreshEdit = new QLineEdit(m_settings.oauthRefreshToken);
+    oauthRefreshEdit->setPlaceholderText("Refresh token");
+
+    authLayout->addRow("Grant:", oauthGrantCombo);
+    authLayout->addRow("Client ID:", oauthClientIdEdit);
+    authLayout->addRow("Client Secret:", oauthClientSecretEdit);
+    authLayout->addRow("Scopes:", oauthScopesEdit);
+    authLayout->addRow("Token URL:", oauthTokenUrlEdit);
+    authLayout->addRow("User:", oauthUserEdit);
+    authLayout->addRow("Password:", oauthPassEdit);
+    authLayout->addRow("Refresh Token:", oauthRefreshEdit);
+
     auto onAuthTypeChanged = [=](const QString &type) {
         bool isBasic = (type == "Basic");
         bool isBearer = (type == "Bearer");
         bool isApiKey = (type == "ApiKey");
+        bool isOAuth2 = (type == "OAuth2");
         authUserEdit->setVisible(isBasic);
         authPassEdit->setVisible(isBasic);
         authTokenEdit->setVisible(isBearer);
         authApiKeyEdit->setVisible(isApiKey);
         authApiValueEdit->setVisible(isApiKey);
         authApiLocCombo->setVisible(isApiKey);
-        // Hide the label row when the field is hidden so the layout collapses
+        oauthGrantCombo->setVisible(isOAuth2);
+        oauthClientIdEdit->setVisible(isOAuth2);
+        oauthClientSecretEdit->setVisible(isOAuth2);
+        oauthScopesEdit->setVisible(isOAuth2);
+        oauthTokenUrlEdit->setVisible(isOAuth2);
+        // Password grant fields: only show when Password is selected
+        bool isOAuth2Password = isOAuth2 && oauthGrantCombo->currentText() == "Password";
+        oauthUserEdit->setVisible(isOAuth2Password);
+        oauthPassEdit->setVisible(isOAuth2Password);
+        // Refresh Token field: only show when Refresh Token is selected
+        bool isOAuth2Refresh = isOAuth2 && oauthGrantCombo->currentText() == "Refresh Token";
+        oauthRefreshEdit->setVisible(isOAuth2Refresh);
+        // Hide labels
         authLayout->labelForField(authUserEdit)->setVisible(isBasic);
         authLayout->labelForField(authPassEdit)->setVisible(isBasic);
         authLayout->labelForField(authTokenEdit)->setVisible(isBearer);
         authLayout->labelForField(authApiKeyEdit)->setVisible(isApiKey);
         authLayout->labelForField(authApiValueEdit)->setVisible(isApiKey);
         authLayout->labelForField(authApiLocCombo)->setVisible(isApiKey);
+        authLayout->labelForField(oauthGrantCombo)->setVisible(isOAuth2);
+        authLayout->labelForField(oauthClientIdEdit)->setVisible(isOAuth2);
+        authLayout->labelForField(oauthClientSecretEdit)->setVisible(isOAuth2);
+        authLayout->labelForField(oauthScopesEdit)->setVisible(isOAuth2);
+        authLayout->labelForField(oauthTokenUrlEdit)->setVisible(isOAuth2);
+        authLayout->labelForField(oauthUserEdit)->setVisible(isOAuth2Password);
+        authLayout->labelForField(oauthPassEdit)->setVisible(isOAuth2Password);
+        authLayout->labelForField(oauthRefreshEdit)->setVisible(isOAuth2Refresh);
     };
     connect(authTypeCombo, &QComboBox::currentTextChanged, onAuthTypeChanged);
+    connect(oauthGrantCombo, &QComboBox::currentTextChanged, [=]() {
+        onAuthTypeChanged(authTypeCombo->currentText());
+    });
     onAuthTypeChanged(authTypeCombo->currentText());
 
     mainLayout->addWidget(authGroup);
@@ -1545,6 +1600,14 @@ void NetworkRequestTool::onSettingsClicked()
         m_settings.authApiKey = authApiKeyEdit->text();
         m_settings.authApiValue = authApiValueEdit->text();
         m_settings.authApiLocation = authApiLocCombo->currentText();
+        m_settings.oauthGrantType = oauthGrantCombo->currentText();
+        m_settings.oauthClientId = oauthClientIdEdit->text();
+        m_settings.oauthClientSecret = oauthClientSecretEdit->text();
+        m_settings.oauthScopes = oauthScopesEdit->text();
+        m_settings.oauthTokenUrl = oauthTokenUrlEdit->text();
+        m_settings.oauthUsername = oauthUserEdit->text();
+        m_settings.oauthPassword = oauthPassEdit->text();
+        m_settings.oauthRefreshToken = oauthRefreshEdit->text();
         m_settings.proxyEnabled = proxyCheck->isChecked();
         m_settings.proxyHost = proxyHostEdit->text();
         m_settings.proxyPort = static_cast<quint16>(proxyPortSpin->value());
@@ -1591,6 +1654,33 @@ AuthConfig NetworkRequestTool::buildAuthConfig() const
             ? ApiKeyPlacement::QueryParam
             : ApiKeyPlacement::Header;
         return AuthConfig::apiKeyAuth(m_settings.authApiKey, m_settings.authApiValue, loc);
+    }
+    if (m_settings.authType == "OAuth2" && !m_settings.oauthClientId.isEmpty())
+    {
+        AuthConfig::OAuth2Config oa;
+        oa.clientId     = m_settings.oauthClientId;
+        oa.clientSecret = m_settings.oauthClientSecret;
+        oa.scopes       = m_settings.oauthScopes;
+        oa.tokenUrl     = m_settings.oauthTokenUrl;
+
+        if (m_settings.oauthGrantType == "Password")
+        {
+            oa.grant    = OAuth2GrantType::Password;
+            oa.username = m_settings.oauthUsername;
+            oa.password = m_settings.oauthPassword;
+            // Seed refreshToken for potential 401 auto-renewal
+            oa.refreshToken = m_settings.oauthRefreshToken;
+        }
+        else if (m_settings.oauthGrantType == "Refresh Token")
+        {
+            oa.grant        = OAuth2GrantType::RefreshToken;
+            oa.refreshToken = m_settings.oauthRefreshToken;
+        }
+        else
+        {
+            oa.grant = OAuth2GrantType::ClientCredentials;
+        }
+        return AuthConfig::oauth2(oa);
     }
     return AuthConfig(); // None
 }
