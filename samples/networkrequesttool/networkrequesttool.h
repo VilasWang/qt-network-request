@@ -84,7 +84,6 @@ private slots:
     void onAbortAllTask();
     void onAddBodyParam();
     void onRemoveBodyParam();
-    void onBodyTypeComboChanged(const QString &type);
     void onBodyParamTypeChanged(int row, int column);
 
 private:
@@ -95,6 +94,7 @@ private:
     void setupDefaultValues();
     void addDefaultHeaders();
     void updateContentTypeHeader();
+    void applyBodySyntaxHighlighting(const QString &rawType);
     void updateBodyTypeFromContentType(const QString &contentType);
     void updateHeader(const QString &key, const QString &value);
     QString buildUrlWithParams();

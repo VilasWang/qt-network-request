@@ -227,6 +227,21 @@ namespace QtNetworkRequest
 			m_context->bodyType = BodyType::Binary;
 			return *this;
 		}
+		/// Build a multipart/form-data body from file parts and key/value pairs.
+		/// Assembles an UploadConfig (useFormData=true) so the pipeline produces
+		/// the multipart payload + boundary. This mirrors the FormData enum value
+		/// to keep the BodyType API symmetric with the other body*() methods.
+		RequestContextBuilder &bodyFormData(const QStringList &files,
+		                                    const QMap<QString, QString> &kvPairs)
+		{
+			std::unique_ptr<UploadConfig> up = std::make_unique<UploadConfig>();
+			up->useFormData = true;
+			up->files = files;
+			up->kvPairs = kvPairs;
+			m_context->uploadConfig = std::move(up);
+			m_context->bodyType = BodyType::FormData;
+			return *this;
+		}
 
 		// --- cookies ---
 		RequestContextBuilder &cookie(const QNetworkCookie &v)
