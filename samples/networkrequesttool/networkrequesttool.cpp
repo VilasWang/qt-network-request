@@ -16,6 +16,8 @@
 #include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QListWidget>
 #include <QtWidgets/QInputDialog>
+#include <QtWidgets/QCheckBox>
+#include <QClipboard>
 #include <QtWidgets/QGroupBox>
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QSpinBox>
@@ -177,6 +179,9 @@ void NetworkRequestTool::initializeUI()
         m_btnManageEnv->setFixedWidth(40);
         toolbarLayout->addWidget(m_btnManageEnv);
     }
+
+    // --- Response toolbar (injected into response body tab) ---
+    buildResponseToolbar();
 }
 
 void NetworkRequestTool::initializeConnections()
@@ -780,6 +785,10 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
         return;
     }
     clearResponse();
+    m_lastResponseBody.clear();
+    m_isResponseJson = false;
+    m_searchSelections.clear();
+    m_currentSearchHit = -1;
     if (rsp->isSuccess())
     {
         displayResponseHeaders(rsp->headers);
@@ -790,6 +799,8 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
         {
             m_highlighter = std::make_unique<JsonSyntaxHighlighter>(ui.textEdit_response_body->document());
             QJsonDocument doc = rsp->json();
+            m_lastResponseBody = rsp->body;
+            m_isResponseJson = !doc.isNull();
             QString pretty = doc.isNull() ? rsp->body
                                           : QString::fromUtf8(doc.toJson(QJsonDocument::Indented));
             displayJsonResponse(pretty);
@@ -797,10 +808,12 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
         else if (contentType.contains("xml"))
         {
             m_highlighter = std::make_unique<XmlSyntaxHighlighter>(ui.textEdit_response_body->document());
+            m_lastResponseBody = rsp->body;
             appendToResponseBody(rsp->body, QColor(16, 124, 16));
         }
         else
         {
+            m_lastResponseBody = rsp->body;
             appendToResponseBody(rsp->body, QColor(16, 124, 16));
         }
 
@@ -2063,4 +2076,188 @@ void NetworkRequestTool::loadFromDisk(const QString &filePath)
         ui.table_headers->setItem(row, 1, new QTableWidgetItem(ho["value"].toString()));
     }
     clearResponse();
+}
+
+// ─── Response toolbar (M3) ───────────────────────────────────────────────────
+
+void NetworkRequestTool::buildResponseToolbar()
+{
+    // Inject a compact toolbar at the top of the response body tab layout,
+    // mirroring how m_labelResponseInfo was injected.
+    auto *respPage = ui.tabWidget_response->widget(0); // Body tab
+    if (!respPage)
+        return;
+    auto *respLayout = qobject_cast<QVBoxLayout *>(respPage->layout());
+    if (!respLayout)
+        return;
+
+    m_responseToolbar = new QWidget();
+    auto *hLayout = new QHBoxLayout(m_responseToolbar);
+    hLayout->setContentsMargins(4, 2, 4, 2);
+    hLayout->setSpacing(4);
+
+    m_leResponseSearch = new QLineEdit();
+    m_leResponseSearch->setPlaceholderText("Search response...");
+    m_leResponseSearch->setClearButtonEnabled(true);
+    m_leResponseSearch->setMaximumWidth(200);
+    hLayout->addWidget(m_leResponseSearch);
+
+    auto *btnPrev = new QPushButton("<");
+    btnPrev->setFixedWidth(24);
+    btnPrev->setToolTip("Previous match");
+    hLayout->addWidget(btnPrev);
+
+    auto *btnNext = new QPushButton(">");
+    btnNext->setFixedWidth(24);
+    btnNext->setToolTip("Next match");
+    hLayout->addWidget(btnNext);
+
+    hLayout->addStretch();
+
+    auto *btnCopy = new QPushButton("Copy");
+    btnCopy->setToolTip("Copy response body to clipboard");
+    hLayout->addWidget(btnCopy);
+
+    auto *btnSave = new QPushButton("Save");
+    btnSave->setToolTip("Save response body to file");
+    hLayout->addWidget(btnSave);
+
+    auto *chkPretty = new QCheckBox("Pretty");
+    chkPretty->setChecked(true);
+    chkPretty->setToolTip("Toggle between pretty-printed and raw JSON");
+    hLayout->addWidget(chkPretty);
+
+    // Insert after m_labelResponseInfo (index 0)
+    respLayout->insertWidget(1, m_responseToolbar);
+
+    // Connections
+    connect(m_leResponseSearch, &QLineEdit::textChanged,
+            this, &NetworkRequestTool::onResponseSearchChanged);
+    connect(m_leResponseSearch, &QLineEdit::returnPressed,
+            this, &NetworkRequestTool::onResponseFindNext);
+    connect(btnPrev, &QPushButton::clicked, this, &NetworkRequestTool::onResponseFindPrev);
+    connect(btnNext, &QPushButton::clicked, this, &NetworkRequestTool::onResponseFindNext);
+    connect(btnCopy, &QPushButton::clicked, this, &NetworkRequestTool::onResponseCopy);
+    connect(btnSave, &QPushButton::clicked, this, &NetworkRequestTool::onResponseSave);
+    connect(chkPretty, &QCheckBox::toggled, this, &NetworkRequestTool::onResponsePrettyToggled);
+}
+
+void NetworkRequestTool::onResponseSearchChanged(const QString & /*text*/)
+{
+    doResponseSearch();
+}
+
+void NetworkRequestTool::doResponseSearch()
+{
+    const QString searchText = m_leResponseSearch ? m_leResponseSearch->text() : QString();
+    m_searchSelections.clear();
+    m_currentSearchHit = -1;
+
+    if (searchText.isEmpty())
+    {
+        ui.textEdit_response_body->setExtraSelections({});
+        return;
+    }
+
+    QTextDocument *doc = ui.textEdit_response_body->document();
+    QTextCursor cursor(doc);
+    const QColor hiliteNormal(255, 255, 0, 80);   // semi-transparent yellow
+    const QColor hiliteCurrent(255, 165, 0, 120); // orange
+
+    while (!cursor.isNull() && !cursor.atEnd())
+    {
+        cursor = doc->find(searchText, cursor);
+        if (!cursor.isNull())
+        {
+            QTextEdit::ExtraSelection sel;
+            sel.format.setBackground(hiliteNormal);
+            sel.cursor = cursor;
+            m_searchSelections.append(sel);
+        }
+    }
+
+    if (!m_searchSelections.isEmpty())
+    {
+        m_currentSearchHit = 0;
+        m_searchSelections[0].format.setBackground(hiliteCurrent);
+    }
+
+    ui.textEdit_response_body->setExtraSelections(m_searchSelections);
+}
+
+void NetworkRequestTool::navigateSearchHit(int delta)
+{
+    if (m_searchSelections.isEmpty())
+        return;
+
+    const int count = m_searchSelections.size();
+
+    const QColor hiliteNormal(255, 255, 0, 80);
+    const QColor hiliteCurrent(255, 165, 0, 120);
+
+    if (m_currentSearchHit >= 0 && m_currentSearchHit < count)
+        m_searchSelections[m_currentSearchHit].format.setBackground(hiliteNormal);
+
+    m_currentSearchHit = (m_currentSearchHit + delta + count) % count;
+
+    m_searchSelections[m_currentSearchHit].format.setBackground(hiliteCurrent);
+    ui.textEdit_response_body->setExtraSelections(m_searchSelections);
+
+    QTextCursor cursor = m_searchSelections[m_currentSearchHit].cursor;
+    ui.textEdit_response_body->setTextCursor(cursor);
+    ui.textEdit_response_body->ensureCursorVisible();
+}
+
+void NetworkRequestTool::onResponseFindPrev()
+{
+    navigateSearchHit(-1);
+}
+
+void NetworkRequestTool::onResponseFindNext()
+{
+    navigateSearchHit(+1);
+}
+
+void NetworkRequestTool::onResponseCopy()
+{
+    QApplication::clipboard()->setText(ui.textEdit_response_body->toPlainText());
+}
+
+void NetworkRequestTool::onResponseSave()
+{
+    QString path = QFileDialog::getSaveFileName(this, "Save Response Body",
+                                                 getDefaultDownloadDir() + "/response.txt",
+                                                 "Text files (*.txt);;All files (*)");
+    if (path.isEmpty())
+        return;
+
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly))
+    {
+        file.write(ui.textEdit_response_body->toPlainText().toUtf8());
+        file.close();
+    }
+}
+
+void NetworkRequestTool::onResponsePrettyToggled(bool checked)
+{
+    if (!m_isResponseJson)
+        return;
+
+    if (checked)
+    {
+        QJsonDocument doc = QJsonDocument::fromJson(m_lastResponseBody.toUtf8());
+        if (!doc.isNull())
+        {
+            QString pretty = QString::fromUtf8(doc.toJson(QJsonDocument::Indented));
+            ui.textEdit_response_body->setPlainText(pretty);
+        }
+    }
+    else
+    {
+        ui.textEdit_response_body->setPlainText(m_lastResponseBody);
+    }
+
+    if (m_leResponseSearch && !m_leResponseSearch->text().isEmpty())
+        doResponseSearch();
 }

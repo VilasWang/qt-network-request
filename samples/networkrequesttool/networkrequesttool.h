@@ -90,6 +90,12 @@ private slots:
     void onSettingsClicked();
     void onEnvironmentChanged(int index);
     void onManageEnvironments();
+    void onResponseSearchChanged(const QString &text);
+    void onResponseFindPrev();
+    void onResponseFindNext();
+    void onResponseCopy();
+    void onResponseSave();
+    void onResponsePrettyToggled(bool checked);
     void onResponse(QSharedPointer<QtNetworkRequest::ResponseResult> rsp);
     void onHistoryItemClicked(QListWidgetItem *item);
     void onSearchHistory(const QString &text);
@@ -151,6 +157,9 @@ private:
     void loadEnvironments();
     void saveEnvironments();
     void populateEnvironmentCombo();
+    void buildResponseToolbar();
+    void doResponseSearch();
+    void navigateSearchHit(int delta);
 
 private:
 #ifdef QT_MTNETWORK_UNIT_TEST
@@ -172,6 +181,12 @@ private:
     QComboBox *m_cmbEnvironment{nullptr};
     QPushButton *m_btnManageEnv{nullptr};
     QLabel *m_labelResponseInfo;
+    QWidget *m_responseToolbar{nullptr};
+    QLineEdit *m_leResponseSearch{nullptr};
+    QString m_lastResponseBody;      // raw body for pretty/raw toggle
+    bool m_isResponseJson{false};    // set when the response is JSON
+    QList<QTextEdit::ExtraSelection> m_searchSelections;
+    int m_currentSearchHit{-1};
     QString m_binaryFilePath;
 };
 
