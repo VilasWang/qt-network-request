@@ -459,7 +459,35 @@ bool NetworkRequest::handleFailure()
     if (tryRetry())
         return true;
 
-    // 2) Handle redirection (301/302)
+    // 2) OAuth2 401 auto-refresh (M2): if we got a 401 with OAuth2 auth and
+    //    haven't already tried refreshing, attempt one token refresh.
+    if (statusCode == 401 &&
+        m_upContext->authConfig.type == AuthType::OAuth2 &&
+        !m_bOAuthRefreshed &&
+        !m_upContext->authConfig.oauth2Config.refreshToken.isEmpty())
+    {
+        qDebug() << "[QMultiThreadNetwork] OAuth2 401 — attempting token refresh";
+        m_bOAuthRefreshed = true;
+
+        // Swap to RefreshToken grant and use the stored refresh token.
+        // The oauth2Config already has the refreshToken field populated;
+        // we just switch the grant type.
+        m_upContext->authConfig.oauth2Config.grant = OAuth2GrantType::RefreshToken;
+
+        // Clean up current resources
+        if (m_pNetworkReply)
+        {
+            m_pNetworkReply->deleteLater();
+            m_pNetworkReply = nullptr;
+        }
+        cleanupForRetry();
+
+        // Restart: start() will see OAuth2 type → fetchOAuth2Token → performSend
+        start();
+        return true;
+    }
+
+    // 3) Handle redirection (301/302)
     if (statusCode == 301 || statusCode == 302)
     {
         const QVariant &redirectionTarget = m_pNetworkReply->attribute(QNetworkRequest::RedirectionTargetAttribute);
@@ -505,6 +533,7 @@ void NetworkRequest::applyAuthConfig(QNetworkRequest &request)
     {
     case AuthType::Basic:
     case AuthType::Bearer:
+    case AuthType::OAuth2:
     {
         QByteArray authVal = auth.authorizationHeaderValue();
         // Case-insensitive: don't overwrite user-set Authorization header
@@ -603,6 +632,7 @@ void NetworkRequest::setRequestContext(std::unique_ptr<RequestContext> context)
     if (context)
     {
         m_upContext = std::move(context);
+        m_bOAuthRefreshed = false;   // reset the 401-refresh guard for each new request
         // (M1) Substitute {{var}} placeholders across url/headers/body/query/auth
         // before the QUrl is finalized, so the resolved value is used downstream.
         if (!m_upContext->environment.isEmpty())
