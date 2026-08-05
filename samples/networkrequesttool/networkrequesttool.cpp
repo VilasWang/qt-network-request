@@ -13,6 +13,9 @@
 #include <QtWidgets/QDialogButtonBox>
 #include <QtWidgets/QFormLayout>
 #include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QListWidget>
+#include <QtWidgets/QInputDialog>
 #include <QtWidgets/QGroupBox>
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QSpinBox>
@@ -89,6 +92,7 @@ void NetworkRequestTool::initialize()
     initializeUI();
     initializeConnections();
     setupDefaultValues();
+    loadEnvironments();
 }
 
 void NetworkRequestTool::unInitialize()
@@ -152,6 +156,27 @@ void NetworkRequestTool::initializeUI()
         table->horizontalHeader()->setHighlightSections(false);
         table->verticalHeader()->setHighlightSections(false);
     }
+
+    // --- Environment selector (injected into request toolbar) ---
+    auto *toolbarLayout = qobject_cast<QHBoxLayout *>(
+        ui.frame_request_toolbar->layout());
+    if (toolbarLayout)
+    {
+        // Spacer between Settings and the env section
+        toolbarLayout->addStretch();
+
+        m_cmbEnvironment = new QComboBox();
+        m_cmbEnvironment->setObjectName("cmb_environment");
+        m_cmbEnvironment->setMinimumWidth(120);
+        m_cmbEnvironment->setToolTip("Active environment");
+        toolbarLayout->addWidget(m_cmbEnvironment);
+
+        m_btnManageEnv = new QPushButton("Env");
+        m_btnManageEnv->setObjectName("btn_manage_env");
+        m_btnManageEnv->setToolTip("Manage environments");
+        m_btnManageEnv->setFixedWidth(40);
+        toolbarLayout->addWidget(m_btnManageEnv);
+    }
 }
 
 void NetworkRequestTool::initializeConnections()
@@ -164,6 +189,13 @@ void NetworkRequestTool::initializeConnections()
     connect(ui.btn_save, &QPushButton::clicked, this, &NetworkRequestTool::onSaveRequest);
     connect(ui.btn_settings, &QPushButton::clicked, this, &NetworkRequestTool::onSettingsClicked);
     connect(ui.btn_new_request, &QPushButton::clicked, this, &NetworkRequestTool::onNewRequest);
+
+    // Environment
+    if (m_cmbEnvironment)
+        connect(m_cmbEnvironment, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, &NetworkRequestTool::onEnvironmentChanged);
+    if (m_btnManageEnv)
+        connect(m_btnManageEnv, &QPushButton::clicked, this, &NetworkRequestTool::onManageEnvironments);
 
     // Parameters and request headers
     connect(ui.btn_add_param, &QPushButton::clicked, this, &NetworkRequestTool::onAddParam);
@@ -704,6 +736,7 @@ std::unique_ptr<RequestContext> NetworkRequestTool::buildRequestContext()
         .type(getRequestType())
         .headers(getHeaders())
         .queryParams(getQueryParams())
+        .environment(m_envStore.activeVariables())
         .authConfig(buildAuthConfig());
 
     // Body type -> builder method mapping
@@ -1592,6 +1625,272 @@ void NetworkRequestTool::ensureStorageDir()
     QDir dir(storageDir());
     if (!dir.exists())
         dir.mkpath(".");
+}
+
+// --- Environment management (M1) ---
+
+void NetworkRequestTool::loadEnvironments()
+{
+    ensureStorageDir();
+    const QString envPath = storageDir() + "/environments.json";
+    if (!m_envStore.load(envPath))
+    {
+        // File doesn't exist yet — start with a default "dev" environment.
+        QMap<QString, QString> vars;
+        vars["host"] = "localhost";
+        vars["port"] = "8080";
+        m_envStore.upsert("Dev", vars);
+        m_envStore.setActiveName("");
+        m_envStore.save(envPath);
+    }
+    populateEnvironmentCombo();
+}
+
+void NetworkRequestTool::saveEnvironments()
+{
+    ensureStorageDir();
+    m_envStore.save(storageDir() + "/environments.json");
+}
+
+void NetworkRequestTool::populateEnvironmentCombo()
+{
+    if (!m_cmbEnvironment)
+        return;
+
+    // Block signals during rebuild to avoid triggering onEnvironmentChanged
+    m_cmbEnvironment->blockSignals(true);
+    m_cmbEnvironment->clear();
+    m_cmbEnvironment->addItem("No Environment", QString());
+
+    const QStringList names = m_envStore.environmentNames();
+    for (const QString &name : names)
+        m_cmbEnvironment->addItem(name, name);
+
+    // Restore selection
+    const QString active = m_envStore.activeName();
+    const int idx = active.isEmpty() ? 0 : m_cmbEnvironment->findData(active);
+    m_cmbEnvironment->setCurrentIndex(idx >= 0 ? idx : 0);
+    m_cmbEnvironment->blockSignals(false);
+}
+
+void NetworkRequestTool::onEnvironmentChanged(int /*index*/)
+{
+    if (!m_cmbEnvironment)
+        return;
+
+    const QString name = m_cmbEnvironment->currentData().toString();
+    m_envStore.setActiveName(name);
+}
+
+void NetworkRequestTool::onManageEnvironments()
+{
+    // --- Build a simple Manage Environments dialog ---
+    QDialog dlg(this);
+    dlg.setWindowTitle("Manage Environments");
+    dlg.resize(500, 400);
+
+    auto *mainLayout = new QVBoxLayout(&dlg);
+
+    // Environment list
+    auto *listWidget = new QListWidget(&dlg);
+    const QStringList names = m_envStore.environmentNames();
+    for (const QString &name : names)
+        listWidget->addItem(name);
+    mainLayout->addWidget(listWidget);
+
+    // Add / Remove / Rename buttons
+    auto *btnLayout = new QHBoxLayout();
+    auto *btnAdd = new QPushButton("Add", &dlg);
+    auto *btnRemove = new QPushButton("Remove", &dlg);
+    btnLayout->addWidget(btnAdd);
+    btnLayout->addWidget(btnRemove);
+    btnLayout->addStretch();
+    mainLayout->addLayout(btnLayout);
+
+    // Variable editor table
+    auto *varTable = new QTableWidget(0, 2, &dlg);
+    varTable->setHorizontalHeaderLabels({"Variable", "Value"});
+    varTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    mainLayout->addWidget(varTable);
+
+    // Add/Remove row buttons for the variable table
+    auto *varBtnLayout = new QHBoxLayout();
+    auto *btnAddVar = new QPushButton("+ Variable", &dlg);
+    auto *btnRemoveVar = new QPushButton("- Variable", &dlg);
+    varBtnLayout->addWidget(btnAddVar);
+    varBtnLayout->addWidget(btnRemoveVar);
+    varBtnLayout->addStretch();
+    mainLayout->addLayout(varBtnLayout);
+
+    // Dialog buttons
+    auto *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    mainLayout->addWidget(buttonBox);
+
+    // --- Sync: load variables for the currently selected environment ---
+    auto loadVarsForEnv = [&](const QString &envName) {
+        varTable->setRowCount(0);
+        if (envName.isEmpty())
+            return;
+        for (const auto &entry : m_envStore.activeVariables())
+            ; // not used — we need per-env access
+        // Workaround: rebuild from scratch using the names list
+        // Actually we need to iterate m_envStore per the selected name.
+        // For now, re-populate from known data using a simple approach.
+    };
+
+    // Since EnvironmentStore doesn't expose per-env variables publicly,
+    // we use upsert-then-read pattern. For now, implement a simpler approach
+    // that stores a working copy.
+    QMap<QString, QMap<QString, QString>> envVars;
+    // Initialize working copies from the store by iterating names
+    {
+        // We need per-env variable access. Add a simple member to hold them.
+        // Rebuild by selective load/save.
+    }
+
+    // --- Simpler approach: embed the working state in lambdas ---
+    // Pre-populate all env data from the store
+    // Since we can't iterate envs easily from the public API, rebuild from the
+    // combination of names + known data.
+    // Use a fresh store copy approach — load from file again.
+    EnvironmentStore workStore;
+    const QString envPath = storageDir() + "/environments.json";
+    workStore.load(envPath);
+
+    // Current selected env in the dialog
+    QString selectedEnv;
+
+    // Populate variable table when an environment is selected
+    QObject::connect(listWidget, &QListWidget::currentItemChanged,
+                     [&](QListWidgetItem *current, QListWidgetItem * /*prev*/) {
+        if (!current)
+            return;
+        selectedEnv = current->text();
+        varTable->setRowCount(0);
+        // We need per-env access. Since we loaded workStore, re-derive:
+        // The simplest workaround: track variables manually
+    });
+
+    // Since per-env variable access requires iterating environments,
+    // and the public API doesn't expose it, let me add a helper or refactor.
+    // For M1, use a pragmatic approach: manually map env name -> vars.
+    QMap<QString, QMap<QString, QString>> varsMap;
+    {
+        // We need to get all envs. Load them from the file and map.
+        QFile file(envPath);
+        if (file.open(QIODevice::ReadOnly))
+        {
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            QJsonArray envs = doc.object()["environments"].toArray();
+            for (const auto &ev : envs)
+            {
+                QJsonObject eo = ev.toObject();
+                QString ename = eo["name"].toString();
+                QMap<QString, QString> vmap;
+                QJsonObject vobj = eo["variables"].toObject();
+                for (auto it = vobj.begin(); it != vobj.end(); ++it)
+                    vmap[it.key()] = it.value().toString();
+                varsMap[ename] = vmap;
+            }
+        }
+    }
+
+    // Re-connect with proper vars access
+    QObject::disconnect(listWidget, &QListWidget::currentItemChanged, nullptr, nullptr);
+    QObject::connect(listWidget, &QListWidget::currentItemChanged,
+                     [&](QListWidgetItem *current, QListWidgetItem * /*prev*/) {
+        if (!current)
+            return;
+        selectedEnv = current->text();
+        varTable->setRowCount(0);
+        const auto &vars = varsMap[selectedEnv];
+        for (auto it = vars.begin(); it != vars.end(); ++it)
+        {
+            int row = varTable->rowCount();
+            varTable->insertRow(row);
+            varTable->setItem(row, 0, new QTableWidgetItem(it.key()));
+            varTable->setItem(row, 1, new QTableWidgetItem(it.value()));
+        }
+    });
+
+    // Initial selection
+    if (listWidget->count() > 0)
+        listWidget->setCurrentRow(0);
+
+    // Add environment
+    QObject::connect(btnAdd, &QPushButton::clicked, [&]() {
+        bool ok = false;
+        QString name = QInputDialog::getText(&dlg, "Add Environment", "Name:", QLineEdit::Normal, "", &ok);
+        if (ok && !name.isEmpty())
+        {
+            listWidget->addItem(name);
+            varsMap[name] = {};
+            listWidget->setCurrentRow(listWidget->count() - 1);
+        }
+    });
+
+    // Remove environment
+    QObject::connect(btnRemove, &QPushButton::clicked, [&]() {
+        int row = listWidget->currentRow();
+        if (row < 0)
+            return;
+        QString name = listWidget->currentItem()->text();
+        varsMap.remove(name);
+        delete listWidget->takeItem(row);
+        if (listWidget->count() > 0)
+            listWidget->setCurrentRow(0);
+        varTable->setRowCount(0);
+    });
+
+    // Add variable row
+    QObject::connect(btnAddVar, &QPushButton::clicked, [&]() {
+        int row = varTable->rowCount();
+        varTable->insertRow(row);
+        varTable->setItem(row, 0, new QTableWidgetItem(""));
+        varTable->setItem(row, 1, new QTableWidgetItem(""));
+    });
+
+    // Remove variable row
+    QObject::connect(btnRemoveVar, &QPushButton::clicked, [&]() {
+        int row = varTable->currentRow();
+        if (row >= 0)
+            varTable->removeRow(row);
+    });
+
+    // Dialog accepted → persist
+    QObject::connect(buttonBox, &QDialogButtonBox::accepted, [&]() {
+        // Save current table state to varsMap
+        if (!selectedEnv.isEmpty())
+        {
+            QMap<QString, QString> vars;
+            for (int i = 0; i < varTable->rowCount(); ++i)
+            {
+                QTableWidgetItem *keyItem = varTable->item(i, 0);
+                QTableWidgetItem *valItem = varTable->item(i, 1);
+                QString key = keyItem ? keyItem->text().trimmed() : QString();
+                if (!key.isEmpty())
+                    vars[key] = valItem ? valItem->text() : QString();
+            }
+            varsMap[selectedEnv] = vars;
+        }
+        // Rebuild the store
+        m_envStore = EnvironmentStore();
+        for (auto it = varsMap.begin(); it != varsMap.end(); ++it)
+            m_envStore.upsert(it.key(), it.value());
+        // Preserve active name if still valid
+        const QString prevActive = m_envStore.activeName();
+        if (prevActive.isEmpty() || !varsMap.contains(prevActive))
+            m_envStore.setActiveName("");
+        else
+            m_envStore.setActiveName(prevActive);
+        saveEnvironments();
+        populateEnvironmentCombo();
+        dlg.accept();
+    });
+
+    QObject::connect(buttonBox, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    dlg.exec();
 }
 
 void NetworkRequestTool::saveToDisk(const QString &filePath)
