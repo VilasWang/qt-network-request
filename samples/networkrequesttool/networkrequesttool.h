@@ -5,6 +5,7 @@
 #include "ui_NetworkRequestTool.h"
 #include "requestcontext.h"
 #include "authconfig.h"
+#include "environmentstore.h"
 #include "responseresult.h"
 #include <QListWidgetItem>
 #include <QDateTime>
@@ -77,6 +78,8 @@ private slots:
     void onAddHeader();
     void onRemoveHeader();
     void onSettingsClicked();
+    void onEnvironmentChanged(int index);
+    void onManageEnvironments();
     void onResponse(QSharedPointer<QtNetworkRequest::ResponseResult> rsp);
     void onHistoryItemClicked(QListWidgetItem *item);
     void onSearchHistory(const QString &text);
@@ -135,6 +138,9 @@ private:
     bool isDefaultHeader(const QString &strHeader);
     QString storageDir();
     void ensureStorageDir();
+    void loadEnvironments();
+    void saveEnvironments();
+    void populateEnvironmentCombo();
 
 private:
 #ifdef QT_MTNETWORK_UNIT_TEST
@@ -152,6 +158,9 @@ private:
     QMap<QString, QString> kvPairs;
     QListWidgetItem *currentHistoryItem;
     RequestSettings m_settings;
+    EnvironmentStore m_envStore;
+    QComboBox *m_cmbEnvironment{nullptr};
+    QPushButton *m_btnManageEnv{nullptr};
     QLabel *m_labelResponseInfo;
     QString m_binaryFilePath;
 };

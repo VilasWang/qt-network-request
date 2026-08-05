@@ -35,6 +35,9 @@ private slots:
     void testUpdateBodyTypeFromContentType();
     void testJsonHighlighter();
     void testXmlHighlighter();
+
+    // M1 environment
+    void test_envDropdownSwitch();
 };
 
 #endif
