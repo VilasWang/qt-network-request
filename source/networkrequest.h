@@ -126,6 +126,7 @@ namespace QtNetworkRequest
 		qint64 m_nBytesReceived{ 0 };
 		qint64 m_nBytesSent{ 0 };
 		quint16 m_nRedirectionCount;
+		bool m_bOAuthRefreshed{ false };   // M2: guard against infinite refresh loops
 		QNetworkAccessManager *m_pNetworkManager;  // non-owning — managed by NetworkAccessManagerPool
 		QNetworkReply *m_pNetworkReply;
         QUrl m_url;

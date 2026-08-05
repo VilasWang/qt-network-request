@@ -55,6 +55,16 @@ struct RequestSettings
     QString authApiKey;
     QString authApiValue;
     QString authApiLocation; // "Header" / "Query"
+
+    // OAuth2 (M2)
+    QString oauthGrantType; // "ClientCredentials" / "Password" / "RefreshToken"
+    QString oauthClientId;
+    QString oauthClientSecret;
+    QString oauthScopes;
+    QString oauthTokenUrl;
+    QString oauthUsername;
+    QString oauthPassword;
+    QString oauthRefreshToken;
 };
 
 class NetworkRequestTool : public QMainWindow
