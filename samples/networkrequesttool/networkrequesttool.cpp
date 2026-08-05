@@ -6,6 +6,7 @@
 #include <QUrlQuery>
 #include <QUuid>
 #include "networkrequesttool.h"
+#include "postmanconverter.h"
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QTableWidgetItem>
@@ -25,6 +26,9 @@
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QStyledItemDelegate>
+#include <QtWidgets/QTreeWidget>
+#include <QStyle>
+#include <QApplication>
 #include <QtCore/QFileInfo>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
@@ -95,6 +99,7 @@ void NetworkRequestTool::initialize()
     initializeConnections();
     setupDefaultValues();
     loadEnvironments();
+    loadCollection();
 }
 
 void NetworkRequestTool::unInitialize()
@@ -182,6 +187,9 @@ void NetworkRequestTool::initializeUI()
 
     // --- Response toolbar (injected into response body tab) ---
     buildResponseToolbar();
+
+    // --- Collection panel (M4) ---
+    buildCollectionPanel();
 }
 
 void NetworkRequestTool::initializeConnections()
@@ -201,6 +209,11 @@ void NetworkRequestTool::initializeConnections()
                 this, &NetworkRequestTool::onEnvironmentChanged);
     if (m_btnManageEnv)
         connect(m_btnManageEnv, &QPushButton::clicked, this, &NetworkRequestTool::onManageEnvironments);
+
+    // Collection tree
+    if (m_collectionTree)
+        connect(m_collectionTree, &QTreeWidget::itemClicked,
+                this, &NetworkRequestTool::onCollectionItemClicked);
 
     // Parameters and request headers
     connect(ui.btn_add_param, &QPushButton::clicked, this, &NetworkRequestTool::onAddParam);
@@ -2036,6 +2049,37 @@ void NetworkRequestTool::saveToDisk(const QString &filePath)
     }
     obj["headers"] = headersArr;
 
+    // ── R2: serialize auth so Collections / Postman round-trips preserve auth ──
+    QJsonObject authObj;
+    authObj["type"] = m_settings.authType;
+    if (m_settings.authType == "Basic")
+    {
+        authObj["username"] = m_settings.authUsername;
+        authObj["password"] = m_settings.authPassword;
+    }
+    else if (m_settings.authType == "Bearer")
+    {
+        authObj["token"] = m_settings.authToken;
+    }
+    else if (m_settings.authType == "ApiKey")
+    {
+        authObj["key"]      = m_settings.authApiKey;
+        authObj["value"]    = m_settings.authApiValue;
+        authObj["location"] = m_settings.authApiLocation;
+    }
+    else if (m_settings.authType == "OAuth2")
+    {
+        authObj["grantType"]    = m_settings.oauthGrantType;
+        authObj["clientId"]     = m_settings.oauthClientId;
+        authObj["clientSecret"] = m_settings.oauthClientSecret;
+        authObj["scopes"]       = m_settings.oauthScopes;
+        authObj["tokenUrl"]     = m_settings.oauthTokenUrl;
+        authObj["username"]     = m_settings.oauthUsername;
+        authObj["password"]     = m_settings.oauthPassword;
+        authObj["refreshToken"] = m_settings.oauthRefreshToken;
+    }
+    obj["auth"] = authObj;
+
     QFile file(filePath);
     if (file.open(QIODevice::WriteOnly))
         file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
@@ -2048,8 +2092,11 @@ void NetworkRequestTool::loadFromDisk(const QString &filePath)
         return;
 
     QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-    QJsonObject obj = doc.object();
+    loadRequestFromJson(doc.object());
+}
 
+void NetworkRequestTool::loadRequestFromJson(const QJsonObject &obj)
+{
     ui.cmb_method->setCurrentText(obj["method"].toString());
     ui.lineEdit_url->setText(obj["url"].toString());
     ui.cmb_body_type->setCurrentText(obj["bodyType"].toString("none"));
@@ -2075,6 +2122,40 @@ void NetworkRequestTool::loadFromDisk(const QString &filePath)
         ui.table_headers->setItem(row, 0, new QTableWidgetItem(ho["key"].toString()));
         ui.table_headers->setItem(row, 1, new QTableWidgetItem(ho["value"].toString()));
     }
+
+    // ── R2: restore auth from JSON ──
+    const QJsonObject authObj = obj["auth"].toObject();
+    if (!authObj.isEmpty())
+    {
+        m_settings.authType = authObj["type"].toString();
+        if (m_settings.authType == "Basic")
+        {
+            m_settings.authUsername = authObj["username"].toString();
+            m_settings.authPassword = authObj["password"].toString();
+        }
+        else if (m_settings.authType == "Bearer")
+        {
+            m_settings.authToken = authObj["token"].toString();
+        }
+        else if (m_settings.authType == "ApiKey")
+        {
+            m_settings.authApiKey      = authObj["key"].toString();
+            m_settings.authApiValue    = authObj["value"].toString();
+            m_settings.authApiLocation = authObj["location"].toString();
+        }
+        else if (m_settings.authType == "OAuth2")
+        {
+            m_settings.oauthGrantType    = authObj["grantType"].toString();
+            m_settings.oauthClientId     = authObj["clientId"].toString();
+            m_settings.oauthClientSecret = authObj["clientSecret"].toString();
+            m_settings.oauthScopes       = authObj["scopes"].toString();
+            m_settings.oauthTokenUrl     = authObj["tokenUrl"].toString();
+            m_settings.oauthUsername     = authObj["username"].toString();
+            m_settings.oauthPassword     = authObj["password"].toString();
+            m_settings.oauthRefreshToken = authObj["refreshToken"].toString();
+        }
+    }
+
     clearResponse();
 }
 
@@ -2260,4 +2341,275 @@ void NetworkRequestTool::onResponsePrettyToggled(bool checked)
 
     if (m_leResponseSearch && !m_leResponseSearch->text().isEmpty())
         doResponseSearch();
+}
+
+// ─── Collection panel (M4) ───────────────────────────────────────────────────
+
+void NetworkRequestTool::buildCollectionPanel()
+{
+    // Find the left-side panel layout (contains lineEdit_search, btn_new_request, listWidget_history).
+    auto *parentLayout = qobject_cast<QVBoxLayout *>(ui.listWidget_history->parentWidget()->layout());
+    if (!parentLayout)
+        return;
+
+    // ── Toolbar ──
+    auto *collToolbar = new QWidget();
+    auto *tbLayout = new QHBoxLayout(collToolbar);
+    tbLayout->setContentsMargins(0, 4, 0, 2);
+    tbLayout->setSpacing(2);
+
+    auto *btnNewColl = new QPushButton("+Coll");
+    btnNewColl->setToolTip("New collection");
+    btnNewColl->setFixedHeight(22);
+    tbLayout->addWidget(btnNewColl);
+
+    auto *btnAddFolder = new QPushButton("+Folder");
+    btnAddFolder->setToolTip("Add folder");
+    btnAddFolder->setFixedHeight(22);
+    tbLayout->addWidget(btnAddFolder);
+
+    auto *btnAddReq = new QPushButton("+Req");
+    btnAddReq->setToolTip("Add current request to collection");
+    btnAddReq->setFixedHeight(22);
+    tbLayout->addWidget(btnAddReq);
+
+    tbLayout->addStretch();
+
+    auto *btnImport = new QPushButton("Import");
+    btnImport->setToolTip("Import Postman v2.1 collection");
+    btnImport->setFixedHeight(22);
+    tbLayout->addWidget(btnImport);
+
+    auto *btnExport = new QPushButton("Export");
+    btnExport->setToolTip("Export to Postman v2.1");
+    btnExport->setFixedHeight(22);
+    tbLayout->addWidget(btnExport);
+
+    // Insert toolbar before the tree
+    int insertIdx = parentLayout->indexOf(ui.listWidget_history);
+    if (insertIdx < 0)
+        insertIdx = parentLayout->count();
+    parentLayout->insertWidget(insertIdx, collToolbar);
+
+    // ── Tree ──
+    m_collectionTree = new QTreeWidget();
+    m_collectionTree->setHeaderHidden(true);
+    m_collectionTree->setRootIsDecorated(true);
+    m_collectionTree->setMinimumHeight(100);
+    parentLayout->insertWidget(insertIdx + 1, m_collectionTree);
+
+    // Connections
+    connect(btnNewColl, &QPushButton::clicked, this, &NetworkRequestTool::onNewCollection);
+    connect(btnAddFolder, &QPushButton::clicked, this, &NetworkRequestTool::onAddCollectionFolder);
+    connect(btnAddReq, &QPushButton::clicked, this, &NetworkRequestTool::onAddCollectionRequest);
+    connect(btnImport, &QPushButton::clicked, this, &NetworkRequestTool::onImportPostman);
+    connect(btnExport, &QPushButton::clicked, this, &NetworkRequestTool::onExportPostman);
+}
+
+void NetworkRequestTool::loadCollection()
+{
+    ensureStorageDir();
+    m_collectionPath = storageDir() + "/collection.json";
+    QFile file(m_collectionPath);
+    if (!file.exists())
+        return;
+
+    // Use the library's Collection::load which expects {name, items[]}
+    // We use a simpler JSON format; for now just load via Collection::load
+    if (m_collection.load(m_collectionPath))
+        populateCollectionTree();
+}
+
+void NetworkRequestTool::saveCollection()
+{
+    ensureStorageDir();
+    m_collection.save(m_collectionPath);
+}
+
+static void addItemToTree(const CollectionItem &item, QTreeWidgetItem *parent)
+{
+    auto *treeItem = new QTreeWidgetItem(parent);
+    treeItem->setText(0, item.name);
+    treeItem->setData(0, Qt::UserRole, item.id);
+    treeItem->setData(0, Qt::UserRole + 1, static_cast<int>(item.type));
+
+    if (item.type == CollectionItemType::Folder)
+    {
+        treeItem->setIcon(0, QApplication::style()->standardIcon(QStyle::SP_DirIcon));
+        for (const auto &child : item.children)
+            addItemToTree(child, treeItem);
+    }
+    else
+    {
+        treeItem->setIcon(0, QApplication::style()->standardIcon(QStyle::SP_FileIcon));
+    }
+}
+
+void NetworkRequestTool::populateCollectionTree()
+{
+    if (!m_collectionTree)
+        return;
+
+    m_collectionTree->clear();
+    for (const auto &child : m_collection.root().children)
+        addItemToTree(child, m_collectionTree->invisibleRootItem());
+
+    m_collectionTree->expandAll();
+}
+
+void NetworkRequestTool::onNewCollection()
+{
+    bool ok = false;
+    QString name = QInputDialog::getText(this, "New Collection", "Name:", QLineEdit::Normal, "My Collection", &ok);
+    if (ok && !name.isEmpty())
+    {
+        m_collection = Collection(name);
+        populateCollectionTree();
+        saveCollection();
+    }
+}
+
+void NetworkRequestTool::onAddCollectionFolder()
+{
+    // Determine parent: selected node or root
+    QString parentId;
+    if (m_collectionTree && m_collectionTree->currentItem())
+        parentId = m_collectionTree->currentItem()->data(0, Qt::UserRole).toString();
+
+    bool ok = false;
+    QString name = QInputDialog::getText(this, "Add Folder", "Name:", QLineEdit::Normal, "New Folder", &ok);
+    if (ok && !name.isEmpty())
+    {
+        m_collection.addFolder(parentId, name);
+        populateCollectionTree();
+        saveCollection();
+    }
+}
+
+void NetworkRequestTool::onAddCollectionRequest()
+{
+    QString parentId;
+    if (m_collectionTree && m_collectionTree->currentItem())
+        parentId = m_collectionTree->currentItem()->data(0, Qt::UserRole).toString();
+
+    bool ok = false;
+    QString name = QInputDialog::getText(this, "Add Request", "Name:",
+                                          QLineEdit::Normal,
+                                          ui.lineEdit_url->text().isEmpty()
+                                              ? "New Request" : baseUrlFromInput(), &ok);
+    if (!ok || name.isEmpty())
+        return;
+
+    // Build request JSON from current form
+    QJsonObject reqJson;
+    reqJson["method"] = currentMethod;
+    reqJson["url"]    = ui.lineEdit_url->text();
+    reqJson["body"]   = ui.textEdit_body->toPlainText();
+
+    QJsonArray headersArr;
+    for (int i = 0; i < ui.table_headers->rowCount(); ++i)
+    {
+        auto *k = ui.table_headers->item(i, 0);
+        auto *v = ui.table_headers->item(i, 1);
+        if (k && v && !k->text().isEmpty())
+        {
+            QJsonObject h;
+            h["key"]   = k->text();
+            h["value"] = v->text();
+            headersArr.append(h);
+        }
+    }
+    reqJson["headers"] = headersArr;
+
+    // Include auth (R2)
+    QJsonObject authObj;
+    authObj["type"] = m_settings.authType;
+    if (m_settings.authType == "Basic")
+    {
+        authObj["username"] = m_settings.authUsername;
+        authObj["password"] = m_settings.authPassword;
+    }
+    else if (m_settings.authType == "Bearer")
+        authObj["token"] = m_settings.authToken;
+    else if (m_settings.authType == "ApiKey")
+    {
+        authObj["key"]      = m_settings.authApiKey;
+        authObj["value"]    = m_settings.authApiValue;
+        authObj["location"] = m_settings.authApiLocation;
+    }
+    else if (m_settings.authType == "OAuth2")
+    {
+        authObj["grantType"]    = m_settings.oauthGrantType;
+        authObj["clientId"]     = m_settings.oauthClientId;
+        authObj["clientSecret"] = m_settings.oauthClientSecret;
+        authObj["tokenUrl"]     = m_settings.oauthTokenUrl;
+    }
+    reqJson["auth"] = authObj;
+
+    m_collection.addRequest(parentId, name, reqJson);
+    populateCollectionTree();
+    saveCollection();
+}
+
+void NetworkRequestTool::onCollectionItemClicked(QTreeWidgetItem *item, int /*column*/)
+{
+    if (!item)
+        return;
+
+    int itemType = item->data(0, Qt::UserRole + 1).toInt();
+    if (itemType != static_cast<int>(CollectionItemType::Request))
+        return;
+
+    const QString id = item->data(0, Qt::UserRole).toString();
+    const CollectionItem *reqItem = m_collection.findById(id);
+    if (!reqItem)
+        return;
+
+    loadRequestFromJson(reqItem->requestJson);
+}
+
+void NetworkRequestTool::onImportPostman()
+{
+    QString path = QFileDialog::getOpenFileName(this, "Import Postman Collection",
+                                                 getDefaultDownloadDir(),
+                                                 "JSON files (*.json);;All files (*)");
+    if (path.isEmpty())
+        return;
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    bool ok = false;
+    m_collection = PostmanConverter::fromPostmanV21(doc.object(), &ok);
+    if (ok)
+    {
+        populateCollectionTree();
+        saveCollection();
+    }
+    else
+    {
+        QMessageBox::warning(this, "Import Failed",
+                             "Could not parse the selected file as a Postman v2.1 collection.");
+    }
+}
+
+void NetworkRequestTool::onExportPostman()
+{
+    QJsonObject pm = PostmanConverter::toPostmanV21(m_collection);
+    QJsonDocument doc(pm);
+
+    QString path = QFileDialog::getSaveFileName(this, "Export Postman Collection",
+                                                 getDefaultDownloadDir() + "/collection.json",
+                                                 "JSON files (*.json);;All files (*)");
+    if (path.isEmpty())
+        return;
+
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly))
+    {
+        file.write(doc.toJson(QJsonDocument::Indented));
+        file.close();
+    }
 }
