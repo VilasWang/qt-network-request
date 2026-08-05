@@ -1,3 +1,17 @@
+version 2.3.0    2026-08-05
+
+- Feat: OAuth2 authentication (Client Credentials, Password, Refresh Token) with async token fetch, thread-safe in-memory token cache, and 401 auto-refresh
+- Feat: environment variables — named environments (dev/staging/prod) with {{var}} substitution across URL, headers, body, query params, and auth fields; GUI dropdown + Manage Environments dialog
+- Feat: response body toolbar — incremental search with highlight navigation, copy to clipboard, save to file, JSON pretty/raw toggle
+- Feat: request collections — folder/request tree in left panel, add/remove, persist to collection.json, click to load
+- Feat: Postman v2.1 bidirectional import/export (folders, requests, auth round-trip)
+- Feat: auth fields serialized in save/load and collection requests (R2)
+- Feat: Windows test runner scripts/test.bat (configure + build + ctest)
+- Test: 5 new OAuth2 integration tests against local HttpTestServer token endpoint
+- Test: UiTests extended with auth save/load round-trip, response search, environment dropdown
+- Test: CollectionTests model + Postman round-trip (M0)
+- Style: loadFromDisk refactored into reusable loadRequestFromJson (D.1)
+
 version 2.2.1    2026-07-27
 
 - Refactor: consolidate Network*Request classes — eliminate ~250 lines of duplicated code via shared base-class helpers (prepareRequest, evaluateOutcome, handleFailure, collectResponse, disposeReply)

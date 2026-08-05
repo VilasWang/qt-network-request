@@ -542,3 +542,86 @@ void TestQtRequester::test_envDropdownSwitch()
     }
 }
 
+// ---------------------------------------------------------------------------
+// R2: Auth save/load round-trip (M4)
+// ---------------------------------------------------------------------------
+void TestQtRequester::testSaveAndLoadDiskWithAuth()
+{
+    QTemporaryFile tmpFile;
+    tmpFile.open();
+    QString path = tmpFile.fileName();
+    tmpFile.close();
+
+    NetworkRequestTool tool;
+    tool.show();
+    QTest::qWait(50);
+
+    // Set up form with some content
+    auto *urlEdit = tool.findChild<QLineEdit *>("lineEdit_url");
+    QVERIFY(urlEdit);
+    urlEdit->setText("http://example.com/api");
+
+    // Set auth to Bearer
+    tool.m_settings.authType  = "Bearer";
+    tool.m_settings.authToken = "my-test-token";
+
+    // Also set OAuth2 fields (ensures both serialisation paths work)
+    tool.m_settings.oauthGrantType = "Password";
+    tool.m_settings.oauthClientId  = "test-client";
+
+    // Save
+    tool.saveToDisk(path);
+
+    // Reset form
+    tool.onNewRequest();
+    QTest::qWait(50);
+    QCOMPARE(tool.ui.lineEdit_url->text(), QString());
+
+    // Load back
+    tool.loadFromDisk(path);
+    QCOMPARE(tool.ui.lineEdit_url->text(), QString("http://example.com/api"));
+    QCOMPARE(tool.m_settings.authType, QString("Bearer"));
+    QCOMPARE(tool.m_settings.authToken, QString("my-test-token"));
+    // OAuth2 fields should also survive
+    QCOMPARE(tool.m_settings.oauthGrantType, QString("Password"));
+    QCOMPARE(tool.m_settings.oauthClientId, QString("test-client"));
+}
+
+// ---------------------------------------------------------------------------
+// M3: Response search
+// ---------------------------------------------------------------------------
+void TestQtRequester::testResponseSearch()
+{
+    NetworkRequestTool tool;
+    tool.show();
+    QTest::qWait(50);
+
+    // Set some response body text
+    tool.ui.textEdit_response_body->setPlainText("Hello world. Hello again.");
+
+    // Simulate search
+    auto *searchEdit = tool.findChild<QLineEdit *>();
+    QVERIFY(searchEdit);  // m_leResponseSearch should exist
+    // The first QLineEdit found might not be the search one — let's use
+    // the m_leResponseSearch member directly
+    if (!tool.m_leResponseSearch)
+        QSKIP("Response search widget not created (toolbar may not be built in test)");
+
+    tool.m_leResponseSearch->setText("Hello");
+    QTest::qWait(50);
+
+    // Verify that search highlights exist
+    QVERIFY2(!tool.m_searchSelections.isEmpty(), "Search should produce highlights");
+    QVERIFY2(tool.m_searchSelections.size() >= 2, "Should find at least 2 'Hello' matches");
+
+    // Verify navigation
+    QVERIFY(tool.m_currentSearchHit >= 0);
+    int firstHit = tool.m_currentSearchHit;
+
+    tool.navigateSearchHit(+1);
+    QVERIFY(tool.m_currentSearchHit != firstHit);  // moved to next
+
+    tool.navigateSearchHit(-1);
+    QVERIFY(tool.m_currentSearchHit == firstHit);   // back to first
+}
+

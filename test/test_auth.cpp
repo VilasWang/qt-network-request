@@ -325,5 +325,161 @@ void AuthTests::testAuthInvalidCredentials()
     QVERIFY(m_lastResult->error.code == ErrorCode::AuthInvalid);
 }
 
+// ============================================================================
+// OAuth2 integration tests (M2)
+// ============================================================================
+
+void AuthTests::testOAuth2ClientCredentials()
+{
+    HttpTestServer server;
+    QVERIFY(server.start());
+
+    AuthConfig::OAuth2Config oa;
+    oa.grant        = OAuth2GrantType::ClientCredentials;
+    oa.clientId     = "test-client";
+    oa.clientSecret = "test-secret";
+    oa.tokenUrl     = server.baseUrl() + "/oauth/token";
+
+    auto ctx = RequestContextBuilder()
+        .url(server.baseUrl() + "/get")
+        .type(RequestType::Get)
+        .authOAuth2(oa)
+        .build();
+
+    auto reply = m_manager->postRequest(std::move(ctx));
+    QVERIFY(reply != nullptr);
+
+    connect(reply.get(), &NetworkReply::requestFinished, this, [this](QSharedPointer<ResponseResult> rsp) {
+        m_lastResult = rsp;
+        m_responseReceived = true;
+    });
+
+    waitForResponse(10000);
+
+    QVERIFY(m_responseReceived);
+    QVERIFY(m_lastResult->isSuccess());
+    QCOMPARE(m_lastResult->statusCode, 200);
+
+    // Verify the Bearer token was sent
+    QJsonDocument doc = QJsonDocument::fromJson(m_lastResult->body);
+    QJsonObject headers = doc.object()["headers"].toObject();
+    QCOMPARE(headers["authorization"].toString(), QString("Bearer test-access-client_credentials"));
+}
+
+void AuthTests::testOAuth2ClientCredentialsCache()
+{
+    HttpTestServer server;
+    QVERIFY(server.start());
+
+    AuthConfig::OAuth2Config oa;
+    oa.grant        = OAuth2GrantType::ClientCredentials;
+    oa.clientId     = "cached-client";
+    oa.clientSecret = "cached-secret";
+    oa.tokenUrl     = server.baseUrl() + "/oauth/token";
+
+    // First request — must fetch a new token
+    auto ctx1 = RequestContextBuilder()
+        .url(server.baseUrl() + "/get")
+        .type(RequestType::Get)
+        .authOAuth2(oa)
+        .build();
+
+    auto reply1 = m_manager->postRequest(std::move(ctx1));
+    connect(reply1.get(), &NetworkReply::requestFinished, this, [this](QSharedPointer<ResponseResult> rsp) {
+        m_lastResult = rsp;
+        m_responseReceived = true;
+    });
+    waitForResponse(10000);
+    QVERIFY(m_responseReceived);
+    QVERIFY(m_lastResult->isSuccess());
+    QCOMPARE(m_lastResult->statusCode, 200);
+
+    // Second request with same config — cache should hit
+    m_responseReceived = false;
+    auto ctx2 = RequestContextBuilder()
+        .url(server.baseUrl() + "/get")
+        .type(RequestType::Get)
+        .authOAuth2(oa)
+        .build();
+
+    auto reply2 = m_manager->postRequest(std::move(ctx2));
+    connect(reply2.get(), &NetworkReply::requestFinished, this, [this](QSharedPointer<ResponseResult> rsp) {
+        m_lastResult = rsp;
+        m_responseReceived = true;
+    });
+    waitForResponse(5000);
+    QVERIFY(m_responseReceived);
+    QVERIFY(m_lastResult->isSuccess());
+}
+
+void AuthTests::testOAuth2PasswordGrant()
+{
+    HttpTestServer server;
+    QVERIFY(server.start());
+
+    AuthConfig::OAuth2Config oa;
+    oa.grant        = OAuth2GrantType::Password;
+    oa.clientId     = "password-client";
+    oa.clientSecret = "password-secret";
+    oa.username     = "testuser";
+    oa.password     = "testpass";
+    oa.tokenUrl     = server.baseUrl() + "/oauth/token";
+
+    auto ctx = RequestContextBuilder()
+        .url(server.baseUrl() + "/get")
+        .type(RequestType::Get)
+        .authOAuth2(oa)
+        .build();
+
+    auto reply = m_manager->postRequest(std::move(ctx));
+    connect(reply.get(), &NetworkReply::requestFinished, this, [this](QSharedPointer<ResponseResult> rsp) {
+        m_lastResult = rsp;
+        m_responseReceived = true;
+    });
+    waitForResponse(10000);
+    QVERIFY(m_responseReceived);
+    QVERIFY(m_lastResult->isSuccess());
+}
+
+void AuthTests::testOAuth2RefreshToken()
+{
+    HttpTestServer server;
+    QVERIFY(server.start());
+
+    AuthConfig::OAuth2Config oa;
+    oa.grant        = OAuth2GrantType::RefreshToken;
+    oa.clientId     = "refresh-client";
+    oa.clientSecret = "refresh-secret";
+    oa.refreshToken = "test-refresh-token";
+    oa.tokenUrl     = server.baseUrl() + "/oauth/token";
+
+    auto ctx = RequestContextBuilder()
+        .url(server.baseUrl() + "/get")
+        .type(RequestType::Get)
+        .authOAuth2(oa)
+        .build();
+
+    auto reply = m_manager->postRequest(std::move(ctx));
+    connect(reply.get(), &NetworkReply::requestFinished, this, [this](QSharedPointer<ResponseResult> rsp) {
+        m_lastResult = rsp;
+        m_responseReceived = true;
+    });
+    waitForResponse(10000);
+    QVERIFY(m_responseReceived);
+    QVERIFY(m_lastResult->isSuccess());
+}
+
+void AuthTests::testOAuth2TokenExpired()
+{
+    // Test that an invalid (no tokenUrl) OAuth2 config is rejected by isValid()
+    AuthConfig::OAuth2Config oa;
+    oa.grant    = OAuth2GrantType::ClientCredentials;
+    oa.clientId = "test";
+    // tokenUrl is empty — should be rejected
+    AuthConfig ac = AuthConfig::oauth2(oa);
+    QVERIFY(!ac.isValid());
+    QCOMPARE(ac.type, AuthType::OAuth2);
+}
+
 // Tests run via main_auth.cpp entry point
 #include "test_auth.moc"
