@@ -36,6 +36,13 @@ private Q_SLOTS:
     void testAuthHeaderPriority();
     void testAuthInvalidCredentials();
 
+    // OAuth2 integration tests (M2)
+    void testOAuth2ClientCredentials();
+    void testOAuth2ClientCredentialsCache();
+    void testOAuth2PasswordGrant();
+    void testOAuth2RefreshToken();
+    void testOAuth2TokenExpired();
+
 private:
     void waitForResponse(int timeoutMs = 5000);
 

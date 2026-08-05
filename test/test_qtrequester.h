@@ -38,6 +38,10 @@ private slots:
 
     // M1 environment
     void test_envDropdownSwitch();
+
+    // M4 auth save/load + M3 search
+    void testSaveAndLoadDiskWithAuth();
+    void testResponseSearch();
 };
 
 #endif

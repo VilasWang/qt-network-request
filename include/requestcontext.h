@@ -276,6 +276,11 @@ namespace QtNetworkRequest
 			m_context->authConfig = AuthConfig::apiKeyAuth(key, value, placement);
 			return *this;
 		}
+		RequestContextBuilder &authOAuth2(const AuthConfig::OAuth2Config &cfg)
+		{
+			m_context->authConfig = AuthConfig::oauth2(cfg);
+			return *this;
+		}
 
 		// --- query parameters ---
 		RequestContextBuilder &queryParam(const QString &key, const QString &value)
