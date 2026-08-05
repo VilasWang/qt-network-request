@@ -75,16 +75,6 @@ NetworkRequestTool::NetworkRequestTool(QWidget *parent)
 {
     ui.setupUi(this);
     initialize();
-
-    // Connect table cell changed signal to listen for Content-Type header changes
-    connect(ui.table_headers, &QTableWidget::cellChanged, this, [=](int row, int column)
-            {
-        QTableWidgetItem *keyItem = ui.table_headers->item(row, 0);
-        QTableWidgetItem *valueItem = ui.table_headers->item(row, 1);
-        if (keyItem && valueItem && keyItem->text().toLower() == "content-type") {
-            // Update Body type when Content-Type header changes
-            updateBodyTypeFromContentType(valueItem->text());
-        } });
 }
 
 NetworkRequestTool::~NetworkRequestTool()
@@ -196,7 +186,6 @@ void NetworkRequestTool::initializeConnections()
             ui.lineEdit_binary_path->setText(path);
         }
     });
-    connect(ui.cmb_body_type, &QComboBox::currentTextChanged, this, &NetworkRequestTool::onBodyTypeComboChanged);
     connect(ui.table_body, &QTableWidget::cellChanged, this, &NetworkRequestTool::onBodyParamTypeChanged);
 
     // Connect table cell changed signal to listen for Content-Type header changes
@@ -358,11 +347,13 @@ void NetworkRequestTool::onBodyTypeChanged(const QString &bodyType)
         ui.stackedWidget_body->setCurrentWidget(ui.page_raw);
         ui.textEdit_body->clear();
         ui.textEdit_body->setEnabled(false);
+        ui.cmb_raw_type->setEnabled(false);
     }
     else if (bodyType == "raw")
     {
         ui.stackedWidget_body->setCurrentWidget(ui.page_raw);
         ui.textEdit_body->setEnabled(true);
+        ui.cmb_raw_type->setEnabled(true);
         // Ensure JSON auto-formatting function is correctly connected in initial state
         if (currentRawType == "JSON")
         {
@@ -373,11 +364,13 @@ void NetworkRequestTool::onBodyTypeChanged(const QString &bodyType)
     {
         ui.stackedWidget_body->setCurrentWidget(ui.page_binary);
         ui.textEdit_body->setEnabled(false);
+        ui.cmb_raw_type->setEnabled(false);
     }
     else
     {
         ui.stackedWidget_body->setCurrentWidget(ui.page_form);
         ui.textEdit_body->setEnabled(false);
+        ui.cmb_raw_type->setEnabled(false);
     }
 
     // Update Content-Type header
@@ -388,19 +381,20 @@ void NetworkRequestTool::onBodyTypeChanged(const QString &bodyType)
     {
         if (currentRawType == "JSON")
         {
-            // TODO: Set JSON syntax highlighting
             // Connect textChanged signal to implement auto-formatting
             connect(ui.textEdit_body, &QTextEdit::textChanged, this, &NetworkRequestTool::onBodyTextChanged, Qt::UniqueConnection);
-        }
-        else if (currentRawType == "XML")
-        {
-            // TODO: Set XML syntax highlighting
         }
         else
         {
             // Disconnect to avoid triggering in non-JSON mode
             disconnect(ui.textEdit_body, &QTextEdit::textChanged, this, &NetworkRequestTool::onBodyTextChanged);
         }
+        applyBodySyntaxHighlighting(currentRawType);
+    }
+    else
+    {
+        // Non-raw body types (binary / form-data) use no syntax highlighting
+        m_highlighter.reset();
     }
 }
 
@@ -412,7 +406,6 @@ void NetworkRequestTool::onRawTypeChanged(const QString &type)
     // Set appropriate syntax highlighting
     if (type == "JSON")
     {
-        // TODO: Set JSON syntax highlighting
         // Connect textChanged signal to implement auto-formatting
         connect(ui.textEdit_body, &QTextEdit::textChanged, this, &NetworkRequestTool::onBodyTextChanged, Qt::UniqueConnection);
     }
@@ -420,10 +413,25 @@ void NetworkRequestTool::onRawTypeChanged(const QString &type)
     {
         // Disconnect to avoid triggering in non-JSON mode
         disconnect(ui.textEdit_body, &QTextEdit::textChanged, this, &NetworkRequestTool::onBodyTextChanged);
-        if (type == "XML")
-        {
-            // TODO: Set XML syntax highlighting
-        }
+    }
+    applyBodySyntaxHighlighting(type);
+}
+
+void NetworkRequestTool::applyBodySyntaxHighlighting(const QString &rawType)
+{
+    // Recreate the highlighter bound to the request body document. Reassigning
+    // a new unique_ptr replaces (and thereby clears) any previous highlighter.
+    if (rawType == "JSON")
+    {
+        m_highlighter = std::make_unique<JsonSyntaxHighlighter>(ui.textEdit_body->document());
+    }
+    else if (rawType == "XML")
+    {
+        m_highlighter = std::make_unique<XmlSyntaxHighlighter>(ui.textEdit_body->document());
+    }
+    else
+    {
+        m_highlighter.reset();
     }
 }
 
@@ -1219,30 +1227,6 @@ void NetworkRequestTool::clearRequestForm()
 QString NetworkRequestTool::formatDateTime(const QDateTime &dateTime)
 {
     return dateTime.toString("yyyy-MM-dd HH:mm:ss");
-}
-
-void NetworkRequestTool::onBodyTypeComboChanged(const QString &type)
-{
-    if (type == "raw")
-    {
-        ui.stackedWidget_body->setCurrentWidget(ui.page_raw);
-        ui.cmb_raw_type->setEnabled(true);
-    }
-    else if (type == "none")
-    {
-        ui.stackedWidget_body->setCurrentWidget(ui.page_raw);
-        ui.cmb_raw_type->setEnabled(false);
-        ui.textEdit_body->clear();
-    }
-    else if (type == "binary")
-    {
-        ui.stackedWidget_body->setCurrentWidget(ui.page_binary);
-    }
-    else
-    {
-        ui.stackedWidget_body->setCurrentWidget(ui.page_form);
-        ui.cmb_raw_type->setEnabled(false);
-    }
 }
 
 void NetworkRequestTool::onAddBodyParam()

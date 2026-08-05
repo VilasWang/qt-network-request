@@ -200,3 +200,28 @@ void TestRequestBuilder::testAuthBuilder()
     QVERIFY(ctx2->authConfig.type == AuthType::Basic);
     QCOMPARE(ctx2->authConfig.username, QString("admin"));
 }
+
+void TestRequestBuilder::testBodyFormDataBuilder()
+{
+    QStringList files = {QStringLiteral("/tmp/a.png"), QStringLiteral("/tmp/b.zip")};
+    QMap<QString, QString> kv;
+    kv["field1"] = "value1";
+    kv["field2"] = "value2";
+
+    auto ctx = RequestContextBuilder()
+        .url("https://example.com/upload")
+        .type(RequestType::Post)
+        .bodyFormData(files, kv)
+        .build();
+
+    // bodyType must be symmetric with the FormData enum value.
+    QVERIFY(ctx->bodyType == BodyType::FormData);
+    // uploadConfig carries the multipart parts.
+    QVERIFY(ctx->uploadConfig != nullptr);
+    QVERIFY(ctx->uploadConfig->useFormData);
+    QCOMPARE(ctx->uploadConfig->files, files);
+    QCOMPARE(ctx->uploadConfig->kvPairs, kv);
+    // No automatic Content-Type is set for FormData (boundary is added by the
+    // pipeline), so the body string stays empty here.
+    QVERIFY(ctx->body.isEmpty());
+}

@@ -22,6 +22,7 @@ private slots:
     void testQueryParamBuilder();
     void testQueryParamsMapBuilder();
     void testAuthBuilder();
+    void testBodyFormDataBuilder();
 };
 
 #endif // TEST_REQUESTBUILDER_H
