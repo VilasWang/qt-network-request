@@ -49,6 +49,7 @@ add_executable(BuilderTests
     main_requestbuilder.cpp
     test_requestbuilder.cpp
     test_bodytype.cpp
+    test_environment.cpp
     httptestserver.cpp
 )
 
@@ -73,6 +74,37 @@ endif()
 
 add_test(NAME BuilderTests COMMAND BuilderTests)
 set_tests_properties(BuilderTests PROPERTIES TIMEOUT 60)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CollectionTests — Collection model + Postman v2.1 converter (pure, no network)
+# ══════════════════════════════════════════════════════════════════════════════
+add_executable(CollectionTests
+    main_collection.cpp
+    test_collection.cpp
+    test_postman.cpp
+)
+
+target_link_libraries(CollectionTests
+    QNetworkRequest
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Test
+)
+
+target_include_directories(CollectionTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+set_output_directories(CollectionTests)
+
+if(WIN32)
+    copy_openssl_dlls(CollectionTests "${OPENSSL_BIN_DIR}")
+    copy_library_artifact(CollectionTests QNetworkRequest)
+endif()
+
+add_test(NAME CollectionTests COMMAND CollectionTests)
+set_tests_properties(CollectionTests PROPERTIES TIMEOUT 60)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # AuthTests — authentication system integration tests

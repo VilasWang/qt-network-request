@@ -40,6 +40,7 @@ namespace QtNetworkRequest
 		Basic  = 1,  // HTTP Basic Authentication (RFC 7617)
 		Bearer = 2,  // Bearer Token Authentication (RFC 6750)
 		ApiKey = 3,  // Custom API Key in Header or Query Param
+		OAuth2 = 4,  // OAuth 2.0 (client-credentials / password / refresh-token)
 	};
 
 	/// Placement strategy for API Key authentication
@@ -47,6 +48,15 @@ namespace QtNetworkRequest
 	{
 		Header     = 0,  // Add as custom request header
 		QueryParam = 1,  // Append to URL query string
+	};
+
+	/// OAuth 2.0 grant types supported by AuthConfig::OAuth2.
+	/// (Authorization Code + PKCE is intentionally out of scope for v1.)
+	enum class OAuth2GrantType : int8_t
+	{
+		ClientCredentials = 0,  // client_credentials
+		Password          = 1,  // Resource Owner Password Credentials (ROPC)
+		RefreshToken      = 2,  // refresh_token (also used for auto-renew)
 	};
 
 	/// Authentication configuration (value type, read-only after RequestContext build)
@@ -66,6 +76,24 @@ namespace QtNetworkRequest
 		QString apiKey;     // Header name or query param key
 		QString apiValue;   // Header value or query param value
 		ApiKeyPlacement apiKeyPlacement{ ApiKeyPlacement::Header };
+
+		/// OAuth 2.0 grant configuration (client-credentials / password / refresh-token).
+		struct OAuth2Config
+		{
+			OAuth2GrantType grant{ OAuth2GrantType::ClientCredentials };
+			QString clientId;
+			QString clientSecret;
+			QString scopes;          // space-separated scope list
+			QString tokenUrl;        // absolute token endpoint
+			// Password grant
+			QString username;
+			QString password;
+			// Refresh grant (also used for auto-renew of any grant)
+			QString refreshToken;
+		};
+
+		// --- OAuth2 ---
+		OAuth2Config oauth2Config;
 
 		// --- Factory methods ---
 
@@ -106,6 +134,15 @@ namespace QtNetworkRequest
 			return c;
 		}
 
+		/// Create an OAuth 2.0 config from a grant configuration.
+		static AuthConfig oauth2(const OAuth2Config &cfg)
+		{
+			AuthConfig c;
+			c.type = AuthType::OAuth2;
+			c.oauth2Config = cfg;
+			return c;
+		}
+
 		/// Validate that required credentials are present for the selected auth type.
 		/// AuthType::None is always considered valid.
 		bool isValid() const
@@ -115,6 +152,11 @@ namespace QtNetworkRequest
 			case AuthType::Basic:  return !username.isEmpty();
 			case AuthType::Bearer: return !token.isEmpty();
 			case AuthType::ApiKey: return !apiKey.isEmpty() && !apiValue.isEmpty();
+			case AuthType::OAuth2:
+				if (oauth2Config.grant == OAuth2GrantType::Password)
+					return !oauth2Config.tokenUrl.isEmpty() && !oauth2Config.clientId.isEmpty()
+					       && !oauth2Config.username.isEmpty() && !oauth2Config.password.isEmpty();
+				return !oauth2Config.tokenUrl.isEmpty() && !oauth2Config.clientId.isEmpty();
 			case AuthType::None:   return true;
 			default:               return false;
 			}
@@ -134,6 +176,10 @@ namespace QtNetworkRequest
 				return QByteArrayLiteral("Basic ") + credentials.toBase64();
 			}
 			case AuthType::Bearer:
+				return QByteArrayLiteral("Bearer ") + token.toUtf8();
+			case AuthType::OAuth2:
+				// token is populated at runtime by the async OAuth2 token fetch (M2);
+				// until then it is empty and the header is simply "Bearer ".
 				return QByteArrayLiteral("Bearer ") + token.toUtf8();
 			default:
 				return {};

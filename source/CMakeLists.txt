@@ -20,6 +20,10 @@ add_library(QNetworkRequest SHARED
     progressthrottle.cpp
     networkrequestregistry.cpp
     requeststrategies.cpp
+    environment.cpp
+    oauth2tokencache.cpp
+    collectionmodel.cpp
+    postmanconverter.cpp
 
     # ── Private headers (AUTOMOC) ────────────────────────────────────────────
     memorymappedfile.h
@@ -51,6 +55,10 @@ add_library(QNetworkRequest SHARED
     ${CMAKE_SOURCE_DIR}/include/networkerror.h
     ${CMAKE_SOURCE_DIR}/include/networkrequestglobal.h
     ${CMAKE_SOURCE_DIR}/include/networkrequestevent.h
+    ${CMAKE_SOURCE_DIR}/include/environment.h
+    ${CMAKE_SOURCE_DIR}/include/oauth2tokencache.h
+    ${CMAKE_SOURCE_DIR}/include/collectionmodel.h
+    ${CMAKE_SOURCE_DIR}/include/postmanconverter.h
 )
 
 # ── Compile definitions ──────────────────────────────────────────────────────
