@@ -235,6 +235,8 @@ HttpTestServer::HttpResponse HttpTestServer::routeRequest(const HttpRequest &req
     }
     if (req.method == "HEAD")
         return handleHead(req);
+    if (req.method == "POST" && req.path == "/oauth/token")
+        return handleOAuthToken(req);
     if (req.method == "POST")
         return handlePost(req);
     if (req.method == "PUT")
@@ -467,6 +469,95 @@ HttpTestServer::HttpResponse HttpTestServer::handleRedirect(const HttpRequest &r
     resp.setContentType("text/plain");
     resp.body = QByteArray("redirecting");
     resp.headers["Content-Length"] = QString::number(resp.body.size());
+    return resp;
+}
+
+HttpTestServer::HttpResponse HttpTestServer::handleOAuthToken(const HttpRequest &req)
+{
+    QUrlQuery params;
+    // Try parsing as JSON or form-urlencoded
+    if (req.headers.value("Content-Type").contains("json"))
+    {
+        QJsonDocument doc = QJsonDocument::fromJson(req.body);
+        QJsonObject obj = doc.object();
+        for (auto it = obj.begin(); it != obj.end(); ++it)
+            params.addQueryItem(it.key(), it.value().toString());
+    }
+    else
+    {
+        params = QUrlQuery(QString::fromUtf8(req.body));
+    }
+
+    const QString grantType = params.queryItemValue("grant_type");
+    const QString clientId  = params.queryItemValue("client_id");
+
+    // Reject missing credentials
+    if (clientId.isEmpty())
+    {
+        HttpResponse resp;
+        resp.statusCode = 400;
+        resp.statusText = "Bad Request";
+        QJsonObject err;
+        err["error"] = "invalid_client";
+        resp.setJsonBody(err);
+        return resp;
+    }
+
+    // Reject invalid grant type
+    if (grantType != "client_credentials" && grantType != "password" && grantType != "refresh_token")
+    {
+        HttpResponse resp;
+        resp.statusCode = 400;
+        resp.statusText = "Bad Request";
+        QJsonObject err;
+        err["error"] = "unsupported_grant_type";
+        resp.setJsonBody(err);
+        return resp;
+    }
+
+    // Reject password grant without credentials
+    if (grantType == "password")
+    {
+        const QString username = params.queryItemValue("username");
+        const QString password = params.queryItemValue("password");
+        if (username.isEmpty() || password != "testpass")
+        {
+            HttpResponse resp;
+            resp.statusCode = 401;
+            resp.statusText = "Unauthorized";
+            QJsonObject err;
+            err["error"] = "invalid_grant";
+            resp.setJsonBody(err);
+            return resp;
+        }
+    }
+
+    // Reject refresh with empty/bad token
+    if (grantType == "refresh_token")
+    {
+        const QString refreshToken = params.queryItemValue("refresh_token");
+        if (refreshToken.isEmpty())
+        {
+            HttpResponse resp;
+            resp.statusCode = 400;
+            resp.statusText = "Bad Request";
+            QJsonObject err;
+            err["error"] = "invalid_request";
+            resp.setJsonBody(err);
+            return resp;
+        }
+    }
+
+    // Success — return tokens
+    HttpResponse resp;
+    resp.statusCode = 200;
+    QJsonObject token;
+    token["access_token"]  = QString("test-access-%1").arg(grantType);
+    token["token_type"]    = "bearer";
+    token["expires_in"]    = 3600;
+    token["refresh_token"] = "test-refresh-token";
+    token["scope"]         = params.queryItemValue("scope");
+    resp.setJsonBody(token);
     return resp;
 }
 

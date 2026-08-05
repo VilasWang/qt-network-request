@@ -72,14 +72,15 @@ Key internal components:
 ## Directory map
 
 - `cmake/` — CMake modules (compiler flags, OpenSSL detection, utilities)
-- `include/` — public headers (10 files: requestcontext.h, networkerror.h, responseresult.h, sslconfig.h, proxyconfig.h, taskdata.h, networkrequestmanager.h, networkreply.h, networkrequestevent.h, networkrequestglobal.h)
-- `source/` — implementation + private headers (25+ files)
+- `include/` — public headers (16 files: requestcontext.h, networkerror.h, responseresult.h, sslconfig.h, proxyconfig.h, taskdata.h, networkrequestmanager.h, networkreply.h, networkrequestevent.h, networkrequestglobal.h, authconfig.h, environment.h, environmentstore.h, oauth2tokencache.h, collectionmodel.h, postmanconverter.h)
+- `source/` — implementation + private headers (39+ files)
   - Core: `networkrequest.h/.cpp`, `networkcommonrequest.*`, `networkdownloadrequest.*`, `networkuploadrequest.*`, `networkmtdownloadrequest.*`
   - State machine: `networkmtdownloadrequest_p.h` (state interface), `networkmtdownloadrequest_states.cpp` (ProbeState, RangeProbeState, MultiDownloadState)
   - Strategies: `requeststrategies.h/.cpp` (IRetryStrategy, IRedirectHandler, ISslPolicy)
   - Cross-cutting: `qtcompat.h` (Qt version adapters), `progressthrottle.h/.cpp` (progress rate-limiter), `networkrequestregistry.h/.cpp` (self-registering factory)
+  - Features (v2.3): `environment.cpp` (env substitution), `environmentstore.cpp` (named envs), `oauth2tokencache.cpp` (token cache), `collectionmodel.cpp` (collection tree), `postmanconverter.cpp` (Postman v2.1 I/O)
   - Infrastructure: `networkrequestmanager.cpp`, `networkrequestrunnable.*`, `networkaccessmanagerpool.*`, `memorymappedfile.*`, `networkrequestutility.*`, `networkreply.cpp`, `networkcookiejar.*`, `sharedcookiejar.h`
-- `test/` — Qt Test unit tests (5 suites: UnitTests, BuilderTests, UtilityTests, DownloaderTests, UiTests)
+- `test/` — Qt Test unit tests (7 suites: UnitTests, BuilderTests, AuthTests, CollectionTests, UtilityTests, DownloaderTests, UiTests)
 - `samples/networkrequesttool/` — GUI demo
 - `samples/networkdownloader/` — download manager app
 - `ThirdParty/openssl/` — bundled OpenSSL for Windows
