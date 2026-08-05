@@ -88,6 +88,10 @@ namespace QtNetworkRequest
 		// Query parameters (auto-appended to URL)
 		QMap<QString, QString> queryParams;
 
+		// Environment variable map ({{key}} -> value) applied by the pipeline
+		// before the URL/headers/body/query/auth are finalized (see environment.cpp).
+		QMap<QString, QString> environment;
+
 		TaskData task;
 
 		// 行为配置
@@ -282,6 +286,15 @@ namespace QtNetworkRequest
 		RequestContextBuilder &queryParams(const QMap<QString, QString> &v)
 		{
 			m_context->queryParams = v;
+			return *this;
+		}
+
+		/// Set the active environment variable map ({{key}} -> value).
+		/// The pipeline substitutes these into url/headers/body/queryParams/auth
+		/// before the request is finalized.
+		RequestContextBuilder &environment(const QMap<QString, QString> &v)
+		{
+			m_context->environment = v;
 			return *this;
 		}
 

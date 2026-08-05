@@ -2,6 +2,7 @@
 #include <QtTest/QtTest>
 #include "test_requestbuilder.h"
 #include "test_bodytype.h"
+#include "test_environment.h"
 #include "networkrequestmanager.h"
 
 // Dedicated entry point for the pure (no-network) RequestContextBuilder unit
@@ -17,6 +18,8 @@ int main(int argc, char *argv[])
     status |= QTest::qExec(&testRequestBuilder, argc, argv);
     BodyTypeTests bodyTypeTests;
     status |= QTest::qExec(&bodyTypeTests, argc, argv);
+    EnvironmentTests environmentTests;
+    status |= QTest::qExec(&environmentTests, argc, argv);
 
     QtNetworkRequest::NetworkRequestManager::unInitialize();
     return status;
