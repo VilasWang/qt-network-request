@@ -6,12 +6,15 @@
 #include "requestcontext.h"
 #include "authconfig.h"
 #include "environmentstore.h"
+#include "collectionmodel.h"
 #include "responseresult.h"
 #include <QListWidgetItem>
 #include <QDateTime>
 #include <memory>
 
 class QSyntaxHighlighter;
+class QTreeWidget;
+class QTreeWidgetItem;
 
 #ifdef QT_MTNETWORK_UNIT_TEST
 class TestQtRequester;
@@ -96,6 +99,15 @@ private slots:
     void onResponseCopy();
     void onResponseSave();
     void onResponsePrettyToggled(bool checked);
+
+    // Collection (M4)
+    void onCollectionItemClicked(QTreeWidgetItem *item, int column);
+    void onNewCollection();
+    void onAddCollectionFolder();
+    void onAddCollectionRequest();
+    void onImportPostman();
+    void onExportPostman();
+
     void onResponse(QSharedPointer<QtNetworkRequest::ResponseResult> rsp);
     void onHistoryItemClicked(QListWidgetItem *item);
     void onSearchHistory(const QString &text);
@@ -144,6 +156,7 @@ private:
     void saveToHistory();
     void saveToDisk(const QString &filePath);
     void loadFromDisk(const QString &filePath);
+    void loadRequestFromJson(const QJsonObject &obj);
     void loadFromHistory(const RequestHistory &history);
     void updateHistoryList();
     void clearRequestForm();
@@ -158,6 +171,10 @@ private:
     void saveEnvironments();
     void populateEnvironmentCombo();
     void buildResponseToolbar();
+    void buildCollectionPanel();
+    void saveCollection();
+    void loadCollection();
+    void populateCollectionTree();
     void doResponseSearch();
     void navigateSearchHit(int delta);
 
@@ -188,6 +205,11 @@ private:
     QList<QTextEdit::ExtraSelection> m_searchSelections;
     int m_currentSearchHit{-1};
     QString m_binaryFilePath;
+
+    // Collection (M4)
+    QTreeWidget *m_collectionTree{nullptr};
+    Collection m_collection;             // in-memory collection model
+    QString m_collectionPath;            // file path for persistence
 };
 
 } // namespace QtNetworkRequest
