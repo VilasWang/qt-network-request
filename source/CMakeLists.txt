@@ -24,6 +24,7 @@ add_library(QNetworkRequest SHARED
     oauth2tokencache.cpp
     collectionmodel.cpp
     postmanconverter.cpp
+    environmentstore.cpp
 
     # ── Private headers (AUTOMOC) ────────────────────────────────────────────
     memorymappedfile.h
@@ -59,6 +60,7 @@ add_library(QNetworkRequest SHARED
     ${CMAKE_SOURCE_DIR}/include/oauth2tokencache.h
     ${CMAKE_SOURCE_DIR}/include/collectionmodel.h
     ${CMAKE_SOURCE_DIR}/include/postmanconverter.h
+    ${CMAKE_SOURCE_DIR}/include/environmentstore.h
 )
 
 # ── Compile definitions ──────────────────────────────────────────────────────

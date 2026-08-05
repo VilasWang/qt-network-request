@@ -18,6 +18,7 @@
 #include "test_qtrequester.h"
 #include "networkrequesttool.h"
 #include "requestcontext.h"
+#include "environmentstore.h"
 #include "responseresult.h"
 #include "networkrequestmanager.h"
 #include "networkreply.h"
@@ -492,5 +493,52 @@ void TestQtRequester::testXmlHighlighter()
             totalFormats += b.layout()->formats().size();
     }
     QVERIFY2(totalFormats > 0, "XML highlighter produced no character formats");
+}
+
+// ---------------------------------------------------------------------------
+// M1 Environment dropdown
+// ---------------------------------------------------------------------------
+void TestQtRequester::test_envDropdownSwitch()
+{
+    NetworkRequestTool tool;
+    tool.show();
+    QTest::qWait(50);
+
+    // Verify the env combo box exists
+    auto *cmbEnv = tool.findChild<QComboBox *>("cmb_environment");
+    QVERIFY(cmbEnv);
+    QVERIFY(cmbEnv->count() >= 1); // At least "No Environment"
+
+    // Verify the first entry is "No Environment"
+    QCOMPARE(cmbEnv->itemText(0), QString("No Environment"));
+    QVERIFY(cmbEnv->itemData(0).toString().isEmpty());
+
+    // The default env file doesn't exist yet, so the tool creates a "Dev" default
+    QVERIFY(cmbEnv->count() >= 2); // "No Environment" + at least "Dev"
+
+    // Select "No Environment" → activeVariables() should be empty
+    cmbEnv->setCurrentIndex(0);
+    auto vars = tool.m_envStore.activeVariables();
+    QVERIFY2(vars.isEmpty(), "No Environment should yield empty active variables");
+
+    // Select "Dev" → should have variables
+    int devIdx = cmbEnv->findText("Dev");
+    if (devIdx >= 0)
+    {
+        cmbEnv->setCurrentIndex(devIdx);
+        QTest::qWait(50);
+        vars = tool.m_envStore.activeVariables();
+        QVERIFY2(!vars.isEmpty(), "Dev environment should have variables");
+        QCOMPARE(vars.value("host"), QString("localhost"));
+    }
+
+    // buildRequestContext should include the env map
+    auto req = tool.buildRequestContext();
+    QVERIFY(req);
+    if (devIdx >= 0)
+    {
+        QVERIFY2(!req->environment.isEmpty(), "RequestContext should carry active env vars");
+        QCOMPARE(req->environment.value("host"), QString("localhost"));
+    }
 }
 

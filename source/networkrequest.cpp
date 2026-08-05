@@ -11,6 +11,7 @@
 #include "networkrequestmanager.h"
 #include "networkrequestregistry.h"
 #include "sharedcookiejar.h"
+#include "environment.h"
 #include "qtcompat.h"
 
 using namespace QtNetworkRequest;
@@ -602,6 +603,10 @@ void NetworkRequest::setRequestContext(std::unique_ptr<RequestContext> context)
     if (context)
     {
         m_upContext = std::move(context);
+        // (M1) Substitute {{var}} placeholders across url/headers/body/query/auth
+        // before the QUrl is finalized, so the resolved value is used downstream.
+        if (!m_upContext->environment.isEmpty())
+            applyEnvironment(*m_upContext, m_upContext->environment);
         m_url = QUrl(m_upContext->url);
     }
 }
