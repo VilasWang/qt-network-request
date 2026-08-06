@@ -179,6 +179,8 @@ private:
     void populateCollectionTree();
     void doResponseSearch();
     void navigateSearchHit(int delta);
+    void injectDemoData();
+    void updateStatusBar();
 
 private:
 #ifdef QT_MTNETWORK_UNIT_TEST
@@ -201,6 +203,7 @@ private:
     QComboBox *m_cmbEnvironment{nullptr};
     QPushButton *m_btnManageEnv{nullptr};
     QLabel *m_labelResponseInfo;
+    QLabel *m_statusBarLabel{nullptr};
     QWidget *m_responseToolbar{nullptr};
     QLineEdit *m_leResponseSearch{nullptr};
     QString m_lastResponseBody;      // raw body for pretty/raw toggle
