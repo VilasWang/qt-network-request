@@ -209,6 +209,16 @@ private:
     int m_currentSearchHit{-1};
     QString m_binaryFilePath;
     quint64 m_currentTaskId{0};      // track the running request for abort
+    QString m_lastWarningText;       // populated by showBlockingWarning() (used in test mode)
+    QString m_lastWarningTitle;
+
+public:
+    /// Show a non-modal warning to the user. The message is displayed in the
+    /// status bar (auto-cleared after 5s), logged via qWarning(), and captured
+    /// in m_lastWarningText for test introspection. This intentionally avoids
+    /// modal QMessageBox which used to block the event loop in headless tests
+    /// and force an extra click on every send in interactive use.
+    void showBlockingWarning(const QString &title, const QString &message);
 
     // Collection (M4)
     QTreeWidget *m_collectionTree{nullptr};

@@ -63,6 +63,9 @@ namespace QtNetworkRequest
 		/// Return the variables of the active environment (or empty map).
 		QMap<QString, QString> activeVariables() const;
 
+		/// Return the variables of a named environment (or empty map if not found).
+		QMap<QString, QString> variables(const QString &name) const;
+
 		/// Insert or update an environment with the given name and variables.
 		void upsert(const QString &name, const QMap<QString, QString> &vars);
 

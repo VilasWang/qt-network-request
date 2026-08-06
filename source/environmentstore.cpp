@@ -116,6 +116,16 @@ namespace QtNetworkRequest
 		return {};
 	}
 
+	QMap<QString, QString> EnvironmentStore::variables(const QString &name) const
+	{
+		for (const auto &e : m_environments)
+		{
+			if (e.name == name)
+				return e.variables;
+		}
+		return {};
+	}
+
 	void EnvironmentStore::upsert(const QString &name, const QMap<QString, QString> &vars)
 	{
 		for (auto &e : m_environments)

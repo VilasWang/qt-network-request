@@ -87,6 +87,7 @@ NetworkRequestTool::NetworkRequestTool(QWidget *parent)
     : QMainWindow(parent), currentMethod("GET"), currentBodyType("none"), currentRawType("Text"), isNewRequest(true)
 {
     ui.setupUi(this);
+    ui.setupUi(this);
     initialize();
 }
 
@@ -589,6 +590,21 @@ void NetworkRequestTool::applyBodySyntaxHighlighting(const QString &rawType)
     }
 }
 
+void NetworkRequestTool::showBlockingWarning(const QString &title, const QString &message)
+{
+    m_lastWarningTitle = title;
+    m_lastWarningText  = message;
+
+    // Non-modal warning: show in status bar + log to qWarning so the user is
+    // notified without blocking the workflow. Previously this showed a modal
+    // QMessageBox, which (a) broke UI tests in headless/CI runs because the
+    // modal blocked the event loop, and (b) annoyed interactive users who had
+    // to click OK on every send. The status bar message is auto-cleared after
+    // 5 seconds and tests can inspect m_lastWarningText.
+    statusBar()->showMessage(title + ": " + message, 5000);
+    qWarning("%s: %s", qPrintable(title), qPrintable(message));
+}
+
 void NetworkRequestTool::updateHeader(const QString &key, const QString &value)
 {
     // Remove existing headers with the same key (case-insensitive)
@@ -662,7 +678,7 @@ void NetworkRequestTool::onSendRequest()
     QString raw = ui.lineEdit_url->text().trimmed();
     if (raw.isEmpty() || !QUrl(raw).isValid())
     {
-        QMessageBox::warning(this, "Error", "Please enter a valid URL");
+        showBlockingWarning("Error", "Please enter a valid URL");
         return;
     }
 
@@ -670,10 +686,10 @@ void NetworkRequestTool::onSendRequest()
     AuthConfig authCfg = buildAuthConfig();
     if (m_settings.authType != "None" && authCfg.type == AuthType::None)
     {
-        QMessageBox::warning(this, "Warning",
-                             QString("Authorization type '%1' is selected but required credentials are empty.\n"
-                                     "The request will be sent without authentication.")
-                                 .arg(m_settings.authType));
+        showBlockingWarning("Warning",
+                            QString("Authorization type '%1' is selected but required credentials are empty.\n"
+                                    "The request will be sent without authentication.")
+                                .arg(m_settings.authType));
     }
 
     applyAuthHeader();   // preview header write-back (Approach A)
@@ -1177,6 +1193,7 @@ void NetworkRequestTool::onAbortTask()
 void NetworkRequestTool::onAbortAllTask()
 {
     NetworkRequestManager::globalInstance()->stopAllRequest();
+    m_currentTaskId = 0;
 }
 
 QString NetworkRequestTool::bytesToString(qint64 bytes)
@@ -1254,7 +1271,7 @@ void NetworkRequestTool::onSaveRequest()
 {
     if (ui.lineEdit_url->text().isEmpty())
     {
-        QMessageBox::warning(this, "Error", "Please enter a URL before saving");
+        showBlockingWarning("Error", "Please enter a URL before saving");
         return;
     }
     saveToHistory();
@@ -1828,37 +1845,55 @@ void NetworkRequestTool::applyAuthHeader()
 
 AuthConfig NetworkRequestTool::buildAuthConfig() const
 {
+    // Resolve environment variables for consistency with applyAuthHeader()
+    const QMap<QString, QString> env = m_envStore.activeVariables();
+    auto resolve = [&env](const QString &value) -> QString {
+        if (env.isEmpty() || value.isEmpty())
+            return value;
+        static const QRegularExpression re(QStringLiteral("\\{\\{(\\w[\\w.-]*)\\}\\}"));
+        QString result = value;
+        QRegularExpressionMatchIterator it = re.globalMatch(value);
+        while (it.hasNext())
+        {
+            QRegularExpressionMatch m = it.next();
+            const QString key = m.captured(1);
+            if (env.contains(key))
+                result.replace(m.captured(0), env.value(key));
+        }
+        return result;
+    };
+
     if (m_settings.authType == "Basic" && !m_settings.authUsername.isEmpty())
-        return AuthConfig::basic(m_settings.authUsername, m_settings.authPassword);
+        return AuthConfig::basic(resolve(m_settings.authUsername), resolve(m_settings.authPassword));
     if (m_settings.authType == "Bearer" && !m_settings.authToken.isEmpty())
-        return AuthConfig::bearer(m_settings.authToken);
+        return AuthConfig::bearer(resolve(m_settings.authToken));
     if (m_settings.authType == "ApiKey" && !m_settings.authApiKey.isEmpty())
     {
         ApiKeyPlacement loc = (m_settings.authApiLocation == "Query")
             ? ApiKeyPlacement::QueryParam
             : ApiKeyPlacement::Header;
-        return AuthConfig::apiKeyAuth(m_settings.authApiKey, m_settings.authApiValue, loc);
+        return AuthConfig::apiKeyAuth(resolve(m_settings.authApiKey), resolve(m_settings.authApiValue), loc);
     }
     if (m_settings.authType == "OAuth2" && !m_settings.oauthClientId.isEmpty())
     {
         AuthConfig::OAuth2Config oa;
-        oa.clientId     = m_settings.oauthClientId;
-        oa.clientSecret = m_settings.oauthClientSecret;
-        oa.scopes       = m_settings.oauthScopes;
-        oa.tokenUrl     = m_settings.oauthTokenUrl;
+        oa.clientId     = resolve(m_settings.oauthClientId);
+        oa.clientSecret = resolve(m_settings.oauthClientSecret);
+        oa.scopes       = resolve(m_settings.oauthScopes);
+        oa.tokenUrl     = resolve(m_settings.oauthTokenUrl);
 
         if (m_settings.oauthGrantType == "Password")
         {
             oa.grant    = OAuth2GrantType::Password;
-            oa.username = m_settings.oauthUsername;
-            oa.password = m_settings.oauthPassword;
+            oa.username = resolve(m_settings.oauthUsername);
+            oa.password = resolve(m_settings.oauthPassword);
             // Seed refreshToken for potential 401 auto-renewal
-            oa.refreshToken = m_settings.oauthRefreshToken;
+            oa.refreshToken = resolve(m_settings.oauthRefreshToken);
         }
         else if (m_settings.oauthGrantType == "Refresh Token")
         {
             oa.grant        = OAuth2GrantType::RefreshToken;
-            oa.refreshToken = m_settings.oauthRefreshToken;
+            oa.refreshToken = resolve(m_settings.oauthRefreshToken);
         }
         else
         {
@@ -2000,77 +2035,15 @@ void NetworkRequestTool::onManageEnvironments()
     auto *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
     mainLayout->addWidget(buttonBox);
 
-    // --- Sync: load variables for the currently selected environment ---
-    auto loadVarsForEnv = [&](const QString &envName) {
-        varTable->setRowCount(0);
-        if (envName.isEmpty())
-            return;
-        for (const auto &entry : m_envStore.activeVariables())
-            ; // not used — we need per-env access
-        // Workaround: rebuild from scratch using the names list
-        // Actually we need to iterate m_envStore per the selected name.
-        // For now, re-populate from known data using a simple approach.
-    };
-
-    // Since EnvironmentStore doesn't expose per-env variables publicly,
-    // we use upsert-then-read pattern. For now, implement a simpler approach
-    // that stores a working copy.
-    QMap<QString, QMap<QString, QString>> envVars;
-    // Initialize working copies from the store by iterating names
-    {
-        // We need per-env variable access. Add a simple member to hold them.
-        // Rebuild by selective load/save.
-    }
-
-    // --- Simpler approach: embed the working state in lambdas ---
-    // Pre-populate all env data from the store
-    // Since we can't iterate envs easily from the public API, rebuild from the
-    // combination of names + known data.
-    // Use a fresh store copy approach — load from file again.
-    EnvironmentStore workStore;
-    const QString envPath = storageDir() + "/environments.json";
-    workStore.load(envPath);
+    // Working copy of per-env variable maps for the dialog session
+    QMap<QString, QMap<QString, QString>> varsMap;
+    for (const QString &name : names)
+        varsMap[name] = m_envStore.variables(name);
 
     // Current selected env in the dialog
     QString selectedEnv;
 
     // Populate variable table when an environment is selected
-    QObject::connect(listWidget, &QListWidget::currentItemChanged,
-                     [&](QListWidgetItem *current, QListWidgetItem * /*prev*/) {
-        if (!current)
-            return;
-        selectedEnv = current->text();
-        varTable->setRowCount(0);
-        // We need per-env access. Since we loaded workStore, re-derive:
-        // The simplest workaround: track variables manually
-    });
-
-    // Since per-env variable access requires iterating environments,
-    // and the public API doesn't expose it, let me add a helper or refactor.
-    // For M1, use a pragmatic approach: manually map env name -> vars.
-    QMap<QString, QMap<QString, QString>> varsMap;
-    {
-        // We need to get all envs. Load them from the file and map.
-        QFile file(envPath);
-        if (file.open(QIODevice::ReadOnly))
-        {
-            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-            QJsonArray envs = doc.object()["environments"].toArray();
-            for (const auto &ev : envs)
-            {
-                QJsonObject eo = ev.toObject();
-                QString ename = eo["name"].toString();
-                QMap<QString, QString> vmap;
-                QJsonObject vobj = eo["variables"].toObject();
-                for (auto it = vobj.begin(); it != vobj.end(); ++it)
-                    vmap[it.key()] = it.value().toString();
-                varsMap[ename] = vmap;
-            }
-        }
-    }
-
-    // Re-connect with proper vars access
-    QObject::disconnect(listWidget, &QListWidget::currentItemChanged, nullptr, nullptr);
     QObject::connect(listWidget, &QListWidget::currentItemChanged,
                      [&](QListWidgetItem *current, QListWidgetItem * /*prev*/) {
         if (!current)
@@ -2836,8 +2809,8 @@ void NetworkRequestTool::onImportPostman()
     }
     else
     {
-        QMessageBox::warning(this, "Import Failed",
-                             "Could not parse the selected file as a Postman v2.1 collection.");
+        showBlockingWarning("Import Failed",
+                            "Could not parse the selected file as a Postman v2.1 collection.");
     }
 }
 

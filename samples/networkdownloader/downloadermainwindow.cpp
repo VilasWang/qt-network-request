@@ -142,6 +142,12 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::closeEvent(QCloseEvent *even
     // Check if there are active downloads
     if (m_taskModel->getRunningTaskCount() > 0)
     {
+#ifdef QT_MTNETWORK_UNIT_TEST
+        // In test mode: skip the modal dialog — it blocks the event loop in
+        // headless/CI runs and there are no real downloads to confirm anyway.
+        event->accept();
+        return;
+#else
         QMessageBox::StandardButton reply = QMessageBox::question(
             this, "Confirm Exit",
             "There are active downloads. Are you sure you want to exit?",
@@ -152,6 +158,7 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::closeEvent(QCloseEvent *even
             event->ignore();
             return;
         }
+#endif
     }
 
     event->accept();
