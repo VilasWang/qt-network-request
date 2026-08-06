@@ -1,5 +1,6 @@
 #include <QApplication>
 #include "downloadermainwindow.h"
+#include "thememanager.h"
 
 int main(int argc, char *argv[])
 {
@@ -14,6 +15,10 @@ int main(int argc, char *argv[])
     app.setApplicationVersion("1.0");
     app.setOrganizationName("QtDownloader");
     app.setOrganizationDomain("qtdownloader.com");
+
+    // Apply the persisted theme (Light/Dark/System) before any widget is
+    // shown so the very first paint is already themed.
+    ThemeManager::applyStoredMode();
 
     // Create and show main window
     QtNetworkRequest::NetworkDownloaderMainWindow mainWindow;

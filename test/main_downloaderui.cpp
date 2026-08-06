@@ -1,18 +1,17 @@
 #include <QApplication>
 #include <QtTest/QtTest>
-#include "test_qtrequester.h"
+#include "test_downloaderui.h"
 #include "thememanager.h"
 
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    app.setApplicationName("UiTests");
+    app.setApplicationName("DownloaderUiTests");
     app.setOrganizationName("QtNetworkRequest");
 
-    // The requester .ui no longer carries an embedded stylesheet — apply the
-    // persisted theme here so the windows under test render themed.
+    // Start from a clean, themed state (tests assert on qApp->styleSheet()).
     ThemeManager::applyStoredMode();
 
-    TestQtRequester tester;
+    TestDownloaderUi tester;
     return QTest::qExec(&tester, argc, argv);
 }

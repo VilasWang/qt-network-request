@@ -15,9 +15,11 @@
 class QSyntaxHighlighter;
 class QTreeWidget;
 class QTreeWidgetItem;
+class ThemeManager;
 
 #ifdef QT_MTNETWORK_UNIT_TEST
 class TestQtRequester;
+class TestTheme;
 #endif
 
 namespace QtNetworkRequest
@@ -181,6 +183,7 @@ private:
 private:
 #ifdef QT_MTNETWORK_UNIT_TEST
     friend class ::TestQtRequester;
+    friend class ::TestTheme;
 #endif
     Ui::networkClass ui;
     QString currentMethod;
@@ -212,6 +215,10 @@ private:
     QWidget *m_collectionToolbar{nullptr};
     Collection m_collection;             // in-memory collection model
     QString m_collectionPath;            // file path for persistence
+
+    // Theme (light/dark/system runtime switching)
+    ThemeManager *m_theme{nullptr};
+    QPushButton *m_btnTheme{nullptr};
 };
 
 } // namespace QtNetworkRequest

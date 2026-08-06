@@ -1,5 +1,6 @@
 #include "downloadermainwindow.h"
 #include "ui_NetworkDownloaderMainWindow.h"
+#include "thememanager.h"
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QInputDialog>
@@ -77,6 +78,37 @@ QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidg
 
     // Setup connections
     setupConnections();
+
+    // Theme: create the manager, apply the persisted mode, and wire the
+    // View-menu actions (exclusive group) + toolbar toggle button.
+    m_theme = new ThemeManager(this);
+    m_theme->setMode(m_theme->mode());
+
+    m_themeGroup = new QActionGroup(this);
+    m_themeGroup->setExclusive(true);
+    m_themeGroup->addAction(ui->actionThemeLight);
+    m_themeGroup->addAction(ui->actionThemeDark);
+    m_themeGroup->addAction(ui->actionThemeSystem);
+    syncThemeActionGroup();
+    connect(ui->actionThemeLight, &QAction::triggered, this, &NetworkDownloaderMainWindow::onActionThemeLight);
+    connect(ui->actionThemeDark, &QAction::triggered, this, &NetworkDownloaderMainWindow::onActionThemeDark);
+    connect(ui->actionThemeSystem, &QAction::triggered, this, &NetworkDownloaderMainWindow::onActionThemeSystem);
+    connect(ui->actionToggleTheme, &QAction::triggered, this, &NetworkDownloaderMainWindow::onActionToggleTheme);
+    connect(m_theme, &ThemeManager::modeChanged, this, [this](ThemeManager::Mode){ syncThemeActionGroup(); });
+
+    // Inject a compact theme-toggle button into the status frame (right side,
+    // next to labelTime) so users can switch light/dark without opening the
+    // View menu — parity with the QtRequester toolbar toggle.
+    if (auto *statusLayout = qobject_cast<QHBoxLayout *>(ui->statusFrame->layout()))
+    {
+        auto *btnTheme = new QPushButton(QStringLiteral("\xe2\x98\xbe"));  // ☾
+        btnTheme->setObjectName(QStringLiteral("btn_theme"));
+        btnTheme->setToolTip(QStringLiteral("Toggle light/dark theme"));
+        btnTheme->setFixedWidth(36);
+        statusLayout->addStretch();
+        statusLayout->addWidget(btnTheme);
+        connect(btnTheme, &QPushButton::clicked, m_theme, &ThemeManager::toggle);
+    }
 
     // Load settings
     loadGeometrySettings();
@@ -419,6 +451,43 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onActionAbout()
 void QtNetworkRequest::NetworkDownloaderMainWindow::onActionExit()
 {
     close();
+}
+
+// ── Theme handling ───────────────────────────────────────────────────────────
+void QtNetworkRequest::NetworkDownloaderMainWindow::onActionThemeLight()
+{
+    if (m_theme) m_theme->setMode(ThemeManager::Mode::Light);
+}
+
+void QtNetworkRequest::NetworkDownloaderMainWindow::onActionThemeDark()
+{
+    if (m_theme) m_theme->setMode(ThemeManager::Mode::Dark);
+}
+
+void QtNetworkRequest::NetworkDownloaderMainWindow::onActionThemeSystem()
+{
+    if (m_theme) m_theme->setMode(ThemeManager::Mode::System);
+}
+
+void QtNetworkRequest::NetworkDownloaderMainWindow::onActionToggleTheme()
+{
+    if (m_theme) m_theme->toggle();
+}
+
+void QtNetworkRequest::NetworkDownloaderMainWindow::syncThemeActionGroup()
+{
+    if (!m_theme)
+        return;
+    const auto mode = m_theme->mode();
+    QAction *checked = nullptr;
+    if (mode == ThemeManager::Mode::Light)
+        checked = ui->actionThemeLight;
+    else if (mode == ThemeManager::Mode::Dark)
+        checked = ui->actionThemeDark;
+    else
+        checked = ui->actionThemeSystem;
+    if (checked)
+        checked->setChecked(true);
 }
 
 void QtNetworkRequest::NetworkDownloaderMainWindow::updateUI()

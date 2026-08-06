@@ -2,4 +2,8 @@
     <qresource prefix="/icons">
         <file>resources/app.ico</file>
     </qresource>
+    <qresource prefix="/styles">
+        <file alias="precision-light.qss">resources/styles/precision-light.qss</file>
+        <file alias="precision-dark.qss">resources/styles/precision-dark.qss</file>
+    </qresource>
 </RCC>

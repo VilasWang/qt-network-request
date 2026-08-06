@@ -31,6 +31,7 @@ add_executable(QtRequester ${GUI_EXECUTABLE_FLAG}
     networkrequesttool/networkrequesttool.h
     networkrequesttool/jsonsyntaxhighlighter.h
     networkrequesttool/xmlsyntaxhighlighter.h
+    networkrequesttool/thememanager.h
 
     # UI / Resources
     networkrequesttool/NetworkRequestTool.ui
@@ -64,6 +65,7 @@ add_executable(QtDownloader ${GUI_EXECUTABLE_FLAG}
     networkdownloader/downloadtaskmodel.h
     networkdownloader/downloadmanager.h
     networkdownloader/downloadtask.h
+    networkdownloader/thememanager.h
 
     # UI / Resources
     networkdownloader/NetworkDownloaderMainWindow.ui
