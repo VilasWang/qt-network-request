@@ -213,11 +213,10 @@ private:
     QString m_lastWarningTitle;
 
 public:
-    /// Show a non-modal warning to the user. The message is displayed in the
-    /// status bar (auto-cleared after 5s), logged via qWarning(), and captured
-    /// in m_lastWarningText for test introspection. This intentionally avoids
-    /// modal QMessageBox which used to block the event loop in headless tests
-    /// and force an extra click on every send in interactive use.
+    /// Show a warning. In normal GUI mode this displays a modal QMessageBox
+    /// so the user cannot miss it. In test mode (QT_MTNETWORK_UNIT_TEST) the
+    /// dialog is suppressed and the message is routed to the status bar +
+    /// qWarning() + m_lastWarningText for assertion.
     void showBlockingWarning(const QString &title, const QString &message);
 
     // Collection (M4)
