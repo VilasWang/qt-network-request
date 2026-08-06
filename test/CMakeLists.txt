@@ -298,6 +298,7 @@ add_executable(DownloaderUiTests
     ${CMAKE_SOURCE_DIR}/samples/networkdownloader/downloadermainwindow.cpp
     ${CMAKE_SOURCE_DIR}/samples/networkdownloader/downloadtaskmodel.cpp
     ${CMAKE_SOURCE_DIR}/samples/networkdownloader/downloadmanager.cpp
+    ${CMAKE_SOURCE_DIR}/samples/networkdownloader/tasktabledelegate.cpp
     ${CMAKE_SOURCE_DIR}/samples/networkdownloader/thememanager.h
     ${CMAKE_SOURCE_DIR}/samples/networkdownloader/NetworkDownloaderMainWindow.ui
     ${CMAKE_SOURCE_DIR}/samples/networkdownloader/NetworkDownloader.qrc

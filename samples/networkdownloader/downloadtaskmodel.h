@@ -14,6 +14,12 @@ class NetworkDownloadTaskModel : public QAbstractTableModel
     Q_OBJECT
 
 public:
+    // Custom data roles consumed by TaskTableDelegate.
+    enum TaskDataRole
+    {
+        FullTaskRole = Qt::UserRole + 1 // QVariant carrying the full NetworkDownloadTask
+    };
+
     enum class Column : int
     {
         ColumnFileName = 0,

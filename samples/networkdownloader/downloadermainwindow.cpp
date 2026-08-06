@@ -1,6 +1,7 @@
 #include "downloadermainwindow.h"
 #include "ui_NetworkDownloaderMainWindow.h"
 #include "thememanager.h"
+#include "tasktabledelegate.h"
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QInputDialog>
@@ -19,6 +20,7 @@
 #include <QGroupBox>
 #include <QFormLayout>
 #include <QDialogButtonBox>
+#include <QTimer>
 
 QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::DownloaderMainWindow), m_settings("QtDownloader", "MainWindow")
@@ -26,7 +28,7 @@ QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidg
     ui->setupUi(this);
 
     // Set window properties
-    setWindowTitle("Qt Downloader - Modern Download Manager");
+    setWindowTitle("Qt Downloader");
     setWindowIcon(QIcon(":/icons/app.ico")); // Set app icon if available
 
     // Set modern window properties
@@ -39,6 +41,14 @@ QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidg
 
     // Setup table view with modern styling
     ui->tableViewTasks->setModel(m_taskModel);
+
+    // Prototype-faithful cell rendering: file icon square + name/URL,
+    // thin rounded progress bar and pill-shaped status badges.
+    ui->tableViewTasks->setItemDelegate(new QtNetworkRequest::TaskTableDelegate(ui->tableViewTasks));
+
+    // The URL card hugs its content (header + fixed-height text area) so the
+    // task table gets all remaining vertical space, like the prototype.
+    ui->urlFrame->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 
     // Configure modern table view
     ui->tableViewTasks->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
@@ -53,28 +63,37 @@ QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidg
     ui->tableViewTasks->horizontalHeader()->setSectionResizeMode(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnTime), QHeaderView::Fixed);
     ui->tableViewTasks->horizontalHeader()->setSectionResizeMode(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnState), QHeaderView::Fixed);
 
-    // Set fixed widths for non-expanding columns
-    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnFileSize), 100);   // File size - fixed
-    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnDownloaded), 130); // Downloaded - fixed
-    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnProgress), 120);   // Progress - fixed
-    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnSpeed), 100);      // Speed - fixed
-    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnTime), 80);        // Time - fixed
-    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnState), 120);      // State - fixed
+    // Set fixed widths for non-expanding columns (matching the prototype colgroup)
+    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnFileSize), 90);    // File size
+    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnDownloaded), 110); // Downloaded
+    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnProgress), 180);   // Progress bar + %
+    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnSpeed), 100);      // Speed
+    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnTime), 85);        // Time
+    ui->tableViewTasks->setColumnWidth(static_cast<int>(QtNetworkRequest::NetworkDownloadTaskModel::Column::ColumnState), 120);      // Status badge
 
     ui->tableViewTasks->setSelectionBehavior(QAbstractItemView::SelectRows);
-    ui->tableViewTasks->setSelectionMode(QAbstractItemView::SingleSelection);
+    ui->tableViewTasks->setSelectionMode(QAbstractItemView::ExtendedSelection);
     // Selecting a (full) row otherwise highlights the column header sections,
     // making the header bar look selected/blue. Disable section highlighting so
     // only the row is selected.
     ui->tableViewTasks->horizontalHeader()->setHighlightSections(false);
     ui->tableViewTasks->verticalHeader()->setHighlightSections(false);
-    ui->tableViewTasks->setAlternatingRowColors(true);
+    ui->tableViewTasks->setAlternatingRowColors(false);
     ui->tableViewTasks->setShowGrid(true);
-    ui->tableViewTasks->setGridStyle(Qt::DotLine);
+    ui->tableViewTasks->setGridStyle(Qt::SolidLine);
+    // Tall rows so the two-line file cell / badge have breathing room.
+    ui->tableViewTasks->verticalHeader()->setDefaultSectionSize(52);
 
     // Enable word wrap for better text display
     ui->tableViewTasks->setWordWrap(false);
     ui->tableViewTasks->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+    // Status bar: running stats on the left, download directory on the right
+    // (mirrors the prototype status bar).
+    m_labelDownloadDir = new QLabel(this);
+    m_labelDownloadDir->setObjectName(QStringLiteral("lblDownloadDir"));
+    m_labelDownloadDir->setText(QStringLiteral("下载目录: %1").arg(m_downloadManager->getDownloadDirectory()));
+    statusBar()->addPermanentWidget(m_labelDownloadDir);
 
     // Setup connections
     setupConnections();
@@ -103,8 +122,8 @@ QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidg
     {
         auto *btnTheme = new QPushButton(QStringLiteral("\xe2\x98\xbe"));  // ☾
         btnTheme->setObjectName(QStringLiteral("btn_theme"));
-        btnTheme->setToolTip(QStringLiteral("Toggle light/dark theme"));
-        btnTheme->setFixedWidth(36);
+        btnTheme->setToolTip(QStringLiteral("切换明暗主题"));
+        btnTheme->setFixedSize(28, 28);
         statusLayout->addStretch();
         statusLayout->addWidget(btnTheme);
         connect(btnTheme, &QPushButton::clicked, m_theme, &ThemeManager::toggle);
@@ -115,6 +134,53 @@ QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidg
 
     // Update UI
     updateUI();
+
+    // Demo mode (QT_DOWNLOADER_DEMO=1): inject sample tasks that mirror the
+    // design prototype so the UI can be compared against the HTML mockup.
+    if (qEnvironmentVariableIsSet("QT_DOWNLOADER_DEMO"))
+    {
+        using Task = QtNetworkRequest::NetworkDownloadTask;
+        Task t1(QUrl("https://releases.ubuntu.com/22.04.3/ubuntu-22.04.3-desktop-amd64.iso"));
+        t1.totalBytes = 5067982438;
+        t1.downloadedBytes = 1965022306;
+        t1.progress = 39;
+        t1.speed = 8598323;
+        t1.elapsedMillis = 228000;
+        t1.state = Task::State::Running;
+        m_taskModel->addTask(t1);
+
+        Task t2(QUrl("https://github.com/torvalds/linux/archive/refs/tags/v6.5.tar.gz"));
+        t2.totalBytes = 234881024;
+        t2.downloadedBytes = 163577856;
+        t2.progress = 70;
+        t2.speed = 5347737;
+        t2.elapsedMillis = 31000;
+        t2.state = Task::State::Running;
+        m_taskModel->addTask(t2);
+
+        Task t3(QUrl("https://docs.example.com/user-guide-v3.pdf"));
+        t3.totalBytes = 13421773;
+        t3.state = Task::State::Waiting;
+        m_taskModel->addTask(t3);
+
+        ui->labelSpeed->setText(QStringLiteral("13.3 MB/s"));
+        ui->labelTime->setText(QStringLiteral("4m 52s"));
+        updateUI();
+
+        // Self-capture for visual QA: render the window (at native device
+        // pixel ratio) to a PNG next to the executable, then exit. Triggered
+        // by QT_DOWNLOADER_DEMO so CI/manual comparison against the HTML
+        // prototype is reproducible on high-DPI screens.
+        QTimer::singleShot(2000, this, [this]() {
+            const QString name = qEnvironmentVariable("QT_DOWNLOADER_SHOT");
+            if (!name.isEmpty())
+            {
+                const QPixmap shot = this->grab();
+                shot.save(name, "PNG");
+                QCoreApplication::exit(0);
+            }
+        });
+    }
 
     // Initialize notification system
     m_notificationYOffset = 175; // Start below the button area (150px + 25px margin)
@@ -197,8 +263,12 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::setupConnections()
     // Button connections
     connect(ui->btnAddTasks, &QPushButton::clicked, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onAddTasksClicked);
     connect(ui->btnStart, &QPushButton::clicked, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onStartClicked);
+    connect(ui->btnPause, &QPushButton::clicked, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onPauseClicked);
     connect(ui->btnCancel, &QPushButton::clicked, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onCancelClicked);
     connect(ui->btnDelete, &QPushButton::clicked, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onDeleteClicked);
+    connect(ui->btnSelectAll, &QPushButton::clicked, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onSelectAllClicked);
+    connect(ui->btnClearCompleted, &QPushButton::clicked, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onClearCompletedClicked);
+    connect(ui->btnSettings, &QPushButton::clicked, this, &QtNetworkRequest::NetworkDownloaderMainWindow::onActionSettings);
 
     // Table selection
     connect(ui->tableViewTasks->selectionModel(), &QItemSelectionModel::selectionChanged,
@@ -225,7 +295,7 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onAddTasksClicked()
     QString urlsText = ui->plainTextEditUrls->toPlainText().trimmed();
     if (urlsText.isEmpty())
     {
-        showNotification("Warning: Please enter at least one URL", "warning", 2000);
+        showNotification("警告：请至少输入一个下载链接", "warning", 2000);
         return;
     }
 
@@ -250,11 +320,11 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onAddTasksClicked()
     if (addedCount > 0)
     {
         ui->plainTextEditUrls->clear();
-        showNotification(QString("Added %1 download task(s)").arg(addedCount), "success", 3000);
+        showNotification(QStringLiteral("已添加 %1 个任务到队列").arg(addedCount), "success", 3000);
     }
     else
     {
-        showNotification("Warning: No valid URLs found", "warning", 3000);
+        showNotification("警告：未找到有效的下载链接", "warning", 3000);
     }
 }
 
@@ -263,27 +333,60 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onStartClicked()
     QModelIndexList selected = ui->tableViewTasks->selectionModel()->selectedRows();
     if (selected.isEmpty())
     {
-        showNotification("Warning: Please select a task to start", "warning", 2000);
+        showNotification("警告：请先选择要开始的任务", "warning", 2000);
         return;
     }
 
-    QModelIndex index = selected.first();
-    QtNetworkRequest::NetworkDownloadTask task = m_taskModel->getTask(index.row());
-
-    if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Running)
+    int startedCount = 0;
+    for (const QModelIndex &index : selected)
     {
-        showNotification("Info: Task is already running", "info", 2000);
-        return;
+        QtNetworkRequest::NetworkDownloadTask task = m_taskModel->getTask(index.row());
+        if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Waiting ||
+            task.state == QtNetworkRequest::NetworkDownloadTask::State::Paused)
+        {
+            m_downloadManager->startDownload(task.id);
+            startedCount++;
+        }
     }
 
-    if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Completed)
+    if (startedCount > 0)
     {
-        showNotification("Success: Task is already completed", "success", 2000);
+        showNotification(QStringLiteral("已开始 %1 个下载").arg(startedCount), "success", 2000);
+    }
+    else
+    {
+        showNotification("提示：所选任务无法开始（已在运行或已完成）", "info", 2000);
+    }
+}
+
+void QtNetworkRequest::NetworkDownloaderMainWindow::onPauseClicked()
+{
+    QModelIndexList selected = ui->tableViewTasks->selectionModel()->selectedRows();
+    if (selected.isEmpty())
+    {
+        showNotification("警告：请先选择要暂停的任务", "warning", 2000);
         return;
     }
 
-    m_downloadManager->startDownload(task.id);
-    showNotification("Download started", "success", 2000);
+    int pausedCount = 0;
+    for (const QModelIndex &index : selected)
+    {
+        QtNetworkRequest::NetworkDownloadTask task = m_taskModel->getTask(index.row());
+        if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Running)
+        {
+            m_downloadManager->pauseDownload(task.id);
+            pausedCount++;
+        }
+    }
+
+    if (pausedCount > 0)
+    {
+        showNotification(QStringLiteral("已暂停 %1 个下载").arg(pausedCount), "info", 2000);
+    }
+    else
+    {
+        showNotification("提示：所选任务未在运行中", "info", 2000);
+    }
 }
 
 void QtNetworkRequest::NetworkDownloaderMainWindow::onCancelClicked()
@@ -291,21 +394,31 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onCancelClicked()
     QModelIndexList selected = ui->tableViewTasks->selectionModel()->selectedRows();
     if (selected.isEmpty())
     {
-        showNotification("Warning: Please select a task to cancel", "warning", 2000);
+        showNotification("警告：请先选择要取消的任务", "warning", 2000);
         return;
     }
 
-    QModelIndex index = selected.first();
-    QtNetworkRequest::NetworkDownloadTask task = m_taskModel->getTask(index.row());
-
-    if (task.state != QtNetworkRequest::NetworkDownloadTask::State::Running)
+    int cancelledCount = 0;
+    for (const QModelIndex &index : selected)
     {
-        showNotification("Info: Task is not running", "info", 2000);
-        return;
+        QtNetworkRequest::NetworkDownloadTask task = m_taskModel->getTask(index.row());
+        if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Running ||
+            task.state == QtNetworkRequest::NetworkDownloadTask::State::Paused ||
+            task.state == QtNetworkRequest::NetworkDownloadTask::State::Waiting)
+        {
+            m_downloadManager->cancelDownload(task.id);
+            cancelledCount++;
+        }
     }
 
-    m_downloadManager->pauseDownload(task.id);
-    showNotification("Download paused", "info", 2000);
+    if (cancelledCount > 0)
+    {
+        showNotification(QStringLiteral("已取消 %1 个下载").arg(cancelledCount), "info", 2000);
+    }
+    else
+    {
+        showNotification("提示：所选任务无法取消", "info", 2000);
+    }
 }
 
 void QtNetworkRequest::NetworkDownloaderMainWindow::onDeleteClicked()
@@ -313,17 +426,17 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onDeleteClicked()
     QModelIndexList selected = ui->tableViewTasks->selectionModel()->selectedRows();
     if (selected.isEmpty())
     {
-        QMessageBox::warning(this, "Warning", "Please select a task to delete.");
+        QMessageBox::warning(this, "警告", "请先选择要删除的任务。");
         return;
     }
 
-    QModelIndex index = selected.first();
-    QtNetworkRequest::NetworkDownloadTask task = m_taskModel->getTask(index.row());
+    const int count = selected.size();
+    const QString question = (count == 1)
+        ? QStringLiteral("确定要删除任务 '%1' 吗？").arg(m_taskModel->getTask(selected.first().row()).fileName)
+        : QStringLiteral("确定要删除所选的 %1 个任务吗？").arg(count);
 
     QMessageBox::StandardButton reply = QMessageBox::question(
-        this, "Confirm Delete",
-        QString("Are you sure you want to delete the task '%1'?").arg(task.fileName),
-        QMessageBox::Yes | QMessageBox::No);
+        this, "确认删除", question, QMessageBox::Yes | QMessageBox::No);
 
     if (reply == QMessageBox::Yes)
     {
@@ -334,11 +447,17 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onDeleteClicked()
         // Clear selection first to prevent crashes
         ui->tableViewTasks->selectionModel()->clearSelection();
 
-        // Remove from model first (this will update the UI immediately)
-        m_taskModel->removeTask(task.id);
-
-        // Then remove from download manager
-        m_downloadManager->removeDownload(task.id);
+        // Collect ids first — removing rows invalidates the model indexes.
+        QStringList ids;
+        for (const QModelIndex &index : selected)
+        {
+            ids.append(m_taskModel->getTask(index.row()).id);
+        }
+        for (const QString &id : ids)
+        {
+            m_taskModel->removeTask(id);
+            m_downloadManager->removeDownload(id);
+        }
 
         // Re-enable signals and updates
         ui->tableViewTasks->selectionModel()->blockSignals(false);
@@ -349,21 +468,64 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onDeleteClicked()
     }
 }
 
+void QtNetworkRequest::NetworkDownloaderMainWindow::onSelectAllClicked()
+{
+    ui->tableViewTasks->selectAll();
+}
+
+void QtNetworkRequest::NetworkDownloaderMainWindow::onClearCompletedClicked()
+{
+    const QVector<QtNetworkRequest::NetworkDownloadTask> tasks = m_taskModel->getAllTasks();
+    QStringList ids;
+    for (const QtNetworkRequest::NetworkDownloadTask &task : tasks)
+    {
+        if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Completed)
+        {
+            ids.append(task.id);
+        }
+    }
+
+    if (ids.isEmpty())
+    {
+        showNotification("提示：没有已完成的任务", "info", 2000);
+        return;
+    }
+
+    ui->tableViewTasks->selectionModel()->clearSelection();
+    for (const QString &id : ids)
+    {
+        m_taskModel->removeTask(id);
+        m_downloadManager->removeDownload(id);
+    }
+    showNotification(QStringLiteral("已清除 %1 个已完成任务").arg(ids.size()), "success", 2000);
+    updateUI();
+}
+
 void QtNetworkRequest::NetworkDownloaderMainWindow::onTaskSelectionChanged()
 {
-    bool hasSelection = !ui->tableViewTasks->selectionModel()->selectedRows().isEmpty();
-    ui->btnStart->setEnabled(hasSelection);
-    ui->btnCancel->setEnabled(hasSelection);
-    ui->btnDelete->setEnabled(hasSelection);
+    QModelIndexList selected = ui->tableViewTasks->selectionModel()->selectedRows();
+    const bool hasSelection = !selected.isEmpty();
 
-    if (hasSelection)
+    bool canStart = false;
+    bool canPause = false;
+    bool canCancel = false;
+    for (const QModelIndex &index : selected)
     {
-        QModelIndex index = ui->tableViewTasks->selectionModel()->selectedRows().first();
         QtNetworkRequest::NetworkDownloadTask task = m_taskModel->getTask(index.row());
-
-        ui->btnStart->setEnabled(task.state == QtNetworkRequest::NetworkDownloadTask::State::Waiting || task.state == QtNetworkRequest::NetworkDownloadTask::State::Paused);
-        ui->btnCancel->setEnabled(task.state == QtNetworkRequest::NetworkDownloadTask::State::Running);
+        if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Waiting ||
+            task.state == QtNetworkRequest::NetworkDownloadTask::State::Paused)
+            canStart = true;
+        if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Running)
+        {
+            canPause = true;
+            canCancel = true;
+        }
     }
+
+    ui->btnStart->setEnabled(canStart);
+    ui->btnPause->setEnabled(canPause);
+    ui->btnCancel->setEnabled(canCancel);
+    ui->btnDelete->setEnabled(hasSelection);
 }
 
 void QtNetworkRequest::NetworkDownloaderMainWindow::onTaskAdded(const QtNetworkRequest::NetworkDownloadTask &task)
@@ -397,7 +559,7 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onTaskStateChanged(const QSt
     if (state == QtNetworkRequest::NetworkDownloadTask::State::Error)
     {
         QtNetworkRequest::NetworkDownloadTask task = m_taskModel->getTask(taskId);
-        showNotification(QString("Download failed: %1").arg(task.fileName), "error", 5000);
+        showNotification(QStringLiteral("下载失败：%1").arg(task.fileName), "error", 5000);
     }
 }
 
@@ -412,7 +574,7 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onTaskCompleted(const QStrin
         // taskFileNameChanged signal didn't propagate.
         m_taskModel->updateTaskFileName(taskId, task.fileName);
         m_taskModel->updateTaskTotalSpeed(taskId);
-        showNotification(QString("'%1' downloaded successfully").arg(task.fileName), "success", 4000);
+        showNotification(QStringLiteral("'%1' 下载完成").arg(task.fileName), "success", 4000);
     }
     updateUI();
 }
@@ -420,18 +582,22 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onTaskCompleted(const QStrin
 void QtNetworkRequest::NetworkDownloaderMainWindow::onDownloadSpeedChanged(qint64 totalSpeed)
 {
     QString speedText;
-    if (totalSpeed < 1024)
+    if (totalSpeed <= 0)
     {
-        speedText = QString("Speed: %1 B/s").arg(totalSpeed);
+        speedText = QStringLiteral("--");
+    }
+    else if (totalSpeed < 1024)
+    {
+        speedText = QString("%1 B/s").arg(totalSpeed);
     }
     else if (totalSpeed < 1024 * 1024)
     {
-        speedText = QString("Speed: %1 KB/s").arg(totalSpeed / 1024);
+        speedText = QString("%1 KB/s").arg(totalSpeed / 1024);
     }
     else
     {
         double speedMB = static_cast<double>(totalSpeed) / (1024.0 * 1024.0);
-        speedText = QString("Speed: %1 MB/s").arg(speedMB, 0, 'f', 1);
+        speedText = QString("%1 MB/s").arg(speedMB, 0, 'f', 1);
     }
 
     ui->labelSpeed->setText(speedText);
@@ -502,7 +668,20 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::updateUI()
     int runningCount = m_taskModel->getRunningTaskCount();
     int totalCount = m_taskModel->rowCount();
 
-    QString statusText = QString("Tasks: %1 total, %2 running").arg(totalCount).arg(runningCount);
+    int completedCount = 0;
+    const QVector<QtNetworkRequest::NetworkDownloadTask> tasks = m_taskModel->getAllTasks();
+    for (const QtNetworkRequest::NetworkDownloadTask &task : tasks)
+    {
+        if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Completed)
+            completedCount++;
+    }
+
+    // Task-count badge in the task panel header (prototype: task-count-badge)
+    ui->lblTaskCount->setText(QStringLiteral("%1 个任务").arg(totalCount));
+
+    // Status bar stats (prototype: 任务 / 运行中 / 已完成)
+    QString statusText = QStringLiteral("任务: %1 个 · 运行中: %2 个 · 已完成: %3 个")
+                             .arg(totalCount).arg(runningCount).arg(completedCount);
     ui->statusBar->showMessage(statusText);
 
     onTaskSelectionChanged(); // Update button states
@@ -528,33 +707,33 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::updateTimeRemaining()
         QString timeText;
         if (remainingSeconds < 60)
         {
-            timeText = QString("Time: %1s").arg(remainingSeconds);
+            timeText = QString("%1s").arg(remainingSeconds);
         }
         else if (remainingSeconds < 3600)
         {
             int minutes = remainingSeconds / 60;
             int seconds = remainingSeconds % 60;
-            timeText = QString("Time: %1m %2s").arg(minutes).arg(seconds);
+            timeText = QString("%1m %2s").arg(minutes).arg(seconds);
         }
         else
         {
             int hours = remainingSeconds / 3600;
             int minutes = (remainingSeconds % 3600) / 60;
-            timeText = QString("Time: %1h %2m").arg(hours).arg(minutes);
+            timeText = QString("%1h %2m").arg(hours).arg(minutes);
         }
 
         ui->labelTime->setText(timeText);
     }
     else
     {
-        ui->labelTime->setText("Time: --");
+        ui->labelTime->setText("--");
     }
 }
 
 void QtNetworkRequest::NetworkDownloaderMainWindow::showSettingsDialog()
 {
     QDialog dialog(this);
-    dialog.setWindowTitle("Settings");
+    dialog.setWindowTitle("设置");
     dialog.setMinimumWidth(440);
     // The dialog inherits the main-window stylesheet which covers QDialog,
     // QGroupBox, QLineEdit, QSpinBox, QPushButton, and QDialogButtonBox with
@@ -565,25 +744,25 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::showSettingsDialog()
     mainLayout->setContentsMargins(16, 14, 16, 14);
 
     // ---------- Download Directory ----------
-    auto *dirGroup = new QGroupBox("Download Directory");
+    auto *dirGroup = new QGroupBox("下载目录");
     auto *dirLayout = new QFormLayout(dirGroup);
     dirLayout->setSpacing(5);
     dirLayout->setContentsMargins(12, 10, 12, 10);
     dirLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
     auto *dirEdit = new QLineEdit(m_downloadManager->getDownloadDirectory());
-    auto *dirButton = new QPushButton("Browse...");
+    auto *dirButton = new QPushButton("浏览...");
     dirButton->setObjectName("btnBrowse");
 
     auto *dirRow = new QHBoxLayout();
     dirRow->addWidget(dirEdit);
     dirRow->addWidget(dirButton);
-    dirLayout->addRow("Path:", dirRow);
+    dirLayout->addRow("路径:", dirRow);
 
     mainLayout->addWidget(dirGroup);
 
     // ---------- Download Options ----------
-    auto *dlGroup = new QGroupBox("Download Options");
+    auto *dlGroup = new QGroupBox("下载选项");
     auto *dlLayout = new QFormLayout(dlGroup);
     dlLayout->setSpacing(5);
     dlLayout->setContentsMargins(12, 10, 12, 10);
@@ -592,15 +771,15 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::showSettingsDialog()
     auto *threadSpinBox = new QSpinBox();
     threadSpinBox->setRange(1, 64);
     threadSpinBox->setValue(m_downloadManager->getMaxThreads());
-    threadSpinBox->setToolTip("Number of threads to use for each download (1-64)");
+    threadSpinBox->setToolTip("每个下载任务使用的线程数（1-64）");
 
     auto *concurrentSpinBox = new QSpinBox();
     concurrentSpinBox->setRange(1, 20);
     concurrentSpinBox->setValue(m_downloadManager->getMaxConcurrentDownloads());
-    concurrentSpinBox->setToolTip("Maximum number of downloads running at the same time (1-20)");
+    concurrentSpinBox->setToolTip("同时运行的最大下载数（1-20）");
 
-    dlLayout->addRow("Max threads:", threadSpinBox);
-    dlLayout->addRow("Max concurrent:", concurrentSpinBox);
+    dlLayout->addRow("最大线程数:", threadSpinBox);
+    dlLayout->addRow("最大并发数:", concurrentSpinBox);
 
     mainLayout->addWidget(dlGroup);
 
@@ -614,7 +793,7 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::showSettingsDialog()
     // Connections
     connect(dirButton, &QPushButton::clicked, [&]()
             {
-        QString dir = QFileDialog::getExistingDirectory(&dialog, "Select Download Directory", dirEdit->text());
+        QString dir = QFileDialog::getExistingDirectory(&dialog, "选择下载目录", dirEdit->text());
         if (!dir.isEmpty()) {
             dirEdit->setText(dir);
         } });
@@ -624,40 +803,37 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::showSettingsDialog()
         m_downloadManager->setDownloadDirectory(dirEdit->text());
         m_downloadManager->setMaxThreads(threadSpinBox->value());
         m_downloadManager->setMaxConcurrentDownloads(concurrentSpinBox->value());
+        if (m_labelDownloadDir)
+        {
+            m_labelDownloadDir->setText(QStringLiteral("下载目录: %1").arg(m_downloadManager->getDownloadDirectory()));
+        }
     }
 }
 
 void QtNetworkRequest::NetworkDownloaderMainWindow::showAboutDialog()
 {
-    QMessageBox::about(this, "About Qt Downloader",
-                       "<div style='color: #ffffff; font-family: \"Segoe UI\", Arial, sans-serif;'>"
-                       "<h3 style='color: #0078d4; margin: 10px 0;'>Qt Downloader v1.0</h3>"
-                       "<p style='color: #cccccc; margin: 15px 0;'>A modern multi-threaded download manager built with Qt</p>"
-                       "<div style='background-color: #252526; border: 1px solid #3e3e42; border-radius: 4px; padding: 15px; margin: 15px 0;'>"
-                       "<h4 style='color: #ffffff; margin: 0 0 10px 0;'>🚀 Features</h4>"
-                       "<ul style='color: #cccccc; margin: 0;'>"
-                       "<li>Multi-threaded downloads (up to 64 threads)</li>"
-                       "<li>Batch URL processing</li>"
-                       "<li>Real-time progress tracking</li>"
-                       "<li>Pause/Resume functionality</li>"
-                       "<li>Speed monitoring & statistics</li>"
-                       "<li>Modern dark theme UI design</li>"
+    QMessageBox::about(this, "关于 Qt Downloader",
+                       "<div style='font-family: \"Segoe UI\", Arial, sans-serif;'>"
+                       "<h3>Qt Downloader v1.0</h3>"
+                       "<p>基于 Qt 构建的现代多线程下载管理器</p>"
+                       "<h4>🚀 功能特性</h4>"
+                       "<ul>"
+                       "<li>多线程下载（最多 64 线程）</li>"
+                       "<li>批量 URL 处理</li>"
+                       "<li>实时进度跟踪</li>"
+                       "<li>暂停 / 继续功能</li>"
+                       "<li>速度监控与统计</li>"
+                       "<li>明暗双主题 UI</li>"
                        "</ul>"
-                       "</div>"
-                       "<div style='background-color: #252526; border: 1px solid #3e3e42; border-radius: 4px; padding: 15px; margin: 15px 0;'>"
-                       "<h4 style='color: #ffffff; margin: 0 0 10px 0;'>⚙️ Technical Details</h4>"
-                       "<ul style='color: #cccccc; margin: 0;'>"
-                       "<li>Built with Qt5 framework</li>"
-                       "<li>Uses QNetworkRequest library</li>"
-                       "<li>Supports HTTP/HTTPS/FTP protocols</li>"
-                       "<li>Cross-platform compatibility</li>"
+                       "<h4>⚙️ 技术细节</h4>"
+                       "<ul>"
+                       "<li>基于 Qt5 框架</li>"
+                       "<li>使用 QNetworkRequest 库</li>"
+                       "<li>支持 HTTP/HTTPS/FTP 协议</li>"
+                       "<li>跨平台兼容</li>"
                        "</ul>"
-                       "</div>"
-                       "<div style='background-color: #252526; border: 1px solid #3e3e42; border-radius: 4px; padding: 15px; margin: 15px 0;'>"
-                       "<h4 style='color: #ffffff; margin: 0 0 10px 0;'>📄 License</h4>"
-                       "<p style='color: #cccccc; margin: 0;'>LGPL v3.0</p>"
-                       "<p style='color: #808080; margin: 10px 0 0 0; font-size: 12px;'>© 2024 QtNetworkRequest Team</p>"
-                       "</div>"
+                       "<h4>📄 许可证</h4>"
+                       "<p>LGPL v3.0</p>"
                        "</div>");
 }
 
@@ -700,19 +876,20 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::showNotification(const QStri
     notification->setWordWrap(true); // Enable word wrap for long messages
     notification->setStyleSheet(QString(
                                     "QLabel#notification {"
-                                    "   background-color: %1;"
-                                    "   color: white;"
-                                    "   border: 2px solid rgba(255, 255, 255, 0.3);"
-                                    "   border-radius: 12px;"
-                                    "   padding: 14px 24px;"
+                                    "   background-color: %2;"
+                                    "   color: %3;"
+                                    "   border: 1px solid %4;"
+                                    "   border-left: 3px solid %1;"
+                                    "   border-radius: 7px;"
+                                    "   padding: 10px 18px;"
                                     "   font-family: 'Segoe UI', Arial, sans-serif;"
-                                    "   font-size: 14px;"
-                                    "   font-weight: 600;"
-                                    "   margin: 8px;"
-                                    "   line-height: 1.5;"
-                                    "   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);"
+                                    "   font-size: 13px;"
+                                    "   font-weight: 500;"
                                     "}")
-                                    .arg(getNotificationColor(type)));
+                                    .arg(getNotificationColor(type))
+                                    .arg(getNotificationBackground())
+                                    .arg(getNotificationTextColor())
+                                    .arg(getNotificationBorderColor()));
 
     // Calculate appropriate size based on content
     QFontMetrics fm(notification->font());
@@ -852,20 +1029,36 @@ void QtNetworkRequest::NetworkDownloaderMainWindow::onNotificationTimeout()
 
 QString QtNetworkRequest::NetworkDownloaderMainWindow::getNotificationColor(const QString &type)
 {
+    const bool dark = palette().color(QPalette::Window).lightness() < 128;
     if (type == "success")
     {
-        return "#27ae60"; // Deeper green to distinguish from add button
+        return dark ? "#34d399" : "#2d8a56";
     }
     else if (type == "warning")
     {
-        return "#e67e22"; // Deeper orange to distinguish from add button
+        return dark ? "#fbbf24" : "#d97706";
     }
     else if (type == "error")
     {
-        return "#e74c3c"; // Deeper red
+        return dark ? "#f87171" : "#dc2626";
     }
     else
     {
-        return "#3498db"; // Deeper blue to distinguish from add button
+        return dark ? "#7b8cff" : "#4361ee";
     }
+}
+
+QString QtNetworkRequest::NetworkDownloaderMainWindow::getNotificationBackground() const
+{
+    return palette().color(QPalette::Window).lightness() < 128 ? "#1a1a26" : "#ffffff";
+}
+
+QString QtNetworkRequest::NetworkDownloaderMainWindow::getNotificationTextColor() const
+{
+    return palette().color(QPalette::Window).lightness() < 128 ? "#e4e3ed" : "#1a1a24";
+}
+
+QString QtNetworkRequest::NetworkDownloaderMainWindow::getNotificationBorderColor() const
+{
+    return palette().color(QPalette::Window).lightness() < 128 ? "#363648" : "#dbd9d2";
 }

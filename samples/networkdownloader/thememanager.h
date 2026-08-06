@@ -95,6 +95,7 @@ signals:
 
 private:
     Mode m_mode;
+    static inline bool s_envOverride = false;
 
     static bool systemIsDark()
     {
@@ -133,6 +134,20 @@ private:
 
     static Mode loadMode()
     {
+        // Test/automation override: QT_PRECISION_THEME=light|dark pins the
+        // theme without touching persisted settings.
+        const QByteArray overrideMode = qgetenv("QT_PRECISION_THEME");
+        if (overrideMode == "light")
+        {
+            s_envOverride = true;
+            return Mode::Light;
+        }
+        if (overrideMode == "dark")
+        {
+            s_envOverride = true;
+            return Mode::Dark;
+        }
+
         QSettings s(QStringLiteral("QtNetworkRequest"), QStringLiteral("Theme"));
         const int v = s.value(QStringLiteral("themeMode"),
                               static_cast<int>(Mode::System)).toInt();
@@ -145,6 +160,8 @@ private:
 
     static void saveMode(Mode mode)
     {
+        if (s_envOverride)
+            return; // Never persist an automation-forced theme.
         QSettings s(QStringLiteral("QtNetworkRequest"), QStringLiteral("Theme"));
         s.setValue(QStringLiteral("themeMode"), static_cast<int>(mode));
     }

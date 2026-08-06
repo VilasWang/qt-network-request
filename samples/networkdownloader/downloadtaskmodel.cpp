@@ -59,35 +59,16 @@ QVariant QtNetworkRequest::NetworkDownloadTaskModel::data(const QModelIndex &ind
         if (index.column() == static_cast<int>(Column::ColumnProgress) || index.column() == static_cast<int>(Column::ColumnSpeed))
             return Qt::AlignCenter;
         break;
-        
-    case Qt::DecorationRole:
-        if (index.column() == static_cast<int>(Column::ColumnState)) {
-            switch (task.state) {
-            case QtNetworkRequest::NetworkDownloadTask::State::Waiting:
-                return QIcon::fromTheme("media-playback-pause");
-            case QtNetworkRequest::NetworkDownloadTask::State::Running:
-                return QIcon::fromTheme("media-playback-start");
-            case QtNetworkRequest::NetworkDownloadTask::State::Paused:
-                return QIcon::fromTheme("media-playback-pause");
-            case QtNetworkRequest::NetworkDownloadTask::State::Completed:
-                return QIcon::fromTheme("dialog-ok");
-            case QtNetworkRequest::NetworkDownloadTask::State::Error:
-                return QIcon::fromTheme("dialog-error");
-            }
-        }
-        break;
-        
+
+    case FullTaskRole:
+        // Hand to TaskTableDelegate so it can render the prototype-style
+        // file cell / progress bar / status badge without extra queries.
+        return QVariant::fromValue(task);
+
     case Qt::ToolTipRole:
         if (index.column() == static_cast<int>(Column::ColumnState) && task.state == QtNetworkRequest::NetworkDownloadTask::State::Error) {
             return task.errorMessage;
         }
-        break;
-        
-    case Qt::ForegroundRole:
-        if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Error)
-            return QColor(Qt::red);
-        if (task.state == QtNetworkRequest::NetworkDownloadTask::State::Completed)
-            return QColor(Qt::darkGreen);
         break;
     }
     
@@ -101,19 +82,19 @@ QVariant QtNetworkRequest::NetworkDownloadTaskModel::headerData(int section, Qt:
     
     switch (static_cast<Column>(section)) {
     case Column::ColumnFileName:
-        return "File Name";
+        return QStringLiteral("文件名称");
     case Column::ColumnFileSize:
-        return "Size";
+        return QStringLiteral("大小");
     case Column::ColumnDownloaded:
-        return "Downloaded";
+        return QStringLiteral("已下载");
     case Column::ColumnProgress:
-        return "Progress";
+        return QStringLiteral("进度");
     case Column::ColumnSpeed:
-        return "Speed";
+        return QStringLiteral("速度");
     case Column::ColumnTime:
-        return "Time";
+        return QStringLiteral("时间");
     case Column::ColumnState:
-        return "Status";
+        return QStringLiteral("状态");
     }
     
     return QVariant();

@@ -17,6 +17,7 @@ set(DOWNLOADER_SOURCES
     downloadermainwindow.cpp
     downloadtaskmodel.cpp
     downloadmanager.cpp
+    tasktabledelegate.cpp
 )
 
 # Header files
@@ -25,11 +26,12 @@ set(DOWNLOADER_HEADERS
     downloadtaskmodel.h
     downloadmanager.h
     downloadtask.h
+    tasktabledelegate.h
 )
 
 # Form files
 set(DOWNLOADER_FORMS
-    downloadermainwindow.ui
+    NetworkDownloaderMainWindow.ui
 )
 
 # Add executable
