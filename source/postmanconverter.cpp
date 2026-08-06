@@ -135,6 +135,13 @@ namespace QtNetworkRequest
 			item.id = Collection::genId();   // Postman items may lack a stable id
 		item.name = obj["name"].toString();
 
+		if (item.name.isEmpty())
+		{
+			qWarning("PostmanConverter: skipping item with empty name");
+			ok = false;
+			return item;
+		}
+
 		if (obj.contains("item"))   // folder
 		{
 			item.type = CollectionItemType::Folder;
@@ -152,6 +159,15 @@ namespace QtNetworkRequest
 		{
 			item.type = CollectionItemType::Request;
 			item.requestJson = postmanToRequestJson(obj["request"].toObject());
+
+			// Validate required fields: method and url must be present
+			if (!item.requestJson.contains("method") || !item.requestJson.contains("url"))
+			{
+				qWarning("PostmanConverter: skipping request item '%s' — missing method or url",
+				         qPrintable(item.name));
+				ok = false;
+				return item;
+			}
 		}
 		else
 		{

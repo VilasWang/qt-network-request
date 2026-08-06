@@ -71,6 +71,9 @@ namespace QtNetworkRequest
 		for (auto it = ctx.headers.begin(); it != ctx.headers.end(); ++it)
 			it.value() = substituteEnv(QString::fromUtf8(it.value()), vars).toUtf8();
 
+		// Note: body substitution matches Postman behaviour — {{var}} placeholders
+		// in request bodies are resolved. If a literal {{...}} value is needed,
+		// escape it by doubling the braces (e.g. {{{{key}}}}).
 		ctx.body = substituteEnv(ctx.body, vars);
 
 		for (auto it = ctx.queryParams.begin(); it != ctx.queryParams.end(); ++it)

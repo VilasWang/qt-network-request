@@ -18,7 +18,6 @@
 #include <functional>
 #include <QTreeWidget>
 #include <QMessageBox>
-#include <QTimer>
 #include "test_qtrequester.h"
 #include "networkrequesttool.h"
 #include "requestcontext.h"
@@ -933,8 +932,8 @@ void TestQtRequester::testAuthEmptyCredentialFallback()
              "AuthType::None must not emit an Authorization header");
 
     // FIXED: When a non-None auth type is selected but credentials are empty,
-    // onSendRequest() now warns the user via a QMessageBox. Verify the warning
-    // is shown and auto-dismissed without crash.
+    // onSendRequest() now warns via showBlockingWarning(). In test mode the
+    // modal is suppressed and the text is captured in m_lastWarningText.
     {
         tool.m_settings.authType = "Basic";
         tool.m_settings.authUsername = "";
@@ -943,13 +942,13 @@ void TestQtRequester::testAuthEmptyCredentialFallback()
         QVERIFY(urlEdit);
         urlEdit->setText("https://example.com/api");
 
-        // Auto-dismiss the warning dialog
-        QTimer::singleShot(0, []() {
-            if (auto *mb = qobject_cast<QMessageBox *>(QApplication::activeModalWidget()))
-                mb->accept();
-        });
+        tool.m_lastWarningText.clear();
         tool.onSendRequest();
         QTest::qWait(50);
+        QVERIFY2(!tool.m_lastWarningText.isEmpty(),
+                 "Empty Basic credentials must trigger showBlockingWarning()");
+        QVERIFY2(tool.m_lastWarningText.contains("Basic"),
+                 "Warning should mention the auth type that was selected");
         // The request should still be sent (without auth), no crash.
     }
 }
@@ -1124,20 +1123,15 @@ void TestQtRequester::testInvalidUrlSendHandling()
     auto *urlEdit = tool.findChild<QLineEdit *>("lineEdit_url");
     QVERIFY(urlEdit);
 
-    // Helper: auto-dismiss any modal QMessageBox the UI may pop for invalid input,
-    // so the test does not block on a native dialog in headless/CI runs.
-    auto autoCloseMsgBox = []() {
-        QTimer::singleShot(0, []() {
-            if (auto *mb = qobject_cast<QMessageBox *>(QApplication::activeModalWidget()))
-                mb->accept();
-        });
-    };
-
     // Invalid URL -> onSendRequest returns early, no reply created, no crash.
+    // In test mode, the warning is captured in m_lastWarningText instead of a
+    // modal QMessageBox, so no manual dismiss is needed.
     urlEdit->setText("this is not a url");
-    autoCloseMsgBox();
+    tool.m_lastWarningText.clear();
     tool.onSendRequest();
     QTest::qWait(50);
+    QVERIFY2(!tool.m_lastWarningText.isEmpty(),
+             "Invalid URL must trigger showBlockingWarning()");
     // Response area should not contain a successful "Sending request..." block.
     QString body = tool.ui.textEdit_response_body->toPlainText();
     QVERIFY2(!body.contains("URL: this is not a url"),
@@ -1145,9 +1139,11 @@ void TestQtRequester::testInvalidUrlSendHandling()
 
     // Empty URL -> also rejected.
     urlEdit->setText("");
-    autoCloseMsgBox();
+    tool.m_lastWarningText.clear();
     tool.onSendRequest();
     QTest::qWait(20);
+    QVERIFY2(!tool.m_lastWarningText.isEmpty(),
+             "Empty URL must trigger showBlockingWarning()");
 }
 
 void TestQtRequester::testAbortRunningRequest()
