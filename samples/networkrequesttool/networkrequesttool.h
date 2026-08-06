@@ -205,9 +205,11 @@ private:
     QList<QTextEdit::ExtraSelection> m_searchSelections;
     int m_currentSearchHit{-1};
     QString m_binaryFilePath;
+    quint64 m_currentTaskId{0};      // track the running request for abort
 
     // Collection (M4)
     QTreeWidget *m_collectionTree{nullptr};
+    QWidget *m_collectionToolbar{nullptr};
     Collection m_collection;             // in-memory collection model
     QString m_collectionPath;            // file path for persistence
 };
