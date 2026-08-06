@@ -21,6 +21,9 @@
 #include <QtWidgets/QInputDialog>
 #include <QtWidgets/QCheckBox>
 #include <QClipboard>
+#include <QTimer>
+#include <QPixmap>
+#include <QCoreApplication>
 #include <QtWidgets/QGroupBox>
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QSpinBox>
@@ -105,6 +108,23 @@ void NetworkRequestTool::initialize()
     setupDefaultValues();
     loadEnvironments();
     loadCollection();
+
+    // --- Demo / automation hooks (mirrors the QtDownloader pattern) ---
+    // QT_REQUESTER_DEMO=1 injects the prototype demo data; QT_REQUESTER_SHOT
+    // additionally grabs the window to a PNG after the layout settles and exits.
+    // Runs last so setupDefaultValues()/loadCollection() cannot overwrite it.
+    if (qEnvironmentVariableIsSet("QT_REQUESTER_DEMO"))
+    {
+        injectDemoData();
+        QTimer::singleShot(2500, this, [this]() {
+            const QString shotPath = qEnvironmentVariable("QT_REQUESTER_SHOT");
+            if (!shotPath.isEmpty()) {
+                const QPixmap shot = this->grab();
+                shot.save(shotPath, "PNG");
+                QCoreApplication::exit(0);
+            }
+        });
+    }
 }
 
 void NetworkRequestTool::unInitialize()
@@ -126,6 +146,10 @@ void NetworkRequestTool::initializeUI()
     // Set table column widths
     ui.table_params->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     ui.table_headers->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    // Rich-text (two-line) history items only render as rich text when word
+    // wrap is enabled; without it QListWidget paints the HTML tags verbatim.
+    ui.listWidget_history->setWordWrap(true);
 
     // Set request and response area splitter ratio
     ui.splitter_request->setStretchFactor(0, 1); // Request area
@@ -193,17 +217,13 @@ void NetworkRequestTool::initializeUI()
             frameLayout->insertWidget(3, sidebarTabs);
         }
 
-        // Toggle between history list and collection tree
-        connect(tabHistory, &QPushButton::toggled, this, [this, tabCollections](bool checked) {
-            ui.listWidget_history->setVisible(checked);
-            if (m_collectionTree) m_collectionTree->setVisible(!checked);
-            if (m_collectionToolbar) m_collectionToolbar->setVisible(!checked);
+        // The prototype shows the history list and the collection panel
+        // stacked together, so the tabs act as a segmented indicator
+        // rather than hiding either section.
+        connect(tabHistory, &QPushButton::toggled, this, [tabCollections](bool checked) {
             if (checked) { tabCollections->setChecked(false); }
         });
-        connect(tabCollections, &QPushButton::toggled, this, [this, tabHistory](bool checked) {
-            ui.listWidget_history->setVisible(!checked);
-            if (m_collectionTree) m_collectionTree->setVisible(checked);
-            if (m_collectionToolbar) m_collectionToolbar->setVisible(checked);
+        connect(tabCollections, &QPushButton::toggled, this, [tabHistory](bool checked) {
             if (checked) { tabHistory->setChecked(false); }
         });
     }
@@ -279,18 +299,118 @@ void NetworkRequestTool::initializeUI()
     // --- Collection panel (M4) ---
     buildCollectionPanel();
 
-    // --- Initial sidebar tab state: "历史" active, collection hidden ---
-    if (m_collectionTree) m_collectionTree->setVisible(false);
-    if (m_collectionToolbar) m_collectionToolbar->setVisible(false);
-
-    // --- Branded status bar (always-visible footer) ---
+    // --- Branded status bar (always-visible footer, prototype .footer-bar) ---
     {
-        auto *permanentLabel = new QLabel("Ready  |  Environment: None  |  Ctrl+Enter to Send");
-        permanentLabel->setObjectName("statusBarLabel");
-        statusBar()->addPermanentWidget(permanentLabel);
-        // Also call showMessage for tooltip-style hints
-        statusBar()->showMessage("Welcome to Qt Request Tool");
+        m_statusBarLabel = new QLabel("Requests: 0  |  Environment: None  |  Ctrl+Enter to Send");
+        m_statusBarLabel->setObjectName("statusBarLabel");
+        statusBar()->addPermanentWidget(m_statusBarLabel);
+        updateStatusBar();
     }
+}
+
+void NetworkRequestTool::injectDemoData()
+{
+    resize(1440, 900);
+
+    // --- Sidebar history (matches prototype: 4 entries) ---
+    struct DemoEntry { const char *method; const char *url; int minutesAgo; };
+    const DemoEntry entries[] = {
+        {"GET",    "https://api.github.com/users/octocat",              0},
+        {"POST",   "https://httpbin.org/post",                          35},
+        {"PUT",    "https://jsonplaceholder.typicode.com/posts/1",      120},
+        {"DELETE", "https://httpbin.org/delete",                        360},
+    };
+    for (const DemoEntry &e : entries)
+    {
+        RequestHistory h;
+        h.method = QString::fromLatin1(e.method);
+        h.url = QString::fromLatin1(e.url);
+        h.timestamp = QDateTime::currentDateTime().addSecs(-60 * e.minutesAgo);
+        requestHistory.append(h);
+    }
+    updateHistoryList();
+
+    // --- Request toolbar: method + URL from the prototype ---
+    ui.lineEdit_url->setText("https://api.github.com/users/octocat");
+    ui.cmb_method->setCurrentText("PATCH");
+
+    // Prototype shows the Params tab active.
+    ui.tabWidget_request->setCurrentIndex(0);
+
+    // --- Params tab rows (Key / Value / description) ---
+    ui.table_params->setRowCount(0);
+    const struct { const char *key; const char *value; const char *desc; } params[] = {
+        {"page",     "1",  "\xe9\xa1\xb5\xe7\xa0\x81"},          // 页码
+        {"per_page", "20", "\xe6\xaf\x8f\xe9\xa1\xb5\xe6\x9d\xa1\xe6\x95\xb0"}, // 每页条数
+    };
+    for (const auto &p : params)
+    {
+        const int row = ui.table_params->rowCount();
+        ui.table_params->insertRow(row);
+        ui.table_params->setItem(row, 0, new QTableWidgetItem(QString::fromLatin1(p.key)));
+        ui.table_params->setItem(row, 1, new QTableWidgetItem(QString::fromLatin1(p.value)));
+        if (ui.table_params->columnCount() > 2)
+            ui.table_params->setItem(row, 2, new QTableWidgetItem(QString::fromUtf8(p.desc)));
+    }
+
+    // --- Collections tree (GitHub API > requests, HTTPBin Tests) ---
+    m_collection = Collection(QStringLiteral("Demo"));
+    const QString ghId = m_collection.addFolder(QString(), QStringLiteral("GitHub API"));
+    m_collection.addRequest(ghId, QStringLiteral("Get User Info"),
+                            QJsonObject{{"method", "GET"}, {"url", "https://api.github.com/users/octocat"}});
+    m_collection.addRequest(ghId, QStringLiteral("List Repos"),
+                            QJsonObject{{"method", "GET"}, {"url", "https://api.github.com/users/octocat/repos"}});
+    m_collection.addFolder(QString(), QStringLiteral("HTTPBin Tests"));
+    populateCollectionTree();
+
+    // --- Environment selector (prototype: 测试环境 active) ---
+    if (m_cmbEnvironment)
+    {
+        m_cmbEnvironment->blockSignals(true);
+        m_cmbEnvironment->clear();
+        const QString envName = QString::fromUtf8("\xe6\xb5\x8b\xe8\xaf\x95\xe7\x8e\xaf\xe5\xa2\x83"); // 测试环境
+        m_cmbEnvironment->addItem(envName, envName);
+        m_cmbEnvironment->setCurrentIndex(0);
+        m_cmbEnvironment->blockSignals(false);
+        updateStatusBar();
+    }
+
+    // --- Response area: 200 OK + octocat JSON ---
+    if (m_labelResponseInfo)
+        m_labelResponseInfo->setText(QStringLiteral(
+            "200 OK   \u00b7   234 ms   \u00b7   "
+            "\xe6\x8e\xa5\xe6\x94\xb6: 1.52 KB   \u00b7   "
+            "\xe5\x8f\x91\xe9\x80\x81: 256 B")); // 接收 / 发送
+
+    const QString octocatJson = QStringLiteral(
+        "{\n"
+        "  \"login\": \"octocat\",\n"
+        "  \"id\": 583231,\n"
+        "  \"node_id\": \"MDQ6VXNlcjU4MzIzMQ==\",\n"
+        "  \"avatar_url\": \"https://avatars.githubusercontent.com/u/583231?v=4\",\n"
+        "  \"html_url\": \"https://github.com/octocat\",\n"
+        "  \"gravatar_id\": \"\",\n"
+        "  \"type\": \"User\",\n"
+        "  \"site_admin\": false,\n"
+        "  \"name\": \"The Octocat\",\n"
+        "  \"company\": \"@github\",\n"
+        "  \"location\": \"San Francisco\",\n"
+        "  \"email\": \"octocat@github.com\",\n"
+        "  \"public_repos\": 8,\n"
+        "  \"public_gists\": 8,\n"
+        "  \"followers\": 9000,\n"
+        "  \"following\": 9,\n"
+        "  \"created_at\": \"2008-01-25T12:18:39Z\",\n"
+        "  \"updated_at\": \"2025-12-01T09:42:11Z\"\n"
+        "}");
+    m_lastResponseBody = octocatJson;
+    m_isResponseJson = true;
+    // Show the body verbatim (keeping the prototype's key order) with JSON
+    // syntax highlighting — displayJsonResponse() would re-serialize and
+    // alphabetically sort the keys.
+    m_highlighter.reset();
+    m_highlighter = std::make_unique<JsonSyntaxHighlighter>(ui.textEdit_response_body->document());
+    ui.textEdit_response_body->setPlainText(octocatJson);
 }
 
 void NetworkRequestTool::initializeConnections()
@@ -1361,14 +1481,80 @@ void NetworkRequestTool::updateHistoryList()
     ui.listWidget_history->clear();
     for (const RequestHistory &history : requestHistory)
     {
-        QString displayText = QString("[%1] %2 %3")
-                                  .arg(formatDateTime(history.timestamp))
-                                  .arg(history.method)
-                                  .arg(history.url);
-        QListWidgetItem *item = new QListWidgetItem(displayText);
-        item->setToolTip(history.url);
+        // Prototype-style two-line item: coloured method badge + URL on the
+        // first line, relative timestamp on the second. A plain-text mirror
+        // lives in Qt::UserRole so the search filter stays tag-free.
+        QString methodColor = QStringLiteral("#64748b");
+        if (history.method == "GET")
+            methodColor = QStringLiteral("#10b981");
+        else if (history.method == "POST")
+            methodColor = (m_theme && m_theme->isDark()) ? QStringLiteral("#8fa2ff")
+                                                         : QStringLiteral("#4361ee");
+        else if (history.method == "PUT")
+            methodColor = QStringLiteral("#f59e0b");
+        else if (history.method == "DELETE")
+            methodColor = QStringLiteral("#ef4444");
+        else if (history.method == "PATCH")
+            methodColor = QStringLiteral("#a855f7");
+
+        QString shortUrl = history.url;
+        shortUrl.remove(QRegularExpression(QStringLiteral("^https?://")));
+
+        const qint64 secs = history.timestamp.secsTo(QDateTime::currentDateTime());
+        QString when;
+        if (secs < 60)
+            when = QString::fromUtf8("\xe5\x88\x9a\xe6\x89\x8d");                       // 刚才
+        else if (secs < 3600)
+            when = QString::fromUtf8("%1 \xe5\x88\x86\xe9\x92\x9f\xe5\x89\x8d").arg(secs / 60);   // 分钟前
+        else if (secs < 86400)
+            when = QString::fromUtf8("%1 \xe5\xb0\x8f\xe6\x97\xb6\xe5\x89\x8d").arg(secs / 3600); // 小时前
+        else
+            when = QString::fromUtf8("%1 \xe5\xa4\xa9\xe5\x89\x8d").arg(secs / 86400);            // 天前
+
+        const QString line1 = QStringLiteral("<b><font color=\"%1\">%2</font></b> %3")
+                                  .arg(methodColor, history.method.toHtmlEscaped(), shortUrl.toHtmlEscaped());
+
+        QListWidgetItem *item = new QListWidgetItem();
+        item->setData(Qt::UserRole, QStringLiteral("%1 %2").arg(history.method, history.url));
+        item->setToolTip(QStringLiteral("%1\n%2").arg(history.url, formatDateTime(history.timestamp)));
+        item->setSizeHint(QSize(0, 48));
         ui.listWidget_history->addItem(item);
+
+        // QLabel-based row so the coloured method badge renders reliably
+        // (QListWidget paints item rich text verbatim in some configurations).
+        auto *row = new QWidget();
+        auto *rowLayout = new QVBoxLayout(row);
+        rowLayout->setContentsMargins(6, 3, 6, 3);
+        rowLayout->setSpacing(1);
+
+        auto *labelLine1 = new QLabel(line1);
+        labelLine1->setTextFormat(Qt::RichText);
+        rowLayout->addWidget(labelLine1);
+
+        auto *labelLine2 = new QLabel(when);
+        labelLine2->setObjectName("historyItemSub");
+        labelLine2->setStyleSheet(QStringLiteral("color: #8a8f98; font-size: 11px;"));
+        rowLayout->addWidget(labelLine2);
+
+        ui.listWidget_history->setItemWidget(item, row);
     }
+    updateStatusBar();
+}
+
+void NetworkRequestTool::updateStatusBar()
+{
+    if (!m_statusBarLabel)
+        return;
+    QString envName = QStringLiteral("None");
+    if (m_cmbEnvironment && m_cmbEnvironment->currentIndex() >= 0)
+    {
+        const QString data = m_cmbEnvironment->currentData().toString();
+        if (!data.isEmpty())
+            envName = data;
+    }
+    m_statusBarLabel->setText(QStringLiteral("Requests: %1  |  Environment: %2  |  Ctrl+Enter to Send")
+                                  .arg(requestHistory.size())
+                                  .arg(envName));
 }
 
 void NetworkRequestTool::onHistoryItemClicked(QListWidgetItem *item)
@@ -1386,7 +1572,11 @@ void NetworkRequestTool::onSearchHistory(const QString &text)
     for (int i = 0; i < ui.listWidget_history->count(); ++i)
     {
         QListWidgetItem *item = ui.listWidget_history->item(i);
-        bool matches = item->text().contains(text, Qt::CaseInsensitive) ||
+        // Prefer the plain-text mirror (UserRole); fall back to the display
+        // text for items created before the rich-text format existed.
+        const QString plain = item->data(Qt::UserRole).toString();
+        const QString haystack = plain.isEmpty() ? item->text() : plain;
+        bool matches = haystack.contains(text, Qt::CaseInsensitive) ||
                        item->toolTip().contains(text, Qt::CaseInsensitive);
         item->setHidden(!matches);
     }
@@ -1980,6 +2170,7 @@ void NetworkRequestTool::populateEnvironmentCombo()
     const int idx = active.isEmpty() ? 0 : m_cmbEnvironment->findData(active);
     m_cmbEnvironment->setCurrentIndex(idx >= 0 ? idx : 0);
     m_cmbEnvironment->blockSignals(false);
+    updateStatusBar();
 }
 
 void NetworkRequestTool::onEnvironmentChanged(int /*index*/)
@@ -1989,6 +2180,7 @@ void NetworkRequestTool::onEnvironmentChanged(int /*index*/)
 
     const QString name = m_cmbEnvironment->currentData().toString();
     m_envStore.setActiveName(name);
+    updateStatusBar();
 }
 
 void NetworkRequestTool::onManageEnvironments()
@@ -2602,10 +2794,13 @@ void NetworkRequestTool::buildCollectionPanel()
     btnExport->setFixedHeight(24);
     tbLayout->addWidget(btnExport);
 
-    // Insert toolbar before the tree
+    // Insert toolbar + tree below the history list (prototype stacks the
+    // history section above the collection section).
     int insertIdx = parentLayout->indexOf(ui.listWidget_history);
     if (insertIdx < 0)
         insertIdx = parentLayout->count();
+    else
+        insertIdx += 1;
     m_collectionToolbar = collToolbar;
     parentLayout->insertWidget(insertIdx, collToolbar);
 
@@ -2616,6 +2811,11 @@ void NetworkRequestTool::buildCollectionPanel()
     m_collectionTree->setRootIsDecorated(true);
     m_collectionTree->setMinimumHeight(100);
     parentLayout->insertWidget(insertIdx + 1, m_collectionTree);
+
+    // History list takes the larger share; the collection tree keeps a
+    // comfortable minimum.
+    parentLayout->setStretchFactor(ui.listWidget_history, 3);
+    parentLayout->setStretchFactor(m_collectionTree, 2);
 
     // Connections
     connect(btnNewColl, &QPushButton::clicked, this, &NetworkRequestTool::onNewCollection);
