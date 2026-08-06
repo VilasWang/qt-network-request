@@ -708,3 +708,222 @@ QPushButton[text="取消"]:hover { background-color: #242438; color: #e4e3ed; }
 
 QMessageBox { background-color: #12121a; }
 QMessageBox QLabel { color: #e4e3ed; font-size: 13px; }
+
+/* ================================================================
+   QtDownloader prototype overrides
+   (qt-downloader-prototype.html — appended rules win)
+   ================================================================ */
+
+/* --- Header --- */
+QFrame#headerFrame { background: transparent; border: none; }
+
+QLabel#lblAppIcon {
+    background-color: #7b8cff;
+    color: #12121a;
+    font-weight: 700;
+    font-size: 16px;
+    border-radius: 7px;
+}
+
+QLabel#lblHeaderTitle {
+    color: #e4e3ed;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+QLabel#lblHeaderSubtitle,
+QLabel#lblSettingsHint {
+    color: #6e6d7e;
+    font-size: 12px;
+}
+
+/* --- URL panel card --- */
+QFrame#urlFrame {
+    background-color: #1a1a26;
+    border: 1px solid #363648;
+    border-radius: 14px;
+}
+
+QFrame#urlPanelHeader {
+    background-color: #222233;
+    border: none;
+    border-bottom: 1px solid #2a2a3a;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+}
+
+QLabel#lblUrlTitle {
+    color: #a8a7b8;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+QLabel#lblUrlHint {
+    background-color: #242438;
+    color: #6e6d7e;
+    font-size: 10px;
+    border-radius: 8px;
+    padding: 1px 6px;
+}
+
+QPlainTextEdit#plainTextEditUrls {
+    background-color: #1a1a26;
+    border: none;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 13px;
+    color: #e4e3ed;
+    padding: 10px 16px;
+}
+
+/* --- Task panel card --- */
+QFrame#tableFrame {
+    background-color: #1a1a26;
+    border: 1px solid #2a2a3a;
+    border-radius: 14px;
+}
+
+QFrame#taskPanelHeader {
+    background-color: #222233;
+    border: none;
+    border-bottom: 1px solid #2a2a3a;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+}
+
+QLabel#labelTasks {
+    color: #a8a7b8;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+QLabel#lblTaskCount {
+    background-color: #1e2048;
+    color: #7b8cff;
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* --- Control bar --- */
+QFrame#controlFrame {
+    background-color: #222233;
+    border: none;
+    border-top: 1px solid #2a2a3a;
+    border-radius: 0;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+}
+
+/* Primary add button (accent, not green) */
+QPushButton#btnAddTasks {
+    background-color: #7b8cff;
+    color: #12121a;
+    padding: 4px 10px;
+    font-size: 11px;
+}
+QPushButton#btnAddTasks:hover   { background-color: #8f9dff; }
+QPushButton#btnAddTasks:pressed { background-color: #6a7cee; }
+
+QPushButton#btnStart {
+    background-color: #34d399;
+    color: #12121a;
+}
+QPushButton#btnStart:hover { background-color: #2bb87a; }
+
+QPushButton#btnPause {
+    background-color: #fbbf24;
+    color: #12121a;
+}
+QPushButton#btnPause:hover { background-color: #e0a800; }
+
+QPushButton#btnCancel {
+    background-color: #f87171;
+    color: #12121a;
+}
+QPushButton#btnCancel:hover { background-color: #e55555; }
+
+/* Ghost buttons */
+QPushButton#btnSettings,
+QPushButton#btnSelectAll,
+QPushButton#btnClearCompleted,
+QPushButton#btnDelete {
+    background-color: transparent;
+    color: #a8a7b8;
+    border: 1px solid #363648;
+    font-weight: 600;
+    font-size: 11px;
+    padding: 4px 10px;
+}
+QPushButton#btnSettings:hover,
+QPushButton#btnSelectAll:hover,
+QPushButton#btnClearCompleted:hover,
+QPushButton#btnDelete:hover {
+    background-color: #242438;
+    color: #e4e3ed;
+}
+
+QPushButton#btn_theme {
+    background-color: transparent;
+    color: #a8a7b8;
+    border: 1px solid #363648;
+    border-radius: 14px;
+    padding: 0;
+    font-size: 14px;
+}
+QPushButton#btn_theme:hover {
+    background-color: #242438;
+    color: #7b8cff;
+    border-color: #7b8cff;
+}
+
+/* Global stats chip */
+QFrame#statusFrame {
+    background-color: #1e2048;
+    border: none;
+    border-radius: 5px;
+}
+
+QLabel#lblSpeedCaption,
+QLabel#lblTimeCaption {
+    color: #a8a7b8;
+    font-size: 11px;
+}
+
+QLabel#labelSpeed,
+QLabel#labelTime {
+    color: #7b8cff;
+    font-weight: 700;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 13px;
+}
+
+QFrame#statsDivider {
+    background-color: #2a2a3a;
+    border: none;
+}
+
+/* Status bar: neutral raised bar per prototype */
+QStatusBar {
+    background-color: #222233;
+    border-top: 1px solid #2a2a3a;
+    color: #6e6d7e;
+    font-size: 11px;
+    font-weight: 400;
+    padding: 4px 20px;
+    min-height: 22px;
+}
+
+QStatusBar QLabel,
+QLabel#lblDownloadDir {
+    color: #6e6d7e;
+    font-size: 11px;
+}
+
+/* Table: prototype row separators */
+QTableView {
+    background-color: #1a1a26;
+    border: none;
+    gridline-color: #2a2a3a;
+    alternate-background-color: #1a1a26;
+}

@@ -18,14 +18,16 @@ SOURCES += \
     main.cpp \
     downloadermainwindow.cpp \
     downloadtaskmodel.cpp \
-    downloadmanager.cpp
+    downloadmanager.cpp \
+    tasktabledelegate.cpp
 
 HEADERS += \
     downloadermainwindow.h \
     downloadtaskmodel.h \
     downloadmanager.h \
     downloadtask.h \
-    thememanager.h
+    thememanager.h \
+    tasktabledelegate.h
 
 FORMS += \
     NetworkDownloaderMainWindow.ui

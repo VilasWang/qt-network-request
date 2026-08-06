@@ -22,238 +22,86 @@
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="verticalLayout">
     <property name="spacing">
-     <number>12</number>
+     <number>14</number>
     </property>
     <property name="leftMargin">
-     <number>16</number>
+     <number>28</number>
     </property>
     <property name="topMargin">
-     <number>16</number>
+     <number>10</number>
     </property>
     <property name="rightMargin">
-     <number>16</number>
+     <number>28</number>
     </property>
     <property name="bottomMargin">
-     <number>16</number>
+     <number>14</number>
     </property>
     <item>
-     <widget class="QFrame" name="urlFrame">
+     <widget class="QFrame" name="headerFrame">
       <property name="frameShape">
-       <enum>QFrame::StyledPanel</enum>
+       <enum>QFrame::NoFrame</enum>
       </property>
-      <property name="frameShadow">
-       <enum>QFrame::Raised</enum>
-      </property>
-      <layout class="QVBoxLayout" name="verticalLayout_2">
+      <layout class="QHBoxLayout" name="headerLayout">
        <property name="spacing">
-        <number>12</number>
+        <number>16</number>
        </property>
        <property name="leftMargin">
-        <number>16</number>
+        <number>0</number>
        </property>
        <property name="topMargin">
-        <number>16</number>
+        <number>10</number>
        </property>
        <property name="rightMargin">
-        <number>16</number>
+        <number>0</number>
        </property>
        <property name="bottomMargin">
-        <number>16</number>
+        <number>10</number>
        </property>
        <item>
-        <layout class="QHBoxLayout" name="horizontalLayout">
-         <item>
-          <widget class="QLabel" name="label">
-           <property name="text">
-            <string>Download URLs</string>
-           </property>
-           <property name="class" stdset="0">
-            <string>heading</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <spacer name="horizontalSpacer">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item>
-          <widget class="QPushButton" name="btnAddTasks">
-           <property name="toolTip">
-            <string>Add download tasks from URLs</string>
-           </property>
-           <property name="text">
-            <string>Add Tasks</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <widget class="QPlainTextEdit" name="plainTextEditUrls">
+        <widget class="QLabel" name="lblAppIcon">
          <property name="minimumSize">
           <size>
-           <width>0</width>
-           <height>80</height>
+           <width>40</width>
+           <height>40</height>
           </size>
          </property>
          <property name="maximumSize">
           <size>
-           <width>16777215</width>
-           <height>120</height>
+           <width>40</width>
+           <height>40</height>
           </size>
          </property>
-         <property name="placeholderText">
-          <string>Enter URLs here, one per line...
-Example:
-https://example.com/file1.zip
-https://example.com/file2.zip</string>
+         <property name="text">
+          <string>QD</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
          </property>
         </widget>
        </item>
-      </layout>
-     </widget>
-    </item>
-    <item>
-     <widget class="QFrame" name="tableFrame">
-      <property name="frameShape">
-       <enum>QFrame::StyledPanel</enum>
-      </property>
-      <property name="frameShadow">
-       <enum>QFrame::Raised</enum>
-      </property>
-      <layout class="QVBoxLayout" name="verticalLayout_3">
-       <property name="spacing">
-        <number>12</number>
-       </property>
-       <property name="leftMargin">
-        <number>16</number>
-       </property>
-       <property name="topMargin">
-        <number>16</number>
-       </property>
-       <property name="rightMargin">
-        <number>16</number>
-       </property>
-       <property name="bottomMargin">
-        <number>16</number>
-       </property>
        <item>
-        <layout class="QHBoxLayout" name="horizontalLayout_3">
+        <layout class="QVBoxLayout" name="headerInfoLayout">
+         <property name="spacing">
+          <number>2</number>
+         </property>
          <item>
-          <widget class="QLabel" name="labelTasks">
+          <widget class="QLabel" name="lblHeaderTitle">
            <property name="text">
-            <string>Download Tasks</string>
-           </property>
-           <property name="class" stdset="0">
-            <string>heading</string>
+            <string>Qt Downloader</string>
            </property>
           </widget>
          </item>
          <item>
-          <spacer name="horizontalSpacer_3">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
+          <widget class="QLabel" name="lblHeaderSubtitle">
+           <property name="text">
+            <string>现代多线程下载管理器</string>
            </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
+          </widget>
          </item>
         </layout>
        </item>
        <item>
-        <widget class="QTableView" name="tableViewTasks">
-         <property name="minimumSize">
-          <size>
-           <width>0</width>
-           <height>200</height>
-          </size>
-         </property>
-         <property name="alternatingRowColors">
-          <bool>true</bool>
-         </property>
-         <property name="selectionMode">
-          <enum>QAbstractItemView::SingleSelection</enum>
-         </property>
-         <property name="selectionBehavior">
-          <enum>QAbstractItemView::SelectRows</enum>
-         </property>
-         <attribute name="verticalHeaderVisible">
-          <bool>false</bool>
-         </attribute>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </item>
-    <item>
-     <widget class="QFrame" name="controlFrame">
-      <property name="frameShape">
-       <enum>QFrame::StyledPanel</enum>
-      </property>
-      <property name="frameShadow">
-       <enum>QFrame::Raised</enum>
-      </property>
-      <layout class="QHBoxLayout" name="horizontalLayout_2">
-       <property name="spacing">
-        <number>12</number>
-       </property>
-       <property name="leftMargin">
-        <number>12</number>
-       </property>
-       <property name="topMargin">
-        <number>12</number>
-       </property>
-       <property name="rightMargin">
-        <number>12</number>
-       </property>
-       <property name="bottomMargin">
-        <number>12</number>
-       </property>
-       <item>
-        <widget class="QPushButton" name="btnStart">
-         <property name="toolTip">
-          <string>Start selected download</string>
-         </property>
-         <property name="text">
-          <string>Start</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnCancel">
-         <property name="toolTip">
-          <string>Cancel selected download</string>
-         </property>
-         <property name="text">
-          <string>Cancel</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnDelete">
-         <property name="toolTip">
-          <string>Delete selected task</string>
-         </property>
-         <property name="text">
-          <string>Delete</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <spacer name="horizontalSpacer_2">
+        <spacer name="headerSpacer">
          <property name="orientation">
           <enum>Qt::Horizontal</enum>
          </property>
@@ -266,48 +114,365 @@ https://example.com/file2.zip</string>
         </spacer>
        </item>
        <item>
-        <widget class="QFrame" name="statusFrame">
-         <property name="frameShape">
-          <enum>QFrame::StyledPanel</enum>
+        <widget class="QPushButton" name="btnSettings">
+         <property name="toolTip">
+          <string>打开设置</string>
          </property>
-         <property name="frameShadow">
-          <enum>QFrame::Raised</enum>
+         <property name="text">
+          <string>⚙ 设置</string>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_4">
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="lblSettingsHint">
+         <property name="text">
+          <string>Ctrl+,</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QFrame" name="urlFrame">
+      <property name="frameShape">
+       <enum>QFrame::NoFrame</enum>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <property name="spacing">
+        <number>0</number>
+       </property>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QFrame" name="urlPanelHeader">
+         <layout class="QHBoxLayout" name="urlPanelHeaderLayout">
           <property name="spacing">
-           <number>16</number>
+           <number>8</number>
           </property>
           <property name="leftMargin">
-           <number>8</number>
+           <number>16</number>
           </property>
           <property name="topMargin">
-           <number>8</number>
+           <number>10</number>
           </property>
           <property name="rightMargin">
-           <number>8</number>
+           <number>16</number>
           </property>
           <property name="bottomMargin">
-           <number>8</number>
+           <number>10</number>
           </property>
           <item>
-           <widget class="QLabel" name="labelSpeed">
+           <widget class="QLabel" name="lblUrlTitle">
             <property name="text">
-             <string>Speed: -- B/s</string>
+             <string>下载链接</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="Line" name="line">
+           <widget class="QLabel" name="lblUrlHint">
+            <property name="text">
+             <string>每行一个 URL</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="urlHeaderSpacer">
             <property name="orientation">
-             <enum>Qt::Vertical</enum>
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnAddTasks">
+            <property name="toolTip">
+             <string>将输入框中的 URL 添加为下载任务</string>
+            </property>
+            <property name="text">
+             <string>+ 添加任务</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPlainTextEdit" name="plainTextEditUrls">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>80</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>150</height>
+          </size>
+         </property>
+         <property name="placeholderText">
+          <string>在此输入下载链接，每行一个...
+
+https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso
+https://github.com/torvalds/linux/archive/refs/tags/v6.5.tar.gz</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QFrame" name="tableFrame">
+      <property name="frameShape">
+       <enum>QFrame::NoFrame</enum>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <property name="spacing">
+        <number>0</number>
+       </property>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QFrame" name="taskPanelHeader">
+         <layout class="QHBoxLayout" name="taskPanelHeaderLayout">
+          <property name="spacing">
+           <number>8</number>
+          </property>
+          <property name="leftMargin">
+           <number>20</number>
+          </property>
+          <property name="topMargin">
+           <number>12</number>
+          </property>
+          <property name="rightMargin">
+           <number>20</number>
+          </property>
+          <property name="bottomMargin">
+           <number>12</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="labelTasks">
+            <property name="text">
+             <string>下载任务</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QLabel" name="labelTime">
+           <widget class="QLabel" name="lblTaskCount">
             <property name="text">
-             <string>Time: --</string>
+             <string>0 个任务</string>
             </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="taskHeaderSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnSelectAll">
+            <property name="text">
+             <string>全选</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnClearCompleted">
+            <property name="text">
+             <string>清除已完成</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTableView" name="tableViewTasks">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>160</height>
+          </size>
+         </property>
+         <property name="selectionBehavior">
+          <enum>QAbstractItemView::SelectRows</enum>
+         </property>
+         <attribute name="verticalHeaderVisible">
+          <bool>false</bool>
+         </attribute>
+        </widget>
+       </item>
+       <item>
+        <widget class="QFrame" name="controlFrame">
+         <layout class="QHBoxLayout" name="horizontalLayout_2">
+          <property name="spacing">
+           <number>8</number>
+          </property>
+          <property name="leftMargin">
+           <number>20</number>
+          </property>
+          <property name="topMargin">
+           <number>12</number>
+          </property>
+          <property name="rightMargin">
+           <number>20</number>
+          </property>
+          <property name="bottomMargin">
+           <number>12</number>
+          </property>
+          <item>
+           <widget class="QPushButton" name="btnStart">
+            <property name="toolTip">
+             <string>开始所选下载</string>
+            </property>
+            <property name="text">
+             <string>▶ 开始</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnPause">
+            <property name="toolTip">
+             <string>暂停所选下载</string>
+            </property>
+            <property name="text">
+             <string>⏸ 暂停</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnCancel">
+            <property name="toolTip">
+             <string>取消所选下载（重置进度）</string>
+            </property>
+            <property name="text">
+             <string>✕ 取消</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnDelete">
+            <property name="toolTip">
+             <string>删除所选任务</string>
+            </property>
+            <property name="text">
+             <string>🗑 删除</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="controlSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QFrame" name="statusFrame">
+            <layout class="QHBoxLayout" name="horizontalLayout_4">
+             <property name="spacing">
+              <number>12</number>
+             </property>
+             <property name="leftMargin">
+              <number>16</number>
+             </property>
+             <property name="topMargin">
+              <number>8</number>
+             </property>
+             <property name="rightMargin">
+              <number>16</number>
+             </property>
+             <property name="bottomMargin">
+              <number>8</number>
+             </property>
+             <item>
+              <widget class="QLabel" name="lblSpeedCaption">
+               <property name="text">
+                <string>全局速度</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="labelSpeed">
+               <property name="text">
+                <string>--</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QFrame" name="statsDivider">
+               <property name="minimumSize">
+                <size>
+                 <width>1</width>
+                 <height>20</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>1</width>
+                 <height>20</height>
+                </size>
+               </property>
+               <property name="frameShape">
+                <enum>QFrame::NoFrame</enum>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="lblTimeCaption">
+               <property name="text">
+                <string>剩余时间</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="labelTime">
+               <property name="text">
+                <string>--</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </widget>
           </item>
          </layout>
@@ -329,7 +494,7 @@ https://example.com/file2.zip</string>
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title">
-     <string>File</string>
+     <string>文件</string>
     </property>
     <addaction name="actionSettings"/>
     <addaction name="separator"/>
@@ -337,7 +502,7 @@ https://example.com/file2.zip</string>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
-     <string>View</string>
+     <string>查看</string>
     </property>
     <addaction name="actionThemeLight"/>
     <addaction name="actionThemeDark"/>
@@ -347,7 +512,7 @@ https://example.com/file2.zip</string>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
-     <string>Help</string>
+     <string>帮助</string>
     </property>
     <addaction name="actionAbout"/>
    </widget>
@@ -358,15 +523,15 @@ https://example.com/file2.zip</string>
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionSettings">
    <property name="text">
-    <string>Settings</string>
+    <string>设置</string>
    </property>
    <property name="shortcut">
-    <string>Ctrl+S</string>
+    <string>Ctrl+,</string>
    </property>
   </action>
   <action name="actionExit">
    <property name="text">
-    <string>Exit</string>
+    <string>退出</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Q</string>
@@ -374,7 +539,7 @@ https://example.com/file2.zip</string>
   </action>
   <action name="actionAbout">
    <property name="text">
-    <string>About</string>
+    <string>关于</string>
    </property>
   </action>
   <action name="actionThemeLight">
@@ -382,7 +547,7 @@ https://example.com/file2.zip</string>
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Light Theme</string>
+    <string>浅色主题</string>
    </property>
   </action>
   <action name="actionThemeDark">
@@ -390,7 +555,7 @@ https://example.com/file2.zip</string>
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Dark Theme</string>
+    <string>深色主题</string>
    </property>
   </action>
   <action name="actionThemeSystem">
@@ -398,12 +563,12 @@ https://example.com/file2.zip</string>
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Follow System</string>
+    <string>跟随系统</string>
    </property>
   </action>
   <action name="actionToggleTheme">
    <property name="text">
-    <string>Toggle Light/Dark</string>
+    <string>切换明暗主题</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+T</string>

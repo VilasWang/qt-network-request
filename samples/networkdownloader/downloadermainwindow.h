@@ -38,8 +38,11 @@ protected:
 private slots:
     void onAddTasksClicked();
     void onStartClicked();
+    void onPauseClicked();
     void onCancelClicked();
     void onDeleteClicked();
+    void onSelectAllClicked();
+    void onClearCompletedClicked();
     void onTaskSelectionChanged();
     void onTaskAdded(const NetworkDownloadTask &task);
     void onTaskProgress(const QString &taskId, qint64 downloaded, qint64 total, qint64 speed);
@@ -64,6 +67,7 @@ private:
     QSettings m_settings;
     ThemeManager *m_theme{nullptr};
     QActionGroup *m_themeGroup{nullptr};
+    QLabel *m_labelDownloadDir{nullptr};
 
     // Notification system
     QList<QLabel*> m_notifications;
@@ -85,6 +89,9 @@ private:
     void hideNotification();
     void clearNotifications();
     QString getNotificationColor(const QString &type);
+    QString getNotificationBackground() const;
+    QString getNotificationTextColor() const;
+    QString getNotificationBorderColor() const;
 
 private Q_SLOTS:
     void onNotificationTimeout();

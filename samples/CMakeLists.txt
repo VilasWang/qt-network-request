@@ -59,6 +59,7 @@ add_executable(QtDownloader ${GUI_EXECUTABLE_FLAG}
     networkdownloader/downloadermainwindow.cpp
     networkdownloader/downloadtaskmodel.cpp
     networkdownloader/downloadmanager.cpp
+    networkdownloader/tasktabledelegate.cpp
 
     # Headers (AUTOMOC)
     networkdownloader/downloadermainwindow.h
@@ -66,6 +67,7 @@ add_executable(QtDownloader ${GUI_EXECUTABLE_FLAG}
     networkdownloader/downloadmanager.h
     networkdownloader/downloadtask.h
     networkdownloader/thememanager.h
+    networkdownloader/tasktabledelegate.h
 
     # UI / Resources
     networkdownloader/NetworkDownloaderMainWindow.ui
