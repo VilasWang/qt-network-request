@@ -10,6 +10,8 @@
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QTableWidgetItem>
+#include <QStatusBar>
+#include <QButtonGroup>
 #include <QtWidgets/QDialog>
 #include <QtWidgets/QDialogButtonBox>
 #include <QtWidgets/QFormLayout>
@@ -35,6 +37,7 @@
 #include <QtCore/QJsonArray>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
+#include <QtCore/QRegularExpression>
 #include <QtGui/QTextCursor>
 #include <QtGui/QTextCharFormat>
 #include "networkrequestmanager.h"
@@ -63,7 +66,7 @@ namespace
                     "QLineEdit {"
                     " padding: 1px 4px; margin: 0px;"
                     " min-height: 0px;"
-                    " border: 1px solid #0078d4;"
+                    " border: 1px solid #4361ee;"
                     " border-radius: 0px; }"));
             return editor;
         }
@@ -121,16 +124,87 @@ void NetworkRequestTool::initializeUI()
     ui.splitter_request->setStretchFactor(0, 1); // Request area
     ui.splitter_request->setStretchFactor(1, 1); // Response area
 
-    // Response info bar
-    m_labelResponseInfo = new QLabel("Status: -- | Time: -- | Received: -- | Sent: --");
-    m_labelResponseInfo->setStyleSheet("color: #969696; padding: 4px 8px; background: #252526;");
-    auto *respPage = ui.tabWidget_response->widget(0);
-    if (respPage)
+    // --- Inject sidebar logo (matches HTML .app-logo) ---
     {
-        auto *respLayout = qobject_cast<QVBoxLayout*>(respPage->layout());
-        if (respLayout)
-            respLayout->insertWidget(0, m_labelResponseInfo);
+        auto *logoWidget = new QWidget();
+        logoWidget->setObjectName("sidebarLogo");
+        auto *logoLayout = new QHBoxLayout(logoWidget);
+        logoLayout->setContentsMargins(4, 4, 4, 4);
+        logoLayout->setSpacing(8);
+
+        auto *logoIcon = new QLabel("QR");
+        logoIcon->setObjectName("sidebarLogoIcon");
+        logoIcon->setAlignment(Qt::AlignCenter);
+        logoIcon->setFixedSize(28, 28);
+
+        auto *logoText = new QLabel("Request Tool");
+        logoText->setObjectName("sidebarLogoText");
+
+        logoLayout->addWidget(logoIcon);
+        logoLayout->addWidget(logoText);
+        logoLayout->addStretch();
+
+        // Insert at the top of the sidebar's frame layout
+        auto *frameLayout = qobject_cast<QVBoxLayout *>(ui.frame_history->layout());
+        if (frameLayout) {
+            frameLayout->insertWidget(0, logoWidget);
+        }
     }
+
+    // --- Hide surplus "New Request" button (duplicate of +Req) ---
+    ui.btn_new_request->setVisible(false);
+
+    // --- Hide "Request History" label (replaced by sidebar tabs) ---
+    ui.label_history->setVisible(false);
+
+    // --- Inject sidebar tabs (历史 / 收藏夹) ---
+    {
+        auto *sidebarTabs = new QWidget();
+        sidebarTabs->setObjectName("sidebarTabs");
+        auto *tabsLayout = new QHBoxLayout(sidebarTabs);
+        tabsLayout->setContentsMargins(0, 2, 0, 0);
+        tabsLayout->setSpacing(0);
+
+        auto *tabHistory = new QPushButton(QString::fromUtf8("\u5386\u53f2"));  // 历史
+        tabHistory->setObjectName("tabHistory");
+        tabHistory->setCheckable(true);
+        tabHistory->setChecked(true);
+        tabHistory->setFlat(true);
+        tabsLayout->addWidget(tabHistory);
+
+        auto *tabCollections = new QPushButton(QString::fromUtf8("\u6536\u85cf\u5939"));  // 收藏夹
+        tabCollections->setObjectName("tabCollections");
+        tabCollections->setCheckable(true);
+        tabCollections->setFlat(true);
+        tabsLayout->addWidget(tabCollections);
+
+        tabsLayout->addStretch();
+
+        auto *frameLayout = qobject_cast<QVBoxLayout *>(ui.frame_history->layout());
+        if (frameLayout) {
+            // Insert after search box (index 2 = logo(0), history header(1), search(2))
+            frameLayout->insertWidget(3, sidebarTabs);
+        }
+
+        // Toggle between history list and collection tree
+        connect(tabHistory, &QPushButton::toggled, this, [this, tabCollections](bool checked) {
+            ui.listWidget_history->setVisible(checked);
+            if (m_collectionTree) m_collectionTree->setVisible(!checked);
+            if (m_collectionToolbar) m_collectionToolbar->setVisible(!checked);
+            if (checked) { tabCollections->setChecked(false); }
+        });
+        connect(tabCollections, &QPushButton::toggled, this, [this, tabHistory](bool checked) {
+            ui.listWidget_history->setVisible(!checked);
+            if (m_collectionTree) m_collectionTree->setVisible(checked);
+            if (m_collectionToolbar) m_collectionToolbar->setVisible(checked);
+            if (checked) { tabHistory->setChecked(false); }
+        });
+    }
+
+    // Response info bar — styling handled by QSS (will be moved above tabWidget later)
+    m_labelResponseInfo = new QLabel("Status: -- | Time: -- | Received: -- | Sent: --");
+    m_labelResponseInfo->setObjectName("m_labelResponseInfo");
+    // Don't insert into Body tab — we'll restructure after buildResponseToolbar()
 
     ui.table_body->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     ui.stackedWidget_body->setCurrentWidget(ui.page_raw);
@@ -190,6 +264,19 @@ void NetworkRequestTool::initializeUI()
 
     // --- Collection panel (M4) ---
     buildCollectionPanel();
+
+    // --- Initial sidebar tab state: "历史" active, collection hidden ---
+    if (m_collectionTree) m_collectionTree->setVisible(false);
+    if (m_collectionToolbar) m_collectionToolbar->setVisible(false);
+
+    // --- Branded status bar (always-visible footer) ---
+    {
+        auto *permanentLabel = new QLabel("Ready  |  Environment: None  |  Ctrl+Enter to Send");
+        permanentLabel->setObjectName("statusBarLabel");
+        statusBar()->addPermanentWidget(permanentLabel);
+        // Also call showMessage for tooltip-style hints
+        statusBar()->showMessage("Welcome to Qt Request Tool");
+    }
 }
 
 void NetworkRequestTool::initializeConnections()
@@ -562,6 +649,16 @@ void NetworkRequestTool::onSendRequest()
         return;
     }
 
+    // Validate auth: warn if a non-None type is selected but credentials are empty
+    AuthConfig authCfg = buildAuthConfig();
+    if (m_settings.authType != "None" && authCfg.type == AuthType::None)
+    {
+        QMessageBox::warning(this, "Warning",
+                             QString("Authorization type '%1' is selected but required credentials are empty.\n"
+                                     "The request will be sent without authentication.")
+                                 .arg(m_settings.authType));
+    }
+
     applyAuthHeader();   // preview header write-back (Approach A)
 
     std::unique_ptr<RequestContext> req = buildRequestContext();
@@ -570,6 +667,10 @@ void NetworkRequestTool::onSendRequest()
     std::shared_ptr<NetworkReply> pReply = NetworkRequestManager::globalInstance()->postRequest(std::move(req));
     if (pReply)
     {
+        // Store task id for abort
+        const TaskData *taskData = pReply->task();
+        m_currentTaskId = taskData ? taskData->id : 0;
+
         connect(pReply.get(), &NetworkReply::requestFinished,
                 this, &NetworkRequestTool::onResponse);
 
@@ -577,6 +678,10 @@ void NetworkRequestTool::onSendRequest()
         appendToResponseBody("Sending request...\n", QColor(0, 120, 212));
         appendToResponseBody("URL: " + raw + "\n", QColor(204, 204, 204));
         appendToResponseBody("Method: " + currentMethod + "\n\n", QColor(204, 204, 204));
+    }
+    else
+    {
+        m_currentTaskId = 0;
     }
 }
 
@@ -792,6 +897,8 @@ std::unique_ptr<RequestContext> NetworkRequestTool::buildRequestContext()
 
 void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseResult> rsp)
 {
+    m_currentTaskId = 0;  // request completed, clear task id
+
     // Safety check to prevent crashes during object destruction
     if (!ui.textEdit_response_body || !ui.textEdit_response_headers)
     {
@@ -1036,6 +1143,11 @@ void NetworkRequestTool::onRemoveHeader()
 
 void NetworkRequestTool::onAbortTask()
 {
+    if (m_currentTaskId != 0)
+    {
+        NetworkRequestManager::globalInstance()->stopRequest(m_currentTaskId);
+        m_currentTaskId = 0;
+    }
 }
 
 void NetworkRequestTool::onAbortAllTask()
@@ -1648,15 +1760,37 @@ void NetworkRequestTool::onSettingsClicked()
 
 void NetworkRequestTool::applyAuthHeader()
 {
+    // Resolve environment variables for auth credentials so {{var}} placeholders
+    // are expanded before writing the Authorization header.
+    const QMap<QString, QString> env = m_envStore.activeVariables();
+    auto resolve = [&env](const QString &value) -> QString {
+        if (env.isEmpty() || value.isEmpty())
+            return value;
+        // Simple {{key}} substitution matching the library's regex
+        static const QRegularExpression re(QStringLiteral("\\{\\{(\\w[\\w.-]*)\\}\\}"));
+        QString result = value;
+        QRegularExpressionMatchIterator it = re.globalMatch(value);
+        while (it.hasNext())
+        {
+            QRegularExpressionMatch m = it.next();
+            const QString key = m.captured(1);
+            if (env.contains(key))
+                result.replace(m.captured(0), env.value(key));
+        }
+        return result;
+    };
+
     if (m_settings.authType == "Basic" && !m_settings.authUsername.isEmpty())
     {
-        QString creds = m_settings.authUsername + ":" + m_settings.authPassword;
+        QString user = resolve(m_settings.authUsername);
+        QString pass = resolve(m_settings.authPassword);
+        QString creds = user + ":" + pass;
         QString encoded = creds.toUtf8().toBase64();
         updateHeader("Authorization", "Basic " + encoded);
     }
     else if (m_settings.authType == "Bearer" && !m_settings.authToken.isEmpty())
     {
-        updateHeader("Authorization", "Bearer " + m_settings.authToken);
+        updateHeader("Authorization", "Bearer " + resolve(m_settings.authToken));
     }
     else if (m_settings.authType == "ApiKey")
     {
@@ -1664,7 +1798,7 @@ void NetworkRequestTool::applyAuthHeader()
         // it is already present). Query placement: do NOT write to headers, the
         // library appends it to the URL query instead.
         if (m_settings.authApiLocation != "Query" && !m_settings.authApiKey.isEmpty())
-            updateHeader(m_settings.authApiKey, m_settings.authApiValue);
+            updateHeader(resolve(m_settings.authApiKey), resolve(m_settings.authApiValue));
     }
 }
 
@@ -2163,55 +2297,135 @@ void NetworkRequestTool::loadRequestFromJson(const QJsonObject &obj)
 
 void NetworkRequestTool::buildResponseToolbar()
 {
-    // Inject a compact toolbar at the top of the response body tab layout,
-    // mirroring how m_labelResponseInfo was injected.
-    auto *respPage = ui.tabWidget_response->widget(0); // Body tab
-    if (!respPage)
-        return;
-    auto *respLayout = qobject_cast<QVBoxLayout *>(respPage->layout());
-    if (!respLayout)
+    // --- Restructure: wrap tabWidget_response in a container with status bar + toolbar above ---
+    // This fixes the bug where status bar and toolbar were inside the Body tab
+    // and disappeared when switching to Headers/Cookies.
+    QWidget *oldParent = ui.tabWidget_response->parentWidget();
+    if (!oldParent)
         return;
 
+    // Find the splitter layout to figure out which index the tabWidget is at
+    QSplitter *parentSplitter = qobject_cast<QSplitter *>(oldParent);
+    int oldIndexInSplitter = -1;
+    if (parentSplitter) {
+        oldIndexInSplitter = parentSplitter->indexOf(ui.tabWidget_response);
+    }
+
+    // Detach tabWidget_response from its current parent
+    ui.tabWidget_response->setParent(nullptr);
+
+    // Create a new container widget with VBoxLayout
+    auto *respContainer = new QWidget();
+    respContainer->setObjectName("responseContainer");
+    auto *respLayout = new QVBoxLayout(respContainer);
+    respLayout->setContentsMargins(0, 0, 0, 0);
+    respLayout->setSpacing(0);
+
+    // Build the response toolbar widget
     m_responseToolbar = new QWidget();
+    m_responseToolbar->setObjectName("responseToolbar");
     auto *hLayout = new QHBoxLayout(m_responseToolbar);
-    hLayout->setContentsMargins(4, 2, 4, 2);
+    hLayout->setContentsMargins(8, 4, 8, 4);
     hLayout->setSpacing(4);
 
+    // --- LEFT: Tabs (Body/Headers/Cookies) ---
+    auto *tabGroup = new QButtonGroup(this);
+    tabGroup->setExclusive(true);
+
+    auto *btnTabBody = new QPushButton("Body");
+    btnTabBody->setObjectName("tabResp");
+    btnTabBody->setCheckable(true);
+    btnTabBody->setChecked(true);
+    btnTabBody->setFlat(true);
+    tabGroup->addButton(btnTabBody, 0);
+    hLayout->addWidget(btnTabBody);
+
+    auto *btnTabHeaders = new QPushButton("Headers");
+    btnTabHeaders->setObjectName("tabResp");
+    btnTabHeaders->setCheckable(true);
+    btnTabHeaders->setFlat(true);
+    tabGroup->addButton(btnTabHeaders, 1);
+    hLayout->addWidget(btnTabHeaders);
+
+    auto *btnTabCookies = new QPushButton("Cookies");
+    btnTabCookies->setObjectName("tabResp");
+    btnTabCookies->setCheckable(true);
+    btnTabCookies->setFlat(true);
+    tabGroup->addButton(btnTabCookies, 2);
+    hLayout->addWidget(btnTabCookies);
+
+    // --- Spacer pushes everything else to the RIGHT ---
+    hLayout->addStretch();
+
+    // --- RIGHT: Search + arrow buttons + Copy/Save/Pretty ---
     m_leResponseSearch = new QLineEdit();
+    m_leResponseSearch->setObjectName("leResponseSearch");
     m_leResponseSearch->setPlaceholderText("Search response...");
     m_leResponseSearch->setClearButtonEnabled(true);
     m_leResponseSearch->setMaximumWidth(200);
     hLayout->addWidget(m_leResponseSearch);
 
     auto *btnPrev = new QPushButton("<");
-    btnPrev->setFixedWidth(24);
+    btnPrev->setObjectName("btn_resp_nav");
+    btnPrev->setFixedSize(24, 24);
     btnPrev->setToolTip("Previous match");
     hLayout->addWidget(btnPrev);
 
     auto *btnNext = new QPushButton(">");
-    btnNext->setFixedWidth(24);
+    btnNext->setObjectName("btn_resp_nav");
+    btnNext->setFixedSize(24, 24);
     btnNext->setToolTip("Next match");
     hLayout->addWidget(btnNext);
 
-    hLayout->addStretch();
-
+    // --- RIGHT: Copy / Save / Pretty ---
     auto *btnCopy = new QPushButton("Copy");
+    btnCopy->setObjectName("btn_resp_secondary");
     btnCopy->setToolTip("Copy response body to clipboard");
     hLayout->addWidget(btnCopy);
 
     auto *btnSave = new QPushButton("Save");
+    btnSave->setObjectName("btn_resp_secondary");
     btnSave->setToolTip("Save response body to file");
     hLayout->addWidget(btnSave);
 
     auto *chkPretty = new QCheckBox("Pretty");
+    chkPretty->setObjectName("chk_resp_pretty");
     chkPretty->setChecked(true);
     chkPretty->setToolTip("Toggle between pretty-printed and raw JSON");
     hLayout->addWidget(chkPretty);
 
-    // Insert after m_labelResponseInfo (index 0)
-    respLayout->insertWidget(1, m_responseToolbar);
+    // Add to container: status bar (top) → toolbar → tabWidget (bottom)
+    if (m_labelResponseInfo) respLayout->addWidget(m_labelResponseInfo);
+    respLayout->addWidget(m_responseToolbar);
+    respLayout->addWidget(ui.tabWidget_response, /*stretch*/ 1);
 
-    // Connections
+    // Insert the new container back into the splitter at the original position
+    if (parentSplitter && oldIndexInSplitter >= 0) {
+        parentSplitter->insertWidget(oldIndexInSplitter, respContainer);
+    } else if (auto *layout = qobject_cast<QLayout *>(oldParent->layout())) {
+        layout->addWidget(respContainer);
+    } else {
+        oldParent->layout() ? oldParent->layout()->addWidget(respContainer)
+                              : respContainer->show();
+    }
+
+    // Hide the QTabWidget's built-in tab bar (we use our own in the toolbar)
+    ui.tabWidget_response->tabBar()->hide();
+
+    // Connect tab buttons to switch QTabWidget page
+    connect(btnTabBody,    &QPushButton::toggled, this, [this](bool c){ if (c) ui.tabWidget_response->setCurrentIndex(0); });
+    connect(btnTabHeaders, &QPushButton::toggled, this, [this](bool c){ if (c) ui.tabWidget_response->setCurrentIndex(1); });
+    connect(btnTabCookies, &QPushButton::toggled, this, [this](bool c){ if (c) ui.tabWidget_response->setCurrentIndex(2); });
+
+    // Sync QTabWidget to toolbar (when something else changes current page)
+    connect(ui.tabWidget_response, &QTabWidget::currentChanged, this,
+            [btnTabBody, btnTabHeaders, btnTabCookies](int idx) {
+        QPushButton *target = (idx == 0) ? btnTabBody : (idx == 1) ? btnTabHeaders : btnTabCookies;
+        if (!target->isChecked())
+            target->setChecked(true);
+    });
+
+    // Connections for search, copy, save, pretty
     connect(m_leResponseSearch, &QLineEdit::textChanged,
             this, &NetworkRequestTool::onResponseSearchChanged);
     connect(m_leResponseSearch, &QLineEdit::returnPressed,
@@ -2354,45 +2568,53 @@ void NetworkRequestTool::buildCollectionPanel()
 
     // ── Toolbar ──
     auto *collToolbar = new QWidget();
+    collToolbar->setObjectName("collectionToolbar");
     auto *tbLayout = new QHBoxLayout(collToolbar);
     tbLayout->setContentsMargins(0, 4, 0, 2);
-    tbLayout->setSpacing(2);
+    tbLayout->setSpacing(4);
 
     auto *btnNewColl = new QPushButton("+Coll");
+    btnNewColl->setObjectName("btn_coll");
     btnNewColl->setToolTip("New collection");
-    btnNewColl->setFixedHeight(22);
+    btnNewColl->setFixedHeight(24);
     tbLayout->addWidget(btnNewColl);
 
     auto *btnAddFolder = new QPushButton("+Folder");
+    btnAddFolder->setObjectName("btn_coll");
     btnAddFolder->setToolTip("Add folder");
-    btnAddFolder->setFixedHeight(22);
+    btnAddFolder->setFixedHeight(24);
     tbLayout->addWidget(btnAddFolder);
 
     auto *btnAddReq = new QPushButton("+Req");
+    btnAddReq->setObjectName("btn_coll");
     btnAddReq->setToolTip("Add current request to collection");
-    btnAddReq->setFixedHeight(22);
+    btnAddReq->setFixedHeight(24);
     tbLayout->addWidget(btnAddReq);
 
     tbLayout->addStretch();
 
     auto *btnImport = new QPushButton("Import");
+    btnImport->setObjectName("btn_coll_secondary");
     btnImport->setToolTip("Import Postman v2.1 collection");
-    btnImport->setFixedHeight(22);
+    btnImport->setFixedHeight(24);
     tbLayout->addWidget(btnImport);
 
     auto *btnExport = new QPushButton("Export");
+    btnExport->setObjectName("btn_coll_secondary");
     btnExport->setToolTip("Export to Postman v2.1");
-    btnExport->setFixedHeight(22);
+    btnExport->setFixedHeight(24);
     tbLayout->addWidget(btnExport);
 
     // Insert toolbar before the tree
     int insertIdx = parentLayout->indexOf(ui.listWidget_history);
     if (insertIdx < 0)
         insertIdx = parentLayout->count();
+    m_collectionToolbar = collToolbar;
     parentLayout->insertWidget(insertIdx, collToolbar);
 
     // ── Tree ──
     m_collectionTree = new QTreeWidget();
+    m_collectionTree->setObjectName("collectionTree");
     m_collectionTree->setHeaderHidden(true);
     m_collectionTree->setRootIsDecorated(true);
     m_collectionTree->setMinimumHeight(100);
@@ -2496,7 +2718,7 @@ void NetworkRequestTool::onAddCollectionRequest()
     QString name = QInputDialog::getText(this, "Add Request", "Name:",
                                           QLineEdit::Normal,
                                           ui.lineEdit_url->text().isEmpty()
-                                              ? "New Request" : baseUrlFromInput(), &ok);
+                                              ? QStringLiteral("Untitled Request") : baseUrlFromInput(), &ok);
     if (!ok || name.isEmpty())
         return;
 
