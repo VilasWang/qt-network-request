@@ -595,14 +595,14 @@ void NetworkRequestTool::showBlockingWarning(const QString &title, const QString
     m_lastWarningTitle = title;
     m_lastWarningText  = message;
 
-    // Non-modal warning: show in status bar + log to qWarning so the user is
-    // notified without blocking the workflow. Previously this showed a modal
-    // QMessageBox, which (a) broke UI tests in headless/CI runs because the
-    // modal blocked the event loop, and (b) annoyed interactive users who had
-    // to click OK on every send. The status bar message is auto-cleared after
-    // 5 seconds and tests can inspect m_lastWarningText.
+#ifdef QT_MTNETWORK_UNIT_TEST
+    // Test mode: use non-modal status bar so the event loop is not blocked
     statusBar()->showMessage(title + ": " + message, 5000);
     qWarning("%s: %s", qPrintable(title), qPrintable(message));
+#else
+    // Normal GUI mode: modal dialog so the user cannot miss the warning
+    QMessageBox::warning(this, title, message);
+#endif
 }
 
 void NetworkRequestTool::updateHeader(const QString &key, const QString &value)
