@@ -24,7 +24,8 @@ HEADERS += \
     downloadermainwindow.h \
     downloadtaskmodel.h \
     downloadmanager.h \
-    downloadtask.h
+    downloadtask.h \
+    thememanager.h
 
 FORMS += \
     NetworkDownloaderMainWindow.ui

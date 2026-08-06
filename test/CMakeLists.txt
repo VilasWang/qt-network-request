@@ -211,6 +211,7 @@ add_executable(UiTests
     ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/networkrequesttool.cpp
     ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/jsonsyntaxhighlighter.cpp
     ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/xmlsyntaxhighlighter.cpp
+    ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/thememanager.h
     ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/NetworkRequestTool.ui
     ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/NetworkRequestTool.qrc
 )
@@ -241,3 +242,87 @@ endif()
 
 add_test(NAME UiTests COMMAND UiTests)
 set_tests_properties(UiTests PROPERTIES TIMEOUT 120)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ThemeTests — QtRequester light/dark/system theming (GUI)
+# ══════════════════════════════════════════════════════════════════════════════
+add_executable(ThemeTests
+    main_theme.cpp
+    test_theme.cpp
+    httptestserver.cpp
+    ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/networkrequesttool.cpp
+    ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/jsonsyntaxhighlighter.cpp
+    ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/xmlsyntaxhighlighter.cpp
+    ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/thememanager.h
+    ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/NetworkRequestTool.ui
+    ${CMAKE_SOURCE_DIR}/samples/networkrequesttool/NetworkRequestTool.qrc
+)
+
+target_compile_definitions(ThemeTests PRIVATE QT_MTNETWORK_UNIT_TEST)
+
+target_link_libraries(ThemeTests
+    QNetworkRequest
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Xml
+    Qt${QT_VERSION_MAJOR}::Test
+)
+
+target_include_directories(ThemeTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/samples/networkrequesttool
+)
+
+set_output_directories(ThemeTests)
+
+if(WIN32)
+    copy_openssl_dlls(ThemeTests "${OPENSSL_BIN_DIR}")
+    copy_library_artifact(ThemeTests QNetworkRequest)
+endif()
+
+add_test(NAME ThemeTests COMMAND ThemeTests)
+set_tests_properties(ThemeTests PROPERTIES TIMEOUT 120)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DownloaderUiTests — QtDownloader light/dark rendering + View-menu theme (GUI)
+#
+# The existing DownloaderTests suite is non-GUI (QCoreApplication) and cannot
+# exercise rendering, so this suite uses QApplication and constructs the full
+# NetworkDownloaderMainWindow.
+# ══════════════════════════════════════════════════════════════════════════════
+add_executable(DownloaderUiTests
+    main_downloaderui.cpp
+    test_downloaderui.cpp
+    ${CMAKE_SOURCE_DIR}/samples/networkdownloader/downloadermainwindow.cpp
+    ${CMAKE_SOURCE_DIR}/samples/networkdownloader/downloadtaskmodel.cpp
+    ${CMAKE_SOURCE_DIR}/samples/networkdownloader/downloadmanager.cpp
+    ${CMAKE_SOURCE_DIR}/samples/networkdownloader/thememanager.h
+    ${CMAKE_SOURCE_DIR}/samples/networkdownloader/NetworkDownloaderMainWindow.ui
+    ${CMAKE_SOURCE_DIR}/samples/networkdownloader/NetworkDownloader.qrc
+)
+
+target_link_libraries(DownloaderUiTests
+    QNetworkRequest
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Test
+)
+
+target_include_directories(DownloaderUiTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/samples/networkdownloader
+)
+
+set_output_directories(DownloaderUiTests)
+
+if(WIN32)
+    copy_openssl_dlls(DownloaderUiTests "${OPENSSL_BIN_DIR}")
+    copy_library_artifact(DownloaderUiTests QNetworkRequest)
+endif()
+
+add_test(NAME DownloaderUiTests COMMAND DownloaderUiTests)
+set_tests_properties(DownloaderUiTests PROPERTIES TIMEOUT 120)

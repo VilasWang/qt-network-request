@@ -18,7 +18,8 @@ INCLUDEPATH += . \
 # Input
 HEADERS += networkrequesttool.h \
            jsonsyntaxhighlighter.h \
-           xmlsyntaxhighlighter.h
+           xmlsyntaxhighlighter.h \
+           thememanager.h
 FORMS += NetworkRequestTool.ui 
 SOURCES += main.cpp networkrequesttool.cpp \
            jsonsyntaxhighlighter.cpp \

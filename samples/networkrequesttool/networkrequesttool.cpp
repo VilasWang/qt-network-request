@@ -42,6 +42,7 @@
 #include <QtGui/QTextCharFormat>
 #include "networkrequestmanager.h"
 #include "networkreply.h"
+#include "thememanager.h"
 
 using namespace QtNetworkRequest;
 
@@ -112,6 +113,11 @@ void NetworkRequestTool::unInitialize()
 
 void NetworkRequestTool::initializeUI()
 {
+    // Apply the persisted theme before any child widgets are created so the
+    // first paint is already themed (the QSS lives on qApp).
+    m_theme = new ThemeManager(this);
+    m_theme->setMode(m_theme->mode());
+
     // Set initial splitter ratio
     ui.splitter->setStretchFactor(0, 1); // History list
     ui.splitter->setStretchFactor(1, 3); // Request area
@@ -257,6 +263,13 @@ void NetworkRequestTool::initializeUI()
         m_btnManageEnv->setToolTip("Manage environments");
         m_btnManageEnv->setFixedWidth(40);
         toolbarLayout->addWidget(m_btnManageEnv);
+
+        // --- Theme toggle (Light/Dark) ---
+        m_btnTheme = new QPushButton(QStringLiteral("\xe2\x98\xbe"));  // ☾ crescent
+        m_btnTheme->setObjectName("btn_theme");
+        m_btnTheme->setToolTip("Toggle light/dark theme");
+        m_btnTheme->setFixedWidth(40);
+        toolbarLayout->addWidget(m_btnTheme);
     }
 
     // --- Response toolbar (injected into response body tab) ---
@@ -296,6 +309,10 @@ void NetworkRequestTool::initializeConnections()
                 this, &NetworkRequestTool::onEnvironmentChanged);
     if (m_btnManageEnv)
         connect(m_btnManageEnv, &QPushButton::clicked, this, &NetworkRequestTool::onManageEnvironments);
+
+    // Theme toggle
+    if (m_btnTheme && m_theme)
+        connect(m_btnTheme, &QPushButton::clicked, m_theme, &ThemeManager::toggle);
 
     // Collection tree
     if (m_collectionTree)
@@ -675,9 +692,11 @@ void NetworkRequestTool::onSendRequest()
                 this, &NetworkRequestTool::onResponse);
 
         clearResponse();
-        appendToResponseBody("Sending request...\n", QColor(0, 120, 212));
-        appendToResponseBody("URL: " + raw + "\n", QColor(204, 204, 204));
-        appendToResponseBody("Method: " + currentMethod + "\n\n", QColor(204, 204, 204));
+        const QColor accent = m_theme ? m_theme->accent() : QColor(0x43, 0x61, 0xee);
+        const QColor muted = palette().color(QPalette::WindowText);
+        appendToResponseBody("Sending request...\n", accent);
+        appendToResponseBody("URL: " + raw + "\n", muted);
+        appendToResponseBody("Method: " + currentMethod + "\n\n", muted);
     }
     else
     {
@@ -929,19 +948,21 @@ void NetworkRequestTool::onResponse(QSharedPointer<QtNetworkRequest::ResponseRes
         {
             m_highlighter = std::make_unique<XmlSyntaxHighlighter>(ui.textEdit_response_body->document());
             m_lastResponseBody = rsp->body;
-            appendToResponseBody(rsp->body, QColor(16, 124, 16));
+            appendToResponseBody(rsp->body, palette().color(QPalette::WindowText));
         }
         else
         {
             m_lastResponseBody = rsp->body;
-            appendToResponseBody(rsp->body, QColor(16, 124, 16));
+            appendToResponseBody(rsp->body, palette().color(QPalette::WindowText));
         }
 
         displayResponseCookies(rsp->cookies);
     }
     else
     {
-        appendToResponseBody("Error: \n" + rsp->error.message, QColor(232, 17, 35));
+        appendToResponseBody("Error: \n" + rsp->error.message,
+                             m_theme && m_theme->isDark() ? QColor(0xf8, 0x71, 0x71)
+                                                          : QColor(0xdc, 0x26, 0x26));
     }
 
     // Item 2: show status code, time, size
@@ -997,14 +1018,15 @@ bool NetworkRequestTool::isOctetStreamResponse(const QMap<QByteArray, QByteArray
 
 void NetworkRequestTool::displayJsonResponse(const QString &response)
 {
+    const QColor body = palette().color(QPalette::WindowText);
     QJsonDocument doc = QJsonDocument::fromJson(response.toUtf8());
     if (!doc.isNull())
     {
-        appendToResponse(doc.toJson(QJsonDocument::Indented), QColor(16, 124, 16));
+        appendToResponse(doc.toJson(QJsonDocument::Indented), body);
     }
     else
     {
-        appendToResponse(response, QColor(16, 124, 16));
+        appendToResponse(response, body);
     }
 }
 
@@ -1084,13 +1106,15 @@ void NetworkRequestTool::displayResponseHeaders(const QMap<QByteArray, QByteArra
 
     clearResponseHeaders();
 
-    appendToResponseHeaders("Response Headers:\n", QColor(0, 120, 212));
-    appendToResponseHeaders("================\n", QColor(0, 120, 212));
+    const QColor accent = m_theme ? m_theme->accent() : QColor(0x43, 0x61, 0xee);
+    const QColor muted = palette().color(QPalette::WindowText);
+    appendToResponseHeaders("Response Headers:\n", accent);
+    appendToResponseHeaders("================\n", accent);
 
     for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
     {
         QString headerLine = QString("%1: %2\n").arg(QString::fromUtf8(it.key())).arg(QString::fromUtf8(it.value()));
-        appendToResponseHeaders(headerLine, QColor(204, 204, 204));
+        appendToResponseHeaders(headerLine, muted);
     }
 }
 

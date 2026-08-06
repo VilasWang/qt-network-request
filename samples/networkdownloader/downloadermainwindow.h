@@ -7,10 +7,13 @@
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
 #include <QLabel>
+#include <QActionGroup>
 #include <QResizeEvent>
 #include <QFontMetrics>
 #include "downloadtaskmodel.h"
 #include "downloadmanager.h"
+
+class ThemeManager;
 
 namespace Ui
 {
@@ -49,12 +52,18 @@ private slots:
     void onActionSettings();
     void onActionAbout();
     void onActionExit();
+    void onActionThemeLight();
+    void onActionThemeDark();
+    void onActionThemeSystem();
+    void onActionToggleTheme();
 
 private:
     Ui::DownloaderMainWindow *ui;
     NetworkDownloadTaskModel *m_taskModel;
     NetworkDownloadManager *m_downloadManager;
     QSettings m_settings;
+    ThemeManager *m_theme{nullptr};
+    QActionGroup *m_themeGroup{nullptr};
 
     // Notification system
     QList<QLabel*> m_notifications;
@@ -69,6 +78,7 @@ private:
     void showAboutDialog();
     void saveGeometrySettings();
     void loadGeometrySettings();
+    void syncThemeActionGroup();
 
     // Non-modal notification system
     void showNotification(const QString &message, const QString &type = "info", int duration = 3000);
