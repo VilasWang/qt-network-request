@@ -27,7 +27,7 @@ namespace QtNetworkRequest
 		explicit NetworkRequest(QObject *parent = 0);
 		virtual ~NetworkRequest();
 
-		const QString errorString() const { return m_strError; }
+		const QString errorString() const { return m_errorMessage; }
 
 		void setRequestContext(std::unique_ptr<RequestContext> context);
 
@@ -55,7 +55,7 @@ namespace QtNetworkRequest
 		void connectSslErrorHandling(QNetworkReply *reply);
 #endif
 
-		// 设置结构化错误 (同时同步 m_error 与 m_strError 消息)
+		// 设置结构化错误 (同时同步 m_error 与 m_errorMessage 消息)
 		void setError(ErrorCategory category, ErrorCode code, const QString& msg, int nativeCode = 0);
 
 		// 重试: 返回 true 表示重试已调度，调用方应直接 return
@@ -116,19 +116,19 @@ namespace QtNetworkRequest
 		void aboutToAbort();
 
 	protected:
-		std::unique_ptr<RequestContext> m_upContext;
-		QSharedPointer<ResponseResult> m_spResult;
-		bool m_bAbortManual;
-		QString m_strError;
+		std::unique_ptr<RequestContext> m_context;
+		QSharedPointer<ResponseResult> m_result;
+		bool m_abortManual;
+		QString m_errorMessage;
 		ErrorInfo m_error;
-		int m_nProgress;
-		int m_nRetryCount{ 0 };
-		qint64 m_nBytesReceived{ 0 };
-		qint64 m_nBytesSent{ 0 };
-		quint16 m_nRedirectionCount;
-		bool m_bOAuthRefreshed{ false };   // M2: guard against infinite refresh loops
-		QNetworkAccessManager *m_pNetworkManager;  // non-owning — managed by NetworkAccessManagerPool
-		QNetworkReply *m_pNetworkReply;
+		int m_progress;
+		int m_retryCount{ 0 };
+		qint64 m_bytesReceived{ 0 };
+		qint64 m_bytesSent{ 0 };
+		quint16 m_redirectionCount;
+		bool m_oauthRefreshed{ false };   // M2: guard against infinite refresh loops
+		QNetworkAccessManager *m_networkManager;  // non-owning — managed by NetworkAccessManagerPool
+		QNetworkReply *m_networkReply;
         QUrl m_url;
 #ifndef QT_NO_SSL
 		SslConfig::IgnorePolicy m_resolvedIgnorePolicy{ SslConfig::IgnorePolicy::Never };
@@ -147,13 +147,6 @@ namespace QtNetworkRequest
 		QElapsedTimer m_transferElapsed;
 	};
 
-	// Factory class
-	class NetworkRequestFactory
-	{
-	public:
-		/// Create request object based on type
-		static std::unique_ptr<NetworkRequest> create(std::unique_ptr<RequestContext> context);
-	};
 }
 
 inline bool isHttpProxy(const QString &strScheme) { return (strScheme.compare(QString("http"), Qt::CaseInsensitive) == 0); }

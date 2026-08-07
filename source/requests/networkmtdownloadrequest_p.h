@@ -24,10 +24,10 @@ public:
 	/// Called when this state becomes active. Sends the phase-specific request.
 	virtual void enter(NetworkMTDownloadRequest* ctx) = 0;
 
-	/// Called when m_pNetworkReply emits finished().
+	/// Called when m_networkReply emits finished().
 	virtual void onFinished(NetworkMTDownloadRequest* ctx, QNetworkReply* reply) = 0;
 
-	/// Called when m_pNetworkReply emits an error signal.
+	/// Called when m_networkReply emits an error signal.
 	virtual void onError(NetworkMTDownloadRequest* ctx, QNetworkReply::NetworkError code) = 0;
 
 	/// Human-readable name for logging / debugging.

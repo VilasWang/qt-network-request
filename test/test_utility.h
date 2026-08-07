@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QtTest/QtTest>
 
-// Pure (no-network) unit tests for NetworkRequestUtility — the internal helper
+// Pure (no-network) unit tests for NetworkRequestUtils — the internal helper
 // that resolves download file names/dirs, performs file I/O, and maps request
 // types to human-readable strings. These functions are deterministic and
 // filesystem-only, so they live in their own executable alongside the builder

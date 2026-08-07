@@ -79,7 +79,7 @@ Key internal components:
   - Strategies: `requeststrategies.h/.cpp` (IRetryStrategy, IRedirectHandler, ISslPolicy)
   - Cross-cutting: `qtcompat.h` (Qt version adapters), `progressthrottle.h/.cpp` (progress rate-limiter), `networkrequestregistry.h/.cpp` (self-registering factory)
   - Features (v2.3): `environment.cpp` (env substitution), `environmentstore.cpp` (named envs), `oauth2tokencache.cpp` (token cache), `collectionmodel.cpp` (collection tree), `postmanconverter.cpp` (Postman v2.1 I/O)
-  - Infrastructure: `networkrequestmanager.cpp`, `networkrequestrunnable.*`, `networkaccessmanagerpool.*`, `memorymappedfile.*`, `networkrequestutility.*`, `networkreply.cpp`, `networkcookiejar.*`, `sharedcookiejar.h`
+  - Infrastructure: `networkrequestmanager.cpp`, `networkrequestrunnable.*`, `networkaccessmanagerpool.*`, `memorymappedfile.*`, `networkrequestutils.*`, `networkreply.cpp`, `networkcookiejar.*`, `sharedcookiejar.h`
 - `test/` — Qt Test unit tests (7 suites: UnitTests, BuilderTests, AuthTests, CollectionTests, UtilityTests, DownloaderTests, UiTests)
 - `samples/networkrequesttool/` — GUI demo
 - `samples/networkdownloader/` — download manager app

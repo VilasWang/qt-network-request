@@ -56,19 +56,19 @@ public:
     ~NetworkRequestManagerPrivate();
 
 private:
-    std::shared_ptr<NetworkReply> postRequest(const QUrl &url, quint64 &uiTaskId, quint64 uiSessionId = (quint64)0);
-    std::shared_ptr<NetworkReply> postBatchRequest(BatchRequestPtrTasks &&tasks, quint64 &uiBatchId);
-    bool sendRequest(std::unique_ptr<RequestContext> context, ResponseCallBack callback, bool bBlockUserInteraction);
+    std::shared_ptr<NetworkReply> postRequest(const QUrl &url, quint64 &taskId, quint64 sessionId = (quint64)0);
+    std::shared_ptr<NetworkReply> postBatchRequest(BatchRequestPtrTasks &&tasks, quint64 &batchId);
+    bool sendRequest(std::unique_ptr<RequestContext> context, ResponseCallBack callback, bool blockUserInteraction);
 
-    bool startRunnable(std::shared_ptr<NetworkRequestRunnable> r, bool bAddToWaitQueueIfNotStart = true);
-    void stopRequest(quint64 uiTaskId);
-    void stopBatchRequests(quint64 uiBatchId);
-    void stopSessionRequest(quint64 uiSessionId);
+    bool startRunnable(std::shared_ptr<NetworkRequestRunnable> r, bool addToWaitQueueIfNotStarted = true);
+    void stopRequest(quint64 taskId);
+    void stopBatchRequests(quint64 batchId);
+    void stopSessionRequest(quint64 sessionId);
     void stopAllRequest();
 
-    bool releaseRequestThread(quint64 uiId);
+    bool releaseRequestThread(quint64 requestId);
 
-    bool setMaxThreadCount(int iMax);
+    bool setMaxThreadCount(int maxConcurrent);
     int maxThreadCount() const;
 
     bool isValid(const QUrl &url) const;
@@ -77,9 +77,9 @@ private:
     bool addToFailedQueue(std::unique_ptr<RequestContext> context);
     void clearFailQueue();
 
-    std::shared_ptr<NetworkReply> getReply(quint64 uiId, bool bRemove = true);
-    std::shared_ptr<NetworkReply> getBatchReply(quint64 uiBatchId, bool bRemove = true);
-    qint64 updateBatchProgress(quint64 uiId, quint64 uiBatchId, qint64 iBytes, qint64 iTotalBytes, bool bDownload);
+    std::shared_ptr<NetworkReply> getReply(quint64 requestId, bool shouldRemove = true);
+    std::shared_ptr<NetworkReply> getBatchReply(quint64 batchId, bool shouldRemove = true);
+    qint64 updateBatchProgress(quint64 requestId, quint64 batchId, qint64 transferredBytes, qint64 totalBytes, bool isDownload);
 
     quint64 nextRequestId() const;
     quint64 nextBatchId() const;
@@ -91,72 +91,72 @@ private:
     void resetStopFlag();
     void markStopFlag();
     bool isStopped() const;
-    bool isSessionStopped(quint64 uiSessionId) const;
+    bool isSessionStopped(quint64 sessionId) const;
 
 private:
     Q_DISABLE_COPY(NetworkRequestManagerPrivate);
     NetworkRequestManager *q_ptr;
 
 private:
-    static std::atomic<quint64> ms_uiRequestId;
-    static std::atomic<quint64> ms_uiBatchId;
-    static std::atomic<quint64> ms_uiSessionId;
-    std::atomic<bool> m_bStopAllFlag;
+    static std::atomic<quint64> s_requestId;
+    static std::atomic<quint64> s_batchId;
+    static std::atomic<quint64> s_sessionId;
+    std::atomic<bool> m_stopAllFlag;
 
     mutable QtCompat::Mutex m_mutex;
-    QThreadPool *m_pThreadPool;
+    QThreadPool *m_threadPool;
 
-    QHash<quint64, std::shared_ptr<NetworkRequestRunnable>> m_mapRunnable;
+    QHash<quint64, std::shared_ptr<NetworkRequestRunnable>> m_runnableMap;
     // Runnables that were cancelled while their run() was still executing on a
     // worker thread. Ownership is held here until the runnable emits finished()
     // (delivered on the main thread after run() returns), at which point it is
     // safe to destroy. Prevents destroying a runnable mid-run (use-after-free).
     QHash<quint64, std::shared_ptr<NetworkRequestRunnable>> m_retiredRunnables;
     // One-to-one. requestId <---> NetworkReply *
-    QHash<quint64, std::shared_ptr<NetworkReply>> m_mapReply;
+    QHash<quint64, std::shared_ptr<NetworkReply>> m_replyMap;
     // One-to-many. batchId <---> NetworkReply *
-    QHash<quint64, std::shared_ptr<NetworkReply>> m_mapBatchReply;
+    QHash<quint64, std::shared_ptr<NetworkReply>> m_batchReplyMap;
 
     // session
-    QMultiMap<quint64, quint64> m_mapSessionIdToRequestId;
+    QMultiMap<quint64, quint64> m_sessionIdToRequestIdMap;
     QSet<quint64> m_stoppedSessionIds;
 
     // (batchId <---> Total task count)
-    QHash<quint64, size_t> m_mapBatchTotalSize;
+    QHash<quint64, size_t> m_batchTotalSizeMap;
     // (batchId <----> Task completion count)
-    QHash<quint64, size_t> m_mapBatchFinishedSize;
+    QHash<quint64, size_t> m_batchFinishedSizeMap;
 
     // (<batchId, <requestId, downloaded bytes>>)
-    QHash<quint64, QHash<quint64, qint64>> m_mapBatchDCurrentBytes;
+    QHash<quint64, QHash<quint64, qint64>> m_batchDownloadCurrentBytesMap;
     // (batchId <---> Total download bytes)
-    QHash<quint64, qint64> m_mapBatchDTotalBytes;
+    QHash<quint64, qint64> m_batchDownloadTotalBytesMap;
     // (<batchId, <requestId, uploaded bytes>>)
-    QHash<quint64, QHash<quint64, qint64>> m_mapBatchUCurrentBytes;
+    QHash<quint64, QHash<quint64, qint64>> m_batchUploadCurrentBytesMap;
     // (batchId <---> Total upload bytes)
-    QHash<quint64, qint64> m_mapBatchUTotalBytes;
+    QHash<quint64, qint64> m_batchUploadTotalBytesMap;
 
     // Priority queue for pending runnables when all threads are busy
     std::multiset<PriorityRunnable> m_priorityQueue;
     quint64 m_prioritySeq{ 0 };
 
     // Thread-affine NAM pool (owned, created in init(), destroyed in unInitialize())
-    QScopedPointer<NetworkAccessManagerPool> m_pNamPool;
+    QScopedPointer<NetworkAccessManagerPool> m_namPool;
 };
-std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiRequestId = 0;
-std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiBatchId = 0;
-std::atomic<quint64> NetworkRequestManagerPrivate::ms_uiSessionId = 0;
+std::atomic<quint64> NetworkRequestManagerPrivate::s_requestId = 0;
+std::atomic<quint64> NetworkRequestManagerPrivate::s_batchId = 0;
+std::atomic<quint64> NetworkRequestManagerPrivate::s_sessionId = 0;
 
 NetworkRequestManagerPrivate::NetworkRequestManagerPrivate()
-    : m_bStopAllFlag(false), m_pThreadPool(new QThreadPool), q_ptr(nullptr)
+    : m_stopAllFlag(false), m_threadPool(new QThreadPool), q_ptr(nullptr)
 {
 }
 
 NetworkRequestManagerPrivate::~NetworkRequestManagerPrivate()
 {
-    qDebug() << "[QMultiThreadNetwork] Runnable size: " << m_mapRunnable.size();
+    qDebug() << "[QMultiThreadNetwork] Runnable size: " << m_runnableMap.size();
 
     unInitialize();
-    m_pThreadPool->deleteLater();
+    m_threadPool->deleteLater();
 }
 
 void NetworkRequestManagerPrivate::initialize()
@@ -165,18 +165,18 @@ void NetworkRequestManagerPrivate::initialize()
     qRegisterMetaType<QMap<QByteArray, QByteArray>>("QMap<QByteArray, QByteArray>");
     qRegisterMetaType<QSharedPointer<QtNetworkRequest::ResponseResult>>("QSharedPointer<QtNetworkRequest::ResponseResult>");
 
-    int nIdeal = QThread::idealThreadCount();
-    if (-1 != nIdeal)
+    int idealThreadCount = QThread::idealThreadCount();
+    if (-1 != idealThreadCount)
     {
-        m_pThreadPool->setMaxThreadCount(nIdeal);
+        m_threadPool->setMaxThreadCount(idealThreadCount);
     }
     else
     {
-        m_pThreadPool->setMaxThreadCount(DEFAULT_MAX_THREAD_COUNT);
+        m_threadPool->setMaxThreadCount(DEFAULT_MAX_THREAD_COUNT);
     }
 
     // Create the thread-affine NAM pool
-    m_pNamPool.reset(new NetworkAccessManagerPool());
+    m_namPool.reset(new NetworkAccessManagerPool());
 
     // To add something intialize...
 }
@@ -188,12 +188,12 @@ void NetworkRequestManagerPrivate::unInitialize()
     // Phase 1: signal NAM pool shutdown. In-flight run()s will delete their
     // thread-affine NAM on exit (same-thread destruction — safe, required by
     // QObject affinity: NAM/cookie-jar/replies are affine to the worker).
-    if (m_pNamPool)
-        m_pNamPool->setReleasing(true);
+    if (m_namPool)
+        m_namPool->setReleasing(true);
 
-    m_pThreadPool->clear();
+    m_threadPool->clear();
     qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
-    if (!m_pThreadPool->waitForDone(1000))
+    if (!m_threadPool->waitForDone(1000))
     {
         qDebug() << "[QMultiThreadNetwork] ThreadPool waitForDone failed!";
     }
@@ -202,19 +202,19 @@ void NetworkRequestManagerPrivate::unInitialize()
     // owning worker thread deletes its own NAM (same-thread). QThreadPool
     // reuses the same OS threads that created the NAMs, so cleanup runs on
     // the affine thread. Cross-thread delete would crash (0xC0000005).
-    if (m_pNamPool && m_pNamPool->size() > 0)
+    if (m_namPool && m_namPool->size() > 0)
     {
-        const int n = m_pThreadPool->maxThreadCount();
+        const int n = m_threadPool->maxThreadCount();
         for (int i = 0; i < n; ++i)
-            m_pThreadPool->start(new NamCleanupRunnable);
-        m_pThreadPool->waitForDone(2000);
+            m_threadPool->start(new NamCleanupRunnable);
+        m_threadPool->waitForDone(2000);
         qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
     }
 
     // Phase 3: detach any residual entries (threads that didn't get a
     // cleanup chance) — never cross-thread delete.
-    if (m_pNamPool)
-        m_pNamPool->releaseAll();
+    if (m_namPool)
+        m_namPool->releaseAll();
 
     // All worker run()s have now completed (waitForDone above), so any retired
     // runnables that never had their finished() drained are safe to destroy.
@@ -228,61 +228,61 @@ void NetworkRequestManagerPrivate::reset()
 {
     // Drain pending events before clearing reply maps: worker threads may
     // have posted ReplyResultEvents destined for NetworkReply objects held
-    // in m_mapReply.  Delivering them here while targets are still alive
+    // in m_replyMap.  Delivering them here while targets are still alive
     // avoids a use-after-free crash (0xC0000005) on the subsequent
     // processEvents() call in unInitialize().
     qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
 
     QMutexLocker locker(&m_mutex);
 
-    m_mapBatchTotalSize.clear();
-    m_mapBatchFinishedSize.clear();
-    m_mapBatchDCurrentBytes.clear();
-    m_mapBatchDTotalBytes.clear();
-    m_mapBatchUCurrentBytes.clear();
-    m_mapBatchUTotalBytes.clear();
+    m_batchTotalSizeMap.clear();
+    m_batchFinishedSizeMap.clear();
+    m_batchDownloadCurrentBytesMap.clear();
+    m_batchDownloadTotalBytesMap.clear();
+    m_batchUploadCurrentBytesMap.clear();
+    m_batchUploadTotalBytesMap.clear();
 
-    m_mapRunnable.clear();
-    m_mapReply.clear();
-    m_mapBatchReply.clear();
+    m_runnableMap.clear();
+    m_replyMap.clear();
+    m_batchReplyMap.clear();
 
-    m_mapSessionIdToRequestId.clear();
+    m_sessionIdToRequestIdMap.clear();
     m_stoppedSessionIds.clear();
 }
 
 void NetworkRequestManagerPrivate::resetStopFlag()
 {
-    if (m_bStopAllFlag.load(std::memory_order_relaxed)) // Inter-thread synchronization reads are faster than writes
+    if (m_stopAllFlag.load(std::memory_order_relaxed)) // Inter-thread synchronization reads are faster than writes
     {
-        m_bStopAllFlag.store(false, std::memory_order_release);
+        m_stopAllFlag.store(false, std::memory_order_release);
     }
 }
 
 void NetworkRequestManagerPrivate::markStopFlag()
 {
-    if (!m_bStopAllFlag.load(std::memory_order_relaxed)) // Inter-thread synchronization reads are faster than writes
+    if (!m_stopAllFlag.load(std::memory_order_relaxed)) // Inter-thread synchronization reads are faster than writes
     {
-        m_bStopAllFlag.store(true, std::memory_order_release);
+        m_stopAllFlag.store(true, std::memory_order_release);
     }
 }
 
 bool NetworkRequestManagerPrivate::isStopped() const
 {
-    return m_bStopAllFlag.load(std::memory_order_acquire);
+    return m_stopAllFlag.load(std::memory_order_acquire);
 }
 
-bool NetworkRequestManagerPrivate::isSessionStopped(quint64 uiSessionId) const
+bool NetworkRequestManagerPrivate::isSessionStopped(quint64 sessionId) const
 {
-    if (m_stoppedSessionIds.end() != m_stoppedSessionIds.find(uiSessionId))
+    if (m_stoppedSessionIds.end() != m_stoppedSessionIds.find(sessionId))
     {
         return true;
     }
     return false;
 }
 
-void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
+void NetworkRequestManagerPrivate::stopRequest(quint64 taskId)
 {
-    if (uiTaskId == 0)
+    if (taskId == 0)
         return;
 
     auto rsp = QSharedPointer<ResponseResult>::create();
@@ -290,17 +290,17 @@ void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
 
     {
         QMutexLocker locker(&m_mutex);
-        reply = m_mapReply.take(uiTaskId);
+        reply = m_replyMap.take(taskId);
 
         // Check running map
-        if (m_mapRunnable.contains(uiTaskId))
+        if (m_runnableMap.contains(taskId))
         {
-            std::shared_ptr<NetworkRequestRunnable> r = m_mapRunnable.take(uiTaskId);
+            std::shared_ptr<NetworkRequestRunnable> r = m_runnableMap.take(taskId);
             if (r.get())
             {
                 rsp->task = r->task();
 
-                if (QtCompat::retireIfRunning(m_pThreadPool, r.get()))
+                if (QtCompat::retireIfRunning(m_threadPool, r.get()))
                 {
                     r->quit();
                     // run() is still executing on a worker thread. Keep the
@@ -317,7 +317,7 @@ void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
         // Check priority queue
         for (auto it = m_priorityQueue.begin(); it != m_priorityQueue.end(); ++it)
         {
-            if (it->runnable && it->runnable->requestId() == uiTaskId)
+            if (it->runnable && it->runnable->requestId() == taskId)
             {
                 rsp->task = it->runnable->task();
                 m_priorityQueue.erase(it);
@@ -330,114 +330,114 @@ void NetworkRequestManagerPrivate::stopRequest(quint64 uiTaskId)
     {
         rsp->error.category = ErrorCategory::Cancelled;
         rsp->error.code = ErrorCode::OperationCancelled;
-        rsp->error.message = QString("Operation canceled (id: %1)").arg(uiTaskId);
-        rsp->body = QString("Operation canceled (id: %1)").arg(uiTaskId).toUtf8();
+        rsp->error.message = QString("Operation canceled (id: %1)").arg(taskId);
+        rsp->body = QString("Operation canceled (id: %1)").arg(taskId).toUtf8();
         rsp->task.endTime = QDateTime::currentDateTime();
 
         reply->replyResult(rsp, true);
     }
 }
 
-void NetworkRequestManagerPrivate::stopBatchRequests(quint64 uiBatchId)
+void NetworkRequestManagerPrivate::stopBatchRequests(quint64 batchId)
 {
-    if (uiBatchId == 0)
+    if (batchId == 0)
         return;
 
     std::shared_ptr<NetworkReply> reply = nullptr;
 
     {
         QMutexLocker locker(&m_mutex);
-        reply = m_mapBatchReply.take(uiBatchId);
+        reply = m_batchReplyMap.take(batchId);
 
-        // qDebug() << "Runnable[Before]: " << m_mapRunnable.size();
-        for (auto iter = m_mapRunnable.begin(); iter != m_mapRunnable.end();)
+        // qDebug() << "Runnable[Before]: " << m_runnableMap.size();
+        for (auto iter = m_runnableMap.begin(); iter != m_runnableMap.end();)
         {
             std::shared_ptr<NetworkRequestRunnable> r = iter.value();
-            if (r.get() && r->batchId() == uiBatchId)
+            if (r.get() && r->batchId() == batchId)
             {
-                if (QtCompat::retireIfRunning(m_pThreadPool, r.get()))
+                if (QtCompat::retireIfRunning(m_threadPool, r.get()))
                 {
                     r->quit();
                     // Still running: keep alive until finished() (see stopRequest).
                     m_retiredRunnables.insert(r->requestId(), r);
                 }
-                iter = m_mapRunnable.erase(iter);
+                iter = m_runnableMap.erase(iter);
             }
             else
             {
                 ++iter;
             }
         }
-        // qDebug() << "Runnable[After]: " << m_mapRunnable.size();
+        // qDebug() << "Runnable[After]: " << m_runnableMap.size();
 
         // Remove from priority queue
         for (auto it = m_priorityQueue.begin(); it != m_priorityQueue.end();)
         {
-            if (it->runnable && it->runnable->batchId() == uiBatchId)
+            if (it->runnable && it->runnable->batchId() == batchId)
                 it = m_priorityQueue.erase(it);
             else
                 ++it;
         }
 
-        if (m_mapBatchTotalSize.contains(uiBatchId))
+        if (m_batchTotalSizeMap.contains(batchId))
         {
-            m_mapBatchTotalSize.remove(uiBatchId);
+            m_batchTotalSizeMap.remove(batchId);
         }
-        if (m_mapBatchFinishedSize.contains(uiBatchId))
+        if (m_batchFinishedSizeMap.contains(batchId))
         {
-            m_mapBatchFinishedSize.remove(uiBatchId);
+            m_batchFinishedSizeMap.remove(batchId);
         }
-        if (m_mapBatchDCurrentBytes.contains(uiBatchId))
+        if (m_batchDownloadCurrentBytesMap.contains(batchId))
         {
-            m_mapBatchDCurrentBytes.remove(uiBatchId);
+            m_batchDownloadCurrentBytesMap.remove(batchId);
         }
-        if (m_mapBatchDTotalBytes.contains(uiBatchId))
+        if (m_batchDownloadTotalBytesMap.contains(batchId))
         {
-            m_mapBatchDTotalBytes.remove(uiBatchId);
+            m_batchDownloadTotalBytesMap.remove(batchId);
         }
-        if (m_mapBatchUCurrentBytes.contains(uiBatchId))
+        if (m_batchUploadCurrentBytesMap.contains(batchId))
         {
-            m_mapBatchUCurrentBytes.remove(uiBatchId);
+            m_batchUploadCurrentBytesMap.remove(batchId);
         }
-        if (m_mapBatchUTotalBytes.contains(uiBatchId))
+        if (m_batchUploadTotalBytesMap.contains(batchId))
         {
-            m_mapBatchUTotalBytes.remove(uiBatchId);
+            m_batchUploadTotalBytesMap.remove(batchId);
         }
     }
 
     if (reply.get())
     {
         auto rsp = QSharedPointer<ResponseResult>::create();
-        rsp->task.batchId = uiBatchId;
+        rsp->task.batchId = batchId;
         rsp->error.category = ErrorCategory::Cancelled;
         rsp->error.code = ErrorCode::OperationCancelled;
-        rsp->error.message = QString("Operation canceled (Batch id: %1)").arg(uiBatchId);
-        rsp->body = QString("Operation canceled (Batch id: %1)").arg(uiBatchId).toUtf8();
+        rsp->error.message = QString("Operation canceled (Batch id: %1)").arg(batchId);
+        rsp->body = QString("Operation canceled (Batch id: %1)").arg(batchId).toUtf8();
         rsp->task.endTime = QDateTime::currentDateTime();
 
         reply->replyResult(rsp, true);
     }
 }
 
-void NetworkRequestManagerPrivate::stopSessionRequest(quint64 uiSessionId)
+void NetworkRequestManagerPrivate::stopSessionRequest(quint64 sessionId)
 {
-    if (uiSessionId == 0)
+    if (sessionId == 0)
         return;
 
     QMutexLocker locker(&m_mutex);
-    m_stoppedSessionIds.insert(uiSessionId);
-    for (auto iter = m_mapRunnable.begin(); iter != m_mapRunnable.end();)
+    m_stoppedSessionIds.insert(sessionId);
+    for (auto iter = m_runnableMap.begin(); iter != m_runnableMap.end();)
     {
         std::shared_ptr<NetworkRequestRunnable> r = iter.value();
-        if (r.get() && r->sessionId() == uiSessionId)
+        if (r.get() && r->sessionId() == sessionId)
         {
-            if (QtCompat::retireIfRunning(m_pThreadPool, r.get()))
+            if (QtCompat::retireIfRunning(m_threadPool, r.get()))
             {
                 r->quit();
                 // Still running: keep alive until finished() (see stopRequest).
                 m_retiredRunnables.insert(r->requestId(), r);
             }
-            iter = m_mapRunnable.erase(iter);
+            iter = m_runnableMap.erase(iter);
         }
         else
         {
@@ -448,18 +448,18 @@ void NetworkRequestManagerPrivate::stopSessionRequest(quint64 uiSessionId)
     // Remove from priority queue
     for (auto it = m_priorityQueue.begin(); it != m_priorityQueue.end();)
     {
-        if (it->runnable && it->runnable->sessionId() == uiSessionId)
+        if (it->runnable && it->runnable->sessionId() == sessionId)
             it = m_priorityQueue.erase(it);
         else
             ++it;
     }
 
-    QList<quint64> uiRequestIds = m_mapSessionIdToRequestId.values(uiSessionId);
-    for (quint64 &uiRequestId : uiRequestIds)
+    QList<quint64> uiRequestIds = m_sessionIdToRequestIdMap.values(sessionId);
+    for (quint64 &requestId : uiRequestIds)
     {
-        if (m_mapReply.contains(uiRequestId))
+        if (m_replyMap.contains(requestId))
         {
-            m_mapReply.remove(uiRequestId);
+            m_replyMap.remove(requestId);
         }
     }
 }
@@ -474,12 +474,12 @@ void NetworkRequestManagerPrivate::stopAllRequest()
     {
         QMutexLocker locker(&m_mutex);
 
-        for (auto iter = m_mapRunnable.cbegin(); iter != m_mapRunnable.cend(); ++iter)
+        for (auto iter = m_runnableMap.cbegin(); iter != m_runnableMap.cend(); ++iter)
         {
             std::shared_ptr<NetworkRequestRunnable> r = iter.value();
             if (r.get())
             {
-                if (QtCompat::retireIfRunning(m_pThreadPool, r.get()))
+                if (QtCompat::retireIfRunning(m_threadPool, r.get()))
                 {
                     r->quit();
                     // Still running: keep alive until finished() (see stopRequest).
@@ -487,26 +487,26 @@ void NetworkRequestManagerPrivate::stopAllRequest()
                 }
             }
         }
-        m_mapRunnable.clear();
+        m_runnableMap.clear();
         m_priorityQueue.clear();
     }
     reset();
 }
 
-std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::postRequest(const QUrl &url, quint64 &uiId, quint64 uiSessionId)
+std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::postRequest(const QUrl &url, quint64 &requestId, quint64 sessionId)
 {
     if (isValid(url))
     {
-        uiId = nextRequestId();
+        requestId = nextRequestId();
         std::unique_ptr<TaskData> task = std::make_unique<TaskData>();
-        task->id = uiId;
-        task->sessionId = uiSessionId;
+        task->id = requestId;
+        task->sessionId = sessionId;
         std::shared_ptr<NetworkReply> pReply = std::make_shared<NetworkReply>(std::move(task));
-        m_mapReply.insert(uiId, pReply);
+        m_replyMap.insert(requestId, pReply);
 
-        if (uiSessionId > 0)
+        if (sessionId > 0)
         {
-            m_mapSessionIdToRequestId.insert(uiSessionId, uiId);
+            m_sessionIdToRequestIdMap.insert(sessionId, requestId);
         }
 
         return pReply;
@@ -514,18 +514,18 @@ std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::postRequest(const QU
     return nullptr;
 }
 
-std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::postBatchRequest(BatchRequestPtrTasks &&tasks, quint64 &uiBatchId)
+std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::postBatchRequest(BatchRequestPtrTasks &&tasks, quint64 &batchId)
 {
     if (tasks.empty())
         return nullptr;
 
-    uiBatchId = nextBatchId();
-    m_mapBatchTotalSize[uiBatchId] = tasks.size();
+    batchId = nextBatchId();
+    m_batchTotalSizeMap[batchId] = tasks.size();
 
     std::unique_ptr<TaskData> task = std::make_unique<TaskData>();
-    task->batchId = uiBatchId;
+    task->batchId = batchId;
     std::shared_ptr<NetworkReply> pReply = std::make_shared<NetworkReply>(std::move(task));
-    m_mapBatchReply.insert(uiBatchId, pReply);
+    m_batchReplyMap.insert(batchId, pReply);
 
     for (auto &context : tasks)
     {
@@ -533,7 +533,7 @@ std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::postBatchRequest(Bat
         {
             continue;
         }
-        context->task.batchId = uiBatchId;
+        context->task.batchId = batchId;
         context->task.id = nextRequestId();
         context->task.createTime = QDateTime::currentDateTime();
 
@@ -544,7 +544,7 @@ std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::postBatchRequest(Bat
     return pReply;
 }
 
-bool NetworkRequestManagerPrivate::sendRequest(std::unique_ptr<RequestContext> context, ResponseCallBack callback, bool bBlockUserInteraction)
+bool NetworkRequestManagerPrivate::sendRequest(std::unique_ptr<RequestContext> context, ResponseCallBack callback, bool blockUserInteraction)
 {
     if (!context || !isValid(context->url))
         return false;
@@ -567,7 +567,7 @@ bool NetworkRequestManagerPrivate::sendRequest(std::unique_ptr<RequestContext> c
         r.reset();
         return false;
     }
-    if (bBlockUserInteraction)
+    if (blockUserInteraction)
         eventloop.exec(QEventLoop::ExcludeUserInputEvents);
     else
         eventloop.exec();
@@ -576,20 +576,20 @@ bool NetworkRequestManagerPrivate::sendRequest(std::unique_ptr<RequestContext> c
 
 quint64 NetworkRequestManagerPrivate::nextRequestId() const
 {
-    return ms_uiRequestId.fetch_add(1, std::memory_order_relaxed) + 1;
+    return s_requestId.fetch_add(1, std::memory_order_relaxed) + 1;
 }
 
 quint64 NetworkRequestManagerPrivate::nextBatchId() const
 {
-    return ms_uiBatchId.fetch_add(1, std::memory_order_relaxed) + 1;
+    return s_batchId.fetch_add(1, std::memory_order_relaxed) + 1;
 }
 
 quint64 NetworkRequestManagerPrivate::nextSessionId() const
 {
-    return ms_uiSessionId.fetch_add(1, std::memory_order_relaxed) + 1;
+    return s_sessionId.fetch_add(1, std::memory_order_relaxed) + 1;
 }
 
-bool NetworkRequestManagerPrivate::startRunnable(std::shared_ptr<NetworkRequestRunnable> r, bool bAddToWaitQueueIfNotStart)
+bool NetworkRequestManagerPrivate::startRunnable(std::shared_ptr<NetworkRequestRunnable> r, bool addToWaitQueueIfNotStarted)
 {
     if (!r.get())
         return false;
@@ -602,12 +602,12 @@ bool NetworkRequestManagerPrivate::startRunnable(std::shared_ptr<NetworkRequestR
 
     try
     {
-        if (bAddToWaitQueueIfNotStart)
+        if (addToWaitQueueIfNotStarted)
         {
-            if (m_pThreadPool->tryStart(r.get()))
+            if (m_threadPool->tryStart(r.get()))
             {
                 QMutexLocker locker(&m_mutex);
-                m_mapRunnable.insert(r->requestId(), r);
+                m_runnableMap.insert(r->requestId(), r);
                 return true;
             }
             // All threads busy: add to priority queue
@@ -622,10 +622,10 @@ bool NetworkRequestManagerPrivate::startRunnable(std::shared_ptr<NetworkRequestR
         }
         else
         {
-            if (!m_pThreadPool->tryStart(r.get()))
+            if (!m_threadPool->tryStart(r.get()))
                 return false;
             QMutexLocker locker(&m_mutex);
-            m_mapRunnable.insert(r->requestId(), r);
+            m_runnableMap.insert(r->requestId(), r);
             return true;
         }
     }
@@ -641,32 +641,32 @@ bool NetworkRequestManagerPrivate::startRunnable(std::shared_ptr<NetworkRequestR
     return false;
 }
 
-bool NetworkRequestManagerPrivate::setMaxThreadCount(int nMax)
+bool NetworkRequestManagerPrivate::setMaxThreadCount(int maxRedirections)
 {
-    bool bRet = false;
-    if (nMax >= 1 && nMax <= 100 && m_pThreadPool)
+    bool result = false;
+    if (maxRedirections >= 1 && maxRedirections <= 100 && m_threadPool)
     {
-        qDebug() << "[QMultiThreadNetwork] ThreadPool maxThreadCount: " << nMax;
-        m_pThreadPool->setMaxThreadCount(nMax);
-        bRet = true;
+        qDebug() << "[QMultiThreadNetwork] ThreadPool maxThreadCount: " << maxRedirections;
+        m_threadPool->setMaxThreadCount(maxRedirections);
+        result = true;
     }
-    return bRet;
+    return result;
 }
 
 int NetworkRequestManagerPrivate::maxThreadCount() const
 {
-    if (m_pThreadPool)
+    if (m_threadPool)
     {
-        return m_pThreadPool->maxThreadCount();
+        return m_threadPool->maxThreadCount();
     }
     return -1;
 }
 
 bool NetworkRequestManagerPrivate::isThreadAvailable() const
 {
-    if (m_pThreadPool)
+    if (m_threadPool)
     {
-        return (m_pThreadPool->activeThreadCount() < m_pThreadPool->maxThreadCount());
+        return (m_threadPool->activeThreadCount() < m_threadPool->maxThreadCount());
     }
     return false;
 }
@@ -676,111 +676,111 @@ bool NetworkRequestManagerPrivate::isValid(const QUrl &url) const
     return (url.isValid());
 }
 
-std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::getReply(quint64 uiRequestId, bool bRemove)
+std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::getReply(quint64 requestId, bool shouldRemove)
 {
     QMutexLocker locker(&m_mutex);
-    if (m_mapReply.contains(uiRequestId))
+    if (m_replyMap.contains(requestId))
     {
-        if (bRemove)
+        if (shouldRemove)
         {
-            return m_mapReply.take(uiRequestId);
+            return m_replyMap.take(requestId);
         }
         else
         {
-            return m_mapReply.value(uiRequestId);
+            return m_replyMap.value(requestId);
         }
     }
-    qDebug() << QString("%1 failed! Id: ").arg(__FUNCTION__) << uiRequestId;
+    qDebug() << QString("%1 failed! Id: ").arg(__FUNCTION__) << requestId;
     return nullptr;
 }
 
-std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::getBatchReply(quint64 uiBatchId, bool bRemove)
+std::shared_ptr<NetworkReply> NetworkRequestManagerPrivate::getBatchReply(quint64 batchId, bool shouldRemove)
 {
     QMutexLocker locker(&m_mutex);
-    if (m_mapBatchReply.contains(uiBatchId))
+    if (m_batchReplyMap.contains(batchId))
     {
-        if (bRemove)
+        if (shouldRemove)
         {
-            return m_mapBatchReply.take(uiBatchId);
+            return m_batchReplyMap.take(batchId);
         }
         else
         {
-            return m_mapBatchReply.value(uiBatchId);
+            return m_batchReplyMap.value(batchId);
         }
     }
     return nullptr;
 }
 
-qint64 NetworkRequestManagerPrivate::updateBatchProgress(quint64 uiRequestId, quint64 uiBatchId, qint64 iBytes, qint64 iTotalBytes, bool bDownload)
+qint64 NetworkRequestManagerPrivate::updateBatchProgress(quint64 requestId, quint64 batchId, qint64 transferredBytes, qint64 totalBytes, bool isDownload)
 {
-    Q_UNUSED(iTotalBytes);
+    Q_UNUSED(totalBytes);
     // postEvent() calls are all in main thread, no need to lock
 
     // Bytes increased for this request task compared to last time (download/upload)
-    quint64 uiIncreased = 0;
-    quint64 uiTotalBytes = 0;
-    if (iBytes == 0)
+    quint64 increased = 0;
+    quint64 accumulatedBytes = 0;
+    if (transferredBytes == 0)
     {
-        if (bDownload)
+        if (isDownload)
         {
-            return m_mapBatchDTotalBytes[uiBatchId];
+            return m_batchDownloadTotalBytesMap[batchId];
         }
         else
         {
-            return m_mapBatchUTotalBytes[uiBatchId];
+            return m_batchUploadTotalBytesMap[batchId];
         }
     }
 
-    if (bDownload)
+    if (isDownload)
     {
-        const QHash<quint64, qint64> &mapReqId2Bytes = m_mapBatchDCurrentBytes.value(uiBatchId);
-        if (mapReqId2Bytes.contains(uiRequestId))
+        const QHash<quint64, qint64> &mapReqId2Bytes = m_batchDownloadCurrentBytesMap.value(batchId);
+        if (mapReqId2Bytes.contains(requestId))
         {
-            qint64 curBytes = mapReqId2Bytes.value(uiRequestId);
-            if (iBytes > curBytes)
+            qint64 curBytes = mapReqId2Bytes.value(requestId);
+            if (transferredBytes > curBytes)
             {
-                uiIncreased = iBytes - curBytes;
+                increased = transferredBytes - curBytes;
             }
         }
         else
         {
-            uiIncreased = iBytes;
+            increased = transferredBytes;
         }
-        m_mapBatchDCurrentBytes[uiBatchId][uiRequestId] = iBytes;
+        m_batchDownloadCurrentBytesMap[batchId][requestId] = transferredBytes;
 
-        uiTotalBytes = m_mapBatchDTotalBytes.value(uiBatchId) + uiIncreased;
-        m_mapBatchDTotalBytes[uiBatchId] = uiTotalBytes;
+        accumulatedBytes = m_batchDownloadTotalBytesMap.value(batchId) + increased;
+        m_batchDownloadTotalBytesMap[batchId] = accumulatedBytes;
     }
     else
     {
-        const QHash<quint64, qint64> &mapReqId2Bytes = m_mapBatchUCurrentBytes.value(uiBatchId);
-        if (mapReqId2Bytes.contains(uiRequestId))
+        const QHash<quint64, qint64> &mapReqId2Bytes = m_batchUploadCurrentBytesMap.value(batchId);
+        if (mapReqId2Bytes.contains(requestId))
         {
-            qint64 curBytes = mapReqId2Bytes.value(uiRequestId);
-            if (iBytes > curBytes)
+            qint64 curBytes = mapReqId2Bytes.value(requestId);
+            if (transferredBytes > curBytes)
             {
-                uiIncreased = iBytes - curBytes;
+                increased = transferredBytes - curBytes;
             }
         }
         else
         {
-            uiIncreased = iBytes;
+            increased = transferredBytes;
         }
-        m_mapBatchUCurrentBytes[uiBatchId][uiRequestId] = iBytes;
+        m_batchUploadCurrentBytesMap[batchId][requestId] = transferredBytes;
 
-        uiTotalBytes = m_mapBatchUTotalBytes.value(uiBatchId) + uiIncreased;
-        m_mapBatchUTotalBytes[uiBatchId] = uiTotalBytes;
+        accumulatedBytes = m_batchUploadTotalBytesMap.value(batchId) + increased;
+        m_batchUploadTotalBytesMap[batchId] = accumulatedBytes;
     }
 
-    return uiTotalBytes;
+    return accumulatedBytes;
 }
 
-bool NetworkRequestManagerPrivate::releaseRequestThread(quint64 uiRequestId)
+bool NetworkRequestManagerPrivate::releaseRequestThread(quint64 requestId)
 {
     QMutexLocker locker(&m_mutex);
-    if (m_mapRunnable.contains(uiRequestId))
+    if (m_runnableMap.contains(requestId))
     {
-        std::shared_ptr<NetworkRequestRunnable> r = m_mapRunnable.take(uiRequestId);
+        std::shared_ptr<NetworkRequestRunnable> r = m_runnableMap.take(requestId);
         if (r.get())
         {
             // The response is delivered on the main thread while run() is still
@@ -790,7 +790,7 @@ bool NetworkRequestManagerPrivate::releaseRequestThread(quint64 uiRequestId)
             // Keep it alive in m_retiredRunnables until finished() is delivered
             // on the main thread (onRunnableFinished), exactly as the stop paths
             // do; quit() below wakes run() so it returns and emits finished().
-            m_retiredRunnables.insert(uiRequestId, r);
+            m_retiredRunnables.insert(requestId, r);
             r->quit();
         }
     }
@@ -802,9 +802,9 @@ bool NetworkRequestManagerPrivate::releaseRequestThread(quint64 uiRequestId)
         m_priorityQueue.erase(it);
         locker.unlock();
 
-        m_pThreadPool->start(pr.runnable.get());
+        m_threadPool->start(pr.runnable.get());
         locker.relock();
-        m_mapRunnable.insert(pr.runnable->requestId(), pr.runnable);
+        m_runnableMap.insert(pr.runnable->requestId(), pr.runnable);
         qDebug() << "[QMultiThreadNetwork] Dequeued request (priority:" << pr.priority << ")";
         return true;
     }
@@ -812,13 +812,13 @@ bool NetworkRequestManagerPrivate::releaseRequestThread(quint64 uiRequestId)
 }
 
 //////////////////////////////////////////////////////////////////////////
-std::atomic<bool> NetworkRequestManager::ms_bIntialized = false;
-std::atomic<bool> NetworkRequestManager::ms_bUnIntializing = false;
-ProxyConfig NetworkRequestManager::ms_globalProxy{};
-QScopedPointer<QNetworkCookieJar> NetworkRequestManager::ms_spCookieJar;
+std::atomic<bool> NetworkRequestManager::s_isInitialized = false;
+std::atomic<bool> NetworkRequestManager::s_isUninitializing = false;
+ProxyConfig NetworkRequestManager::s_globalProxy{};
+QScopedPointer<QNetworkCookieJar> NetworkRequestManager::s_cookieJar;
 #ifndef QT_NO_SSL
-SslConfig NetworkRequestManager::ms_globalSslConfig = SslConfig::secureDefault();
-QMutex NetworkRequestManager::ms_globalSslConfigMutex;
+SslConfig NetworkRequestManager::s_globalSslConfig = SslConfig::secureDefault();
+QMutex NetworkRequestManager::s_globalSslConfigMutex;
 #endif
 
 NetworkRequestManager::NetworkRequestManager(QObject *parent)
@@ -842,37 +842,37 @@ NetworkRequestManager *NetworkRequestManager::globalInstance()
 
 void NetworkRequestManager::initialize()
 {
-    if (!ms_bIntialized)
+    if (!s_isInitialized)
     {
         NetworkRequestManager::globalInstance()->init();
-        ms_bIntialized = true;
+        s_isInitialized = true;
     }
 }
 
 void NetworkRequestManager::unInitialize()
 {
-    if (ms_bIntialized)
+    if (s_isInitialized)
     {
-        ms_bUnIntializing = true;
+        s_isUninitializing = true;
         NetworkRequestManager::globalInstance()->fini();
-        ms_bIntialized = false;
-        ms_bUnIntializing = false;
+        s_isInitialized = false;
+        s_isUninitializing = false;
     }
 }
 
 bool NetworkRequestManager::isInitialized()
 {
-    return ms_bIntialized && !ms_bUnIntializing;
+    return s_isInitialized && !s_isUninitializing;
 }
 
 void NetworkRequestManager::setGlobalProxy(const ProxyConfig &config)
 {
-    ms_globalProxy = config;
+    s_globalProxy = config;
 }
 
 const ProxyConfig &NetworkRequestManager::globalProxy()
 {
-    return ms_globalProxy;
+    return s_globalProxy;
 }
 
 #ifndef QT_NO_SSL
@@ -891,40 +891,40 @@ void NetworkRequestManager::setGlobalSslConfig(const SslConfig &config)
     if (normalized.caPolicy == SslConfig::CaPolicy::Inherit)
         normalized.caPolicy = def.caPolicy;
 
-    QMutexLocker locker(&ms_globalSslConfigMutex);
-    ms_globalSslConfig = normalized;
+    QMutexLocker locker(&s_globalSslConfigMutex);
+    s_globalSslConfig = normalized;
 }
 
 SslConfig NetworkRequestManager::globalSslConfig()
 {
     // Return by value so callers (worker threads) hold an independent copy
     // and never dereference the global while another thread mutates it.
-    QMutexLocker locker(&ms_globalSslConfigMutex);
-    return ms_globalSslConfig;
+    QMutexLocker locker(&s_globalSslConfigMutex);
+    return s_globalSslConfig;
 }
 #endif
 
 void NetworkRequestManager::setCookieStoragePath(const QString &path)
 {
     PersistentCookieJar *jar = new PersistentCookieJar(path);
-    ms_spCookieJar.reset(jar);
+    s_cookieJar.reset(jar);
 }
 
 QString NetworkRequestManager::cookieStoragePath()
 {
-    auto *jar = qobject_cast<PersistentCookieJar*>(ms_spCookieJar.data());
+    auto *jar = qobject_cast<PersistentCookieJar*>(s_cookieJar.data());
     return jar ? jar->filePath() : QString();
 }
 
 QNetworkCookieJar *NetworkRequestManager::cookieJar()
 {
-    return ms_spCookieJar.data();
+    return s_cookieJar.data();
 }
 
 QNetworkAccessManager *NetworkRequestManager::acquireThreadNam()
 {
     auto *d = globalInstance()->d_func();
-    return d->m_pNamPool ? d->m_pNamPool->acquireNam() : nullptr;
+    return d->m_namPool ? d->m_namPool->acquireNam() : nullptr;
 }
 
 void NetworkRequestManager::releaseThreadNamOnExit()
@@ -933,8 +933,8 @@ void NetworkRequestManager::releaseThreadNamOnExit()
     if (!inst)
         return;
     auto *d = inst->d_func();
-    if (d && d->m_pNamPool)
-        d->m_pNamPool->releaseCurrentThreadNam();
+    if (d && d->m_namPool)
+        d->m_namPool->releaseCurrentThreadNam();
 }
 
 void NetworkRequestManager::init()
@@ -973,7 +973,7 @@ std::shared_ptr<NetworkReply> NetworkRequestManager::postRequest(std::unique_ptr
     return pReply;
 }
 
-std::shared_ptr<NetworkReply> NetworkRequestManager::postBatchRequest(BatchRequestPtrTasks &&tasks, quint64 &uiBatchId)
+std::shared_ptr<NetworkReply> NetworkRequestManager::postBatchRequest(BatchRequestPtrTasks &&tasks, quint64 &batchId)
 {
     if (!NetworkRequestManager::isInitialized())
     {
@@ -984,16 +984,16 @@ std::shared_ptr<NetworkReply> NetworkRequestManager::postBatchRequest(BatchReque
     Q_D(NetworkRequestManager);
     d->resetStopFlag();
 
-    uiBatchId = 0;
+    batchId = 0;
     if (!tasks.empty())
     {
-        std::shared_ptr<NetworkReply> pReply = d->postBatchRequest(std::move(tasks), uiBatchId);
+        std::shared_ptr<NetworkReply> pReply = d->postBatchRequest(std::move(tasks), batchId);
         return pReply;
     }
     return nullptr;
 }
 
-bool NetworkRequestManager::sendRequest(std::unique_ptr<RequestContext> context, ResponseCallBack callback, bool bBlockUserInteraction)
+bool NetworkRequestManager::sendRequest(std::unique_ptr<RequestContext> context, ResponseCallBack callback, bool blockUserInteraction)
 {
     if (!NetworkRequestManager::isInitialized())
     {
@@ -1001,25 +1001,25 @@ bool NetworkRequestManager::sendRequest(std::unique_ptr<RequestContext> context,
         return false;
     }
     Q_D(NetworkRequestManager);
-    return d->sendRequest(std::move(context), callback, bBlockUserInteraction);
+    return d->sendRequest(std::move(context), callback, blockUserInteraction);
 }
 
-void NetworkRequestManager::stopRequest(quint64 uiTaskId)
+void NetworkRequestManager::stopRequest(quint64 taskId)
 {
     Q_D(NetworkRequestManager);
-    d->stopRequest(uiTaskId);
+    d->stopRequest(taskId);
 }
 
-void NetworkRequestManager::stopBatchRequests(quint64 uiBatchId)
+void NetworkRequestManager::stopBatchRequests(quint64 batchId)
 {
     Q_D(NetworkRequestManager);
-    d->stopBatchRequests(uiBatchId);
+    d->stopBatchRequests(batchId);
 }
 
-void NetworkRequestManager::stopSessionRequest(quint64 uiSessionId)
+void NetworkRequestManager::stopSessionRequest(quint64 sessionId)
 {
     Q_D(NetworkRequestManager);
-    d->stopSessionRequest(uiSessionId);
+    d->stopSessionRequest(sessionId);
 }
 
 void NetworkRequestManager::stopAllRequest()
@@ -1050,10 +1050,10 @@ bool NetworkRequestManager::startAsRunnable(std::unique_ptr<RequestContext> cont
     return true;
 }
 
-bool NetworkRequestManager::setMaxThreadCount(int iMax)
+bool NetworkRequestManager::setMaxThreadCount(int maxConcurrent)
 {
     Q_D(NetworkRequestManager);
-    return d->setMaxThreadCount(iMax);
+    return d->setMaxThreadCount(maxConcurrent);
 }
 
 int NetworkRequestManager::maxThreadCount()
@@ -1075,11 +1075,11 @@ bool NetworkRequestManager::event(QEvent *event)
         NetworkProgressEvent *evtProgress = static_cast<NetworkProgressEvent *>(event);
         if (nullptr != evtProgress)
         {
-            updateProgress(evtProgress->uiId,
-                           evtProgress->uiBatchId,
-                           evtProgress->iBytes,
-                           evtProgress->iTotalBytes,
-                           evtProgress->bDownload);
+            updateProgress(evtProgress->requestId,
+                           evtProgress->batchId,
+                           evtProgress->transferredBytes,
+                           evtProgress->totalBytes,
+                           evtProgress->isDownload);
         }
         return true;
     }
@@ -1087,35 +1087,35 @@ bool NetworkRequestManager::event(QEvent *event)
     return QObject::event(event);
 }
 
-void NetworkRequestManager::updateProgress(quint64 uiId, quint64 uiBatchId, qint64 iBytes, qint64 iTotalBytes, bool bDownload)
+void NetworkRequestManager::updateProgress(quint64 requestId, quint64 batchId, qint64 transferredBytes, qint64 totalBytes, bool isDownload)
 {
     Q_D(NetworkRequestManager);
-    if (uiId == 0)
+    if (requestId == 0)
         return;
 
     // Find the reply for the single request
-    std::shared_ptr<NetworkReply> singleReply = d->getReply(uiId, false); // Do not remove from map
+    std::shared_ptr<NetworkReply> singleReply = d->getReply(requestId, false); // Do not remove from map
 
     if (singleReply)
     {
-        if (bDownload)
+        if (isDownload)
         {
-            emit singleReply->downloadProgress(iBytes, iTotalBytes);
+            emit singleReply->downloadProgress(transferredBytes, totalBytes);
         }
         else
         {
-            emit singleReply->uploadProgress(iBytes, iTotalBytes);
+            emit singleReply->uploadProgress(transferredBytes, totalBytes);
         }
     }
 
-    if (uiBatchId > 0) // Batch request
+    if (batchId > 0) // Batch request
     {
         // Find the reply for the batch
-        std::shared_ptr<NetworkReply> batchReply = d->getBatchReply(uiBatchId, false); // Do not remove from map
+        std::shared_ptr<NetworkReply> batchReply = d->getBatchReply(batchId, false); // Do not remove from map
         if (batchReply)
         {
-            quint64 totalBatchBytes = d->updateBatchProgress(uiId, uiBatchId, iBytes, iTotalBytes, bDownload);
-            if (bDownload)
+            quint64 totalBatchBytes = d->updateBatchProgress(requestId, batchId, transferredBytes, totalBytes, isDownload);
+            if (isDownload)
             {
                 emit batchReply->batchDownloadProgress(totalBatchBytes);
             }
@@ -1141,11 +1141,11 @@ void NetworkRequestManager::onResponse(QSharedPointer<QtNetworkRequest::Response
     {
         // 2. Notify user of results
         std::shared_ptr<NetworkReply> pReply;
-        bool bDestroyed = true;
+        bool isDestroyed = true;
         auto batchId = rsp->task.batchId;
         if (batchId == 0)
         {
-            pReply = d->getReply(rsp->task.id, bDestroyed);
+            pReply = d->getReply(rsp->task.id, isDestroyed);
         }
         else if (batchId > 0) // Batch task
         {
@@ -1153,16 +1153,16 @@ void NetworkRequestManager::onResponse(QSharedPointer<QtNetworkRequest::Response
             size_t sizeTotal = 0;
             {
                 QMutexLocker locker(&d->m_mutex);
-                sizeTotal = d->m_mapBatchTotalSize.value(rsp->task.batchId);
+                sizeTotal = d->m_batchTotalSizeMap.value(rsp->task.batchId);
                 if (sizeTotal > 0)
                 {
-                    sizeFinished = d->m_mapBatchFinishedSize.value(batchId);
-                    d->m_mapBatchFinishedSize[batchId] = ++sizeFinished;
+                    sizeFinished = d->m_batchFinishedSizeMap.value(batchId);
+                    d->m_batchFinishedSizeMap[batchId] = ++sizeFinished;
 
                     if (sizeFinished == sizeTotal)
                     {
-                        d->m_mapBatchTotalSize.remove(batchId);
-                        d->m_mapBatchFinishedSize.remove(batchId);
+                        d->m_batchTotalSizeMap.remove(batchId);
+                        d->m_batchFinishedSizeMap.remove(batchId);
                     }
                 }
             }
@@ -1171,23 +1171,23 @@ void NetworkRequestManager::onResponse(QSharedPointer<QtNetworkRequest::Response
             {
                 if (sizeFinished < sizeTotal) // Still have requests not completed
                 {
-                    bDestroyed = false;
+                    isDestroyed = false;
                 }
             }
             else // Batch task failed
             {
                 if (!rsp->task.abortBatchOnFailed && (sizeFinished < sizeTotal))
                 {
-                    bDestroyed = false;
+                    isDestroyed = false;
                 }
             }
-            pReply = d->getBatchReply(batchId, bDestroyed);
+            pReply = d->getBatchReply(batchId, isDestroyed);
         }
 
         if (pReply.get())
         {
-            pReply->replyResult(rsp, bDestroyed);
-            if (batchId > 0 && bDestroyed)
+            pReply->replyResult(rsp, isDestroyed);
+            if (batchId > 0 && isDestroyed)
             {
                 qDebug() << QString("[QMultiThreadNetwork] Batch request finished! Id: %1").arg(batchId);
                 emit batchRequestFinished(batchId, rsp->isSuccess());
@@ -1213,7 +1213,7 @@ void NetworkRequestManager::onResponse(QSharedPointer<QtNetworkRequest::Response
     }
 }
 
-void NetworkRequestManager::onRunnableFinished(quint64 uiRequestId)
+void NetworkRequestManager::onRunnableFinished(quint64 requestId)
 {
     // Runs on the main thread once the runnable's run() has fully returned
     // (finished() is emitted as run()'s last action, delivered via a queued
@@ -1221,7 +1221,7 @@ void NetworkRequestManager::onRunnableFinished(quint64 uiRequestId)
     // normally-completed and cancelled-while-running requests.
     Q_D(NetworkRequestManager);
     QMutexLocker locker(&d->m_mutex);
-    d->m_retiredRunnables.remove(uiRequestId);
+    d->m_retiredRunnables.remove(requestId);
 }
 
 } // namespace QtNetworkRequest

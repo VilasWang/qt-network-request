@@ -8,7 +8,7 @@
 #include <QNetworkCookieJar>
 #include <QCoreApplication>
 #include "networkrequestmanager.h"
-#include "networkrequestutility.h"
+#include "networkrequestutils.h"
 #include "networkrequestevent.h"
 #include "qtcompat.h"
 #include "networkrequestregistry.h"
@@ -29,7 +29,7 @@ namespace {
 using namespace QtNetworkRequest;
 
 NetworkDownloadRequest::NetworkDownloadRequest(QObject *parent)
-    : NetworkRequest(parent), m_pFile(nullptr)
+    : NetworkRequest(parent), m_file(nullptr)
 {
 	m_throttle = std::make_unique<ProgressThrottle>(250, this);
 }
@@ -37,25 +37,25 @@ NetworkDownloadRequest::NetworkDownloadRequest(QObject *parent)
 NetworkDownloadRequest::~NetworkDownloadRequest()
 {
     // Improved destructor - ensure proper resource cleanup
-    if (m_pFile && m_pFile->isOpen())
+    if (m_file && m_file->isOpen())
     {
-        m_pFile->close();
+        m_file->close();
     }
-    m_pFile.reset();
+    m_file.reset();
 }
 
 void NetworkDownloadRequest::start()
 {
     NetworkRequest::start();
-    m_nBytesReceived = 0;
-    m_nBytesWritten = 0;
+    m_bytesReceived = 0;
+    m_bytesWritten = 0;
 
     const QUrl &url = m_url;
     if (!url.isValid())
     {
         setError(ErrorCategory::Configuration, ErrorCode::InvalidUrl,
                  QString("Network error: Invalid URL format - %1").arg(url.toString()));
-        qDebug() << "[NetworkDownloadRequest]" << m_strError;
+        qDebug() << "[NetworkDownloadRequest]" << m_errorMessage;
         emit response(ToFailedResult());
         return;
     }
@@ -63,11 +63,11 @@ void NetworkDownloadRequest::start()
     // Improved file creation - use smart pointers for exception safety
     try
     {
-        m_pFile = std::move(NetworkRequestUtility::createAndOpenFile(m_upContext.get(), m_strError));
-        if (!m_pFile || !m_pFile->isOpen())
+        m_file = std::move(NetworkRequestUtils::createAndOpenFile(m_context.get(), m_errorMessage));
+        if (!m_file || !m_file->isOpen())
         {
-            setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed, m_strError);
-            qDebug() << "[NetworkDownloadRequest] Failed to create/open file:" << m_strError;
+            setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed, m_errorMessage);
+            qDebug() << "[NetworkDownloadRequest] Failed to create/open file:" << m_errorMessage;
             emit response(ToFailedResult());
             return;
         }
@@ -76,7 +76,7 @@ void NetworkDownloadRequest::start()
     {
         setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed,
                  QString("File system error: Exception occurred while creating file - %1").arg(e.what()));
-        qDebug() << "[NetworkDownloadRequest]" << m_strError;
+        qDebug() << "[NetworkDownloadRequest]" << m_errorMessage;
         emit response(ToFailedResult());
         return;
     }
@@ -90,29 +90,29 @@ void NetworkDownloadRequest::start()
     // the header is forbidden under HTTP/2 which Qt may negotiate).
     request.setRawHeader("User-Agent", "QtNetworkRequest/2.0");
 
-    m_pNetworkReply = m_pNetworkManager->get(request);
-    if (!m_pNetworkReply)
+    m_networkReply = m_networkManager->get(request);
+    if (!m_networkReply)
     {
         setError(ErrorCategory::Network, ErrorCode::InvalidReply,
                  "Network operation failed: Unable to create network request");
-        qDebug() << "[NetworkDownloadRequest]" << m_strError;
+        qDebug() << "[NetworkDownloadRequest]" << m_errorMessage;
         emit response(ToFailedResult());
         return;
     }
 
     // Connect signals
-    connect(m_pNetworkReply, SIGNAL(readyRead()), this, SLOT(onReadyRead()));
-    connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
-    QtCompat::connectErrorSignal(m_pNetworkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
+    connect(m_networkReply, SIGNAL(readyRead()), this, SLOT(onReadyRead()));
+    connect(m_networkReply, SIGNAL(finished()), this, SLOT(onFinished()));
+    QtCompat::connectErrorSignal(m_networkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
 
-    if (m_upContext->behavior.showProgress)
+    if (m_context->behavior.showProgress)
     {
-        connect(m_pNetworkReply, SIGNAL(downloadProgress(qint64, qint64)),
+        connect(m_networkReply, SIGNAL(downloadProgress(qint64, qint64)),
                 this, SLOT(onDownloadProgress(qint64, qint64)));
     }
 
 #ifndef QT_NO_SSL
-    connectSslErrorHandling(m_pNetworkReply);
+    connectSslErrorHandling(m_networkReply);
 #endif
 
     // Layer2b: transfer timeout via elapsed timer (no-op on Qt >= 5.15)
@@ -127,30 +127,30 @@ void NetworkDownloadRequest::onReadyRead()
     // Reset idle timeout on data arrival
     resetIdleTimer();
 
-    if (!m_pNetworkReply || m_pNetworkReply->error() != QNetworkReply::NoError || !m_pNetworkReply->isOpen())
+    if (!m_networkReply || m_networkReply->error() != QNetworkReply::NoError || !m_networkReply->isOpen())
     {
         return;
     }
 
-    if (!m_pFile || !m_pFile->isOpen())
+    if (!m_file || !m_file->isOpen())
     {
         qDebug() << "[NetworkDownloadRequest] File not open for writing";
         return;
     }
 
-    const QByteArray bytesReceived = m_pNetworkReply->readAll();
+    const QByteArray bytesReceived = m_networkReply->readAll();
     if (!bytesReceived.isEmpty())
     {
-        qint64 written = m_pFile->write(bytesReceived);
+        qint64 written = m_file->write(bytesReceived);
         if (written == -1)
         {
-            qDebug() << "[NetworkDownloadRequest] Write error:" << m_pFile->errorString();
+            qDebug() << "[NetworkDownloadRequest] Write error:" << m_file->errorString();
             setError(ErrorCategory::FileIo, ErrorCode::FileWriteFailed,
-                     QString("File operation failed: Write operation failed - %1").arg(m_pFile->errorString()));
+                     QString("File operation failed: Write operation failed - %1").arg(m_file->errorString()));
         }
         else
         {
-            m_nBytesWritten += written;
+            m_bytesWritten += written;
             if (written != bytesReceived.size())
             {
                 qDebug() << "[NetworkDownloadRequest] Partial write: expected" << bytesReceived.size()
@@ -162,47 +162,47 @@ void NetworkDownloadRequest::onReadyRead()
 
 void NetworkDownloadRequest::onFinished()
 {
-    if (!m_pNetworkReply)
+    if (!m_networkReply)
     {
         setError(ErrorCategory::Network, ErrorCode::InvalidReply, "Network error: Invalid reply");
         emit response(ToFailedResult());
         return;
     }
 
-    auto [bSuccess, statusCode] = evaluateOutcome();
-    if (!bSuccess && handleFailure())
+    auto [success, statusCode] = evaluateOutcome();
+    if (!success && handleFailure())
         return;
 
     // Clean up file (delete on failure, keep on success)
-    CloseFile(!bSuccess);
+    CloseFile(!success);
 
     // Get response header information
     QMap<QByteArray, QByteArray> responseHeaders;
-    if (bSuccess)
+    if (success)
     {
-        if (!m_bAbortManual && m_pNetworkReply->isOpen())
+        if (!m_abortManual && m_networkReply->isOpen())
         {
-            foreach(const QByteArray & header, m_pNetworkReply->rawHeaderList())
+            foreach(const QByteArray & header, m_networkReply->rawHeaderList())
             {
-                responseHeaders[header] = m_pNetworkReply->rawHeader(header);
+                responseHeaders[header] = m_networkReply->rawHeader(header);
             }
         }
         qDebug() << "[NetworkDownloadRequest] Download completed successfully:" << m_url.toString();
     }
     else
     {
-        qDebug() << "[NetworkDownloadRequest] Download failed:" << m_strError;
+        qDebug() << "[NetworkDownloadRequest] Download failed:" << m_errorMessage;
     }
 
     disposeReply();
 
-    m_nBytesReceived = m_nBytesWritten;
-    if (m_spResult)
+    m_bytesReceived = m_bytesWritten;
+    if (m_result)
     {
-        m_spResult->performance.bytesReceived = m_nBytesReceived;
+        m_result->performance.bytesReceived = m_bytesReceived;
     }
 
-    if (bSuccess)
+    if (success)
         emit response(ToSuccessResult({}, responseHeaders, statusCode));
     else
         emit response(ToFailedResult(statusCode));
@@ -214,37 +214,37 @@ void NetworkDownloadRequest::onDownloadProgress(qint64 iReceived, qint64 iTotal)
     if (iReceived > 0)
         resetIdleTimer();
 
-    if (m_bAbortManual)
+    if (m_abortManual)
         return;
 
     m_throttle->report(iReceived, iTotal, [this](qint64 bytes, qint64 total) {
         int progress = static_cast<int>(bytes * 100 / total);
-        if (m_nProgress < progress)
+        if (m_progress < progress)
         {
-            m_nProgress = progress;
+            m_progress = progress;
             NetworkProgressEvent *event = new NetworkProgressEvent;
-            event->uiId = m_upContext->task.id;
-            event->uiBatchId = m_upContext->task.batchId;
-            event->iBytes = bytes;
-            event->iTotalBytes = total;
+            event->requestId = m_context->task.id;
+            event->batchId = m_context->task.batchId;
+            event->transferredBytes = bytes;
+            event->totalBytes = total;
             QCoreApplication::postEvent(NetworkRequestManager::globalInstance(), event);
         }
     });
 }
 
-void NetworkDownloadRequest::CloseFile(bool bRemove)
+void NetworkDownloadRequest::CloseFile(bool shouldRemove)
 {
-    if (m_pFile)
+    if (m_file)
     {
-        if (m_pFile->isOpen())
+        if (m_file->isOpen())
         {
-            m_pFile->close();
+            m_file->close();
         }
 
-        if (bRemove && m_pFile->exists())
+        if (shouldRemove && m_file->exists())
         {
-            m_pFile->remove();
+            m_file->remove();
         }
-        m_pFile.reset();
+        m_file.reset();
     }
 }

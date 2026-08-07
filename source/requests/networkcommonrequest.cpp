@@ -9,7 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
-#include "networkrequestutility.h"
+#include "networkrequestutils.h"
 #include "networkrequestmanager.h"
 #include "oauth2tokencache.h"
 #include "qtcompat.h"
@@ -49,21 +49,21 @@ NetworkCommonRequest::~NetworkCommonRequest()
 void NetworkCommonRequest::start()
 {
     NetworkRequest::start();
-    m_nBytesReceived = 0;
-    m_nBytesSent = 0;
+    m_bytesReceived = 0;
+    m_bytesSent = 0;
 
     // Estimate bytes sent from request body
-    if (m_upContext->type == RequestType::Post || m_upContext->type == RequestType::Put)
+    if (m_context->type == RequestType::Post || m_context->type == RequestType::Put)
     {
-        if (m_upContext->uploadConfig && m_upContext->uploadConfig->useFormData)
-            m_nBytesSent = m_upContext->body.toUtf8().size(); // estimate
-        else if (m_upContext->uploadConfig && !m_upContext->uploadConfig->filePath.isEmpty())
+        if (m_context->uploadConfig && m_context->uploadConfig->useFormData)
+            m_bytesSent = m_context->body.toUtf8().size(); // estimate
+        else if (m_context->uploadConfig && !m_context->uploadConfig->filePath.isEmpty())
         {
-            QFileInfo fi(m_upContext->uploadConfig->filePath);
-            m_nBytesSent = fi.size();
+            QFileInfo fi(m_context->uploadConfig->filePath);
+            m_bytesSent = fi.size();
         }
         else
-            m_nBytesSent = effectiveRequestBody().size();
+            m_bytesSent = effectiveRequestBody().size();
     }
 
     const QUrl &url = m_url;
@@ -77,12 +77,12 @@ void NetworkCommonRequest::start()
 
     if (isFtpProxy(url.scheme()))
     {
-        if (m_upContext->type == RequestType::Post || m_upContext->type == RequestType::Delete || m_upContext->type == RequestType::Head)
+        if (m_context->type == RequestType::Post || m_context->type == RequestType::Delete || m_context->type == RequestType::Head)
         {
-            const QString &strType = NetworkRequestUtility::getRequestTypeString(m_upContext->type);
+            const QString &requestTypeString = NetworkRequestUtils::getRequestTypeString(m_context->type);
             setError(ErrorCategory::Protocol, ErrorCode::UnsupportedProtocol,
-                     QString("Protocol error: Unsupported FTP request type '%1' for URL: %2").arg(strType).arg(url.url()));
-            qDebug() << "[QMultiThreadNetwork]" << m_strError;
+                     QString("Protocol error: Unsupported FTP request type '%1' for URL: %2").arg(requestTypeString).arg(url.url()));
+            qDebug() << "[QMultiThreadNetwork]" << m_errorMessage;
 
             emit response(ToFailedResult());
             return;
@@ -90,17 +90,17 @@ void NetworkCommonRequest::start()
     }
 
     // Validate authentication configuration
-    if (m_upContext->authConfig.type != AuthType::None && !m_upContext->authConfig.isValid())
+    if (m_context->authConfig.type != AuthType::None && !m_context->authConfig.isValid())
     {
         setError(ErrorCategory::Configuration, ErrorCode::AuthInvalid,
                  QString("Authentication error: Invalid credentials for auth type %1")
-                     .arg(static_cast<int>(m_upContext->authConfig.type)));
+                     .arg(static_cast<int>(m_context->authConfig.type)));
         emit response(ToFailedResult());
         return;
     }
 
     // OAuth2: fetch a fresh token before sending. Non-OAuth2 requests proceed directly.
-    if (m_upContext->authConfig.type == AuthType::OAuth2)
+    if (m_context->authConfig.type == AuthType::OAuth2)
     {
         fetchOAuth2Token([this]() { performSend(); });
         return;
@@ -115,31 +115,31 @@ void NetworkCommonRequest::performSend()
 
     // Set default User-Agent if not provided (prepareRequest sets custom headers,
     // but we add User-Agent as a default if missing)
-    if (!m_upContext->headers.contains("User-Agent") && !m_upContext->headers.contains("user-agent"))
+    if (!m_context->headers.contains("User-Agent") && !m_context->headers.contains("user-agent"))
     {
         request.setRawHeader("User-Agent", "QtNetworkRequest/2.0");
     }
 
-    if (m_upContext->type == RequestType::Get)
+    if (m_context->type == RequestType::Get)
     {
-        m_pNetworkReply = m_pNetworkManager->get(request);
+        m_networkReply = m_networkManager->get(request);
     }
-    else if (m_upContext->type == RequestType::Patch)
+    else if (m_context->type == RequestType::Patch)
     {
         const QByteArray &bytes = effectiveRequestBody();
-        m_pNetworkReply = m_pNetworkManager->sendCustomRequest(request, "PATCH", bytes);
+        m_networkReply = m_networkManager->sendCustomRequest(request, "PATCH", bytes);
     }
-    else if (m_upContext->type == RequestType::Options)
+    else if (m_context->type == RequestType::Options)
     {
-        m_pNetworkReply = m_pNetworkManager->sendCustomRequest(request, "OPTIONS");
+        m_networkReply = m_networkManager->sendCustomRequest(request, "OPTIONS");
     }
-    else if (m_upContext->type == RequestType::Post)
+    else if (m_context->type == RequestType::Post)
     {
-        bool bFormData = m_upContext->uploadConfig && m_upContext->uploadConfig->useFormData && !m_upContext->uploadConfig->files.isEmpty();
+        bool bFormData = m_context->uploadConfig && m_context->uploadConfig->useFormData && !m_context->uploadConfig->files.isEmpty();
         if (!bFormData)
         {
             // Only default to application/x-www-form-urlencoded when bodyType is None (backward compat)
-            if (m_upContext->bodyType == BodyType::None &&
+            if (m_context->bodyType == BodyType::None &&
                 !request.hasRawHeader("Content-Type") && !request.hasRawHeader("content-type"))
             {
                 request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
@@ -149,13 +149,13 @@ void NetworkCommonRequest::performSend()
             // Let Qt automatically handle Content-Length, remove manual setting
             // request.setHeader(QNetworkRequest::ContentLengthHeader, bytes.length());
 
-            m_pNetworkReply = m_pNetworkManager->post(request, bytes);
+            m_networkReply = m_networkManager->post(request, bytes);
         }
         else
         {
-            Q_ASSERT(nullptr != m_upContext->uploadConfig);
-            QHttpMultiPart *pHttpMultiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-            auto& files = m_upContext->uploadConfig->files;
+            Q_ASSERT(nullptr != m_context->uploadConfig);
+            QHttpMultiPart *httpMultiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+            auto& files = m_context->uploadConfig->files;
             for (auto& filePath : files)
             {
 				QFileInfo fileInfo(filePath);
@@ -173,7 +173,7 @@ void NetworkCommonRequest::performSend()
                         delete file;
 					continue;
 				}
-				file->setParent(pHttpMultiPart); // Will be set when multiPart is created
+				file->setParent(httpMultiPart); // Will be set when multiPart is created
 
 				// Add file field
 				QHttpPart filePart;
@@ -181,9 +181,9 @@ void NetworkCommonRequest::performSend()
                 QString disposition = QString("form-data; name=\"file\"; filename=\"%1\"").arg(fileInfo.fileName());
 				filePart.setHeader(QNetworkRequest::ContentDispositionHeader, QVariant(disposition));
 				filePart.setBodyDevice(file);
-                pHttpMultiPart->append(filePart);
+                httpMultiPart->append(filePart);
             }
-			auto& kvPairs = m_upContext->uploadConfig->kvPairs;
+			auto& kvPairs = m_context->uploadConfig->kvPairs;
             for (auto iter = kvPairs.begin(); iter != kvPairs.end(); ++iter)
             {
 				// Handle plain text
@@ -193,20 +193,20 @@ void NetworkCommonRequest::performSend()
 					.arg(iter.key());
 				textPart.setHeader(QNetworkRequest::ContentDispositionHeader, QVariant(disposition));
 				textPart.setBody(iter.value().toUtf8());
-                pHttpMultiPart->append(textPart);
+                httpMultiPart->append(textPart);
             }
-            request.setHeader(QNetworkRequest::ContentTypeHeader, "multipart/form-data; boundary=" + pHttpMultiPart->boundary());
+            request.setHeader(QNetworkRequest::ContentTypeHeader, "multipart/form-data; boundary=" + httpMultiPart->boundary());
             
-            m_pNetworkReply = m_pNetworkManager->post(request, pHttpMultiPart);
-            pHttpMultiPart->setParent(m_pNetworkReply);
+            m_networkReply = m_networkManager->post(request, httpMultiPart);
+            httpMultiPart->setParent(m_networkReply);
         }
     }
-            else if (m_upContext->type == RequestType::Put)
+            else if (m_context->type == RequestType::Put)
             {
-                Q_ASSERT(nullptr != m_upContext->uploadConfig);
-                if (!m_upContext->uploadConfig->filePath.isEmpty() && QFile::exists(m_upContext->uploadConfig->filePath))
+                Q_ASSERT(nullptr != m_context->uploadConfig);
+                if (!m_context->uploadConfig->filePath.isEmpty() && QFile::exists(m_context->uploadConfig->filePath))
                 {
-                    QFile* file = new QFile(m_upContext->uploadConfig->filePath);
+                    QFile* file = new QFile(m_context->uploadConfig->filePath);
                     if (!file->open(QIODevice::ReadOnly)) {
                         setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed,
                                  "Failed to open file for PUT: " + file->errorString());
@@ -214,30 +214,30 @@ void NetworkCommonRequest::performSend()
                         emit response(ToFailedResult());
                         return;
                     }
-                    m_pNetworkReply = m_pNetworkManager->put(request, file);
-                    file->setParent(m_pNetworkReply); // The reply will take ownership of the file device
+                    m_networkReply = m_networkManager->put(request, file);
+                    file->setParent(m_networkReply); // The reply will take ownership of the file device
                 }
                 else
                 {
                     const QByteArray &bytes = effectiveRequestBody();
-                    m_pNetworkReply = m_pNetworkManager->put(request, bytes);
+                    m_networkReply = m_networkManager->put(request, bytes);
                 }
-            }    else if (m_upContext->type == RequestType::Delete)
+            }    else if (m_context->type == RequestType::Delete)
     {
-        m_pNetworkReply = m_pNetworkManager->deleteResource(request);
+        m_networkReply = m_networkManager->deleteResource(request);
     }
-    else if (m_upContext->type == RequestType::Head)
+    else if (m_context->type == RequestType::Head)
     {
-        m_pNetworkReply = m_pNetworkManager->head(request);
+        m_networkReply = m_networkManager->head(request);
     }
 
-    connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
-    connect(m_pNetworkReply, &QNetworkReply::readyRead, this, [this]() { resetIdleTimer(); });
-    QtCompat::connectErrorSignal(m_pNetworkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
-    connect(m_pNetworkManager, SIGNAL(authenticationRequired(QNetworkReply *, QAuthenticator *)),
+    connect(m_networkReply, SIGNAL(finished()), this, SLOT(onFinished()));
+    connect(m_networkReply, &QNetworkReply::readyRead, this, [this]() { resetIdleTimer(); });
+    QtCompat::connectErrorSignal(m_networkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
+    connect(m_networkManager, SIGNAL(authenticationRequired(QNetworkReply *, QAuthenticator *)),
             SLOT(onAuthenticationRequired(QNetworkReply *, QAuthenticator *)));
 #ifndef QT_NO_SSL
-    connectSslErrorHandling(m_pNetworkReply);
+    connectSslErrorHandling(m_networkReply);
 #endif
 
     // Layer2b: transfer timeout via elapsed timer (no-op on Qt >= 5.15)
@@ -246,7 +246,7 @@ void NetworkCommonRequest::performSend()
 
 void NetworkCommonRequest::fetchOAuth2Token(std::function<void()> onReady)
 {
-    const auto &oa = m_upContext->authConfig.oauth2Config;
+    const auto &oa = m_context->authConfig.oauth2Config;
 
     // Build cache key: tokenUrl|clientId|grant|scopes
     const QString cacheKey = OAuth2TokenCache::makeKey(
@@ -258,7 +258,7 @@ void NetworkCommonRequest::fetchOAuth2Token(std::function<void()> onReady)
     OAuth2TokenEntry cachedEntry;
     if (cache.find(cacheKey, cachedEntry) && cachedEntry.isValid())
     {
-        m_upContext->authConfig.token = cachedEntry.accessToken;
+        m_context->authConfig.token = cachedEntry.accessToken;
         onReady();
         return;
     }
@@ -337,7 +337,7 @@ void NetworkCommonRequest::fetchOAuth2Token(std::function<void()> onReady)
         OAuth2TokenCache::instance().store(cacheKey, entry);
 
         // Set the token on the auth config so applyAuthConfig can use it
-        m_upContext->authConfig.token = accessToken;
+        m_context->authConfig.token = accessToken;
 
         onReady();
     });
@@ -345,7 +345,7 @@ void NetworkCommonRequest::fetchOAuth2Token(std::function<void()> onReady)
 
 void NetworkCommonRequest::onFinished()
 {
-    if (!m_pNetworkReply)
+    if (!m_networkReply)
     {
         setError(ErrorCategory::Network, ErrorCode::InvalidReply,
                  QString("Network error: Invalid reply"));
@@ -353,26 +353,26 @@ void NetworkCommonRequest::onFinished()
         return;
     }
 
-    auto [bSuccess, statusCode] = evaluateOutcome();
-    if (!bSuccess && handleFailure())
+    auto [success, statusCode] = evaluateOutcome();
+    if (!success && handleFailure())
         return;
 
     // Get response header information
     QMap<QByteArray, QByteArray> responseHeaders;
     QByteArray body;
-    if (bSuccess)
+    if (success)
         collectResponse(responseHeaders, body);
 
     disposeReply();
 
-    m_nBytesReceived = body.size();
-    if (m_spResult)
+    m_bytesReceived = body.size();
+    if (m_result)
     {
-        m_spResult->performance.bytesReceived = m_nBytesReceived;
-        m_spResult->performance.bytesSent = m_nBytesSent;
+        m_result->performance.bytesReceived = m_bytesReceived;
+        m_result->performance.bytesSent = m_bytesSent;
     }
 
-    if (bSuccess)
+    if (success)
         emit response(ToSuccessResult(body, responseHeaders, statusCode));
     else
         emit response(ToFailedResult(statusCode));

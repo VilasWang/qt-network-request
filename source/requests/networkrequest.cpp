@@ -7,7 +7,7 @@
 #include "networkuploadrequest.h"
 #include "networkcommonrequest.h"
 #include "networkmtdownloadrequest.h"
-#include "networkrequestutility.h"
+#include "networkrequestutils.h"
 #include "networkrequestmanager.h"
 #include "networkrequestregistry.h"
 #include "sharedcookiejar.h"
@@ -17,21 +17,21 @@
 using namespace QtNetworkRequest;
 
 NetworkRequest::NetworkRequest(QObject *parent)
-    : QObject(parent), m_bAbortManual(false), m_pNetworkManager(nullptr), m_pNetworkReply(nullptr), m_nProgress(0), m_nRetryCount(0), m_nRedirectionCount(0)
+    : QObject(parent), m_abortManual(false), m_networkManager(nullptr), m_networkReply(nullptr), m_progress(0), m_retryCount(0), m_redirectionCount(0)
 {
 }
 
 NetworkRequest::~NetworkRequest()
 {
-    if (m_pNetworkReply)
+    if (m_networkReply)
     {
         // Disconnect all signals so the NAM-pooled QNetworkReply (a child of
         // the shared NAM) cannot deliver callbacks to this destroying request.
-        m_pNetworkReply->disconnect(this);
+        m_networkReply->disconnect(this);
 
-        if (m_pNetworkReply->isRunning())
+        if (m_networkReply->isRunning())
         {
-            m_pNetworkReply->abort();
+            m_networkReply->abort();
         }
         // Do NOT delete or deleteLater() the reply here.
         // QNetworkReplyImpl's destructor walks back into the shared NAM's
@@ -45,55 +45,55 @@ NetworkRequest::~NetworkRequest()
         // by the NAM's own destruction during pool shutdown (cleanup QRunnable
         // runs on the same affine thread). We only abort+disconnect here so it
         // stops doing work and cannot call back into this destroying request.
-        m_pNetworkReply = nullptr;
+        m_networkReply = nullptr;
     }
     // Disconnect NAM signals that were connected to this request
-    if (m_pNetworkManager)
+    if (m_networkManager)
     {
-        m_pNetworkManager->disconnect(this);
-        m_pNetworkManager = nullptr;
+        m_networkManager->disconnect(this);
+        m_networkManager = nullptr;
     }
 }
 
 void NetworkRequest::abort()
 {
-    m_bAbortManual = true;
+    m_abortManual = true;
     m_heartbeatTimer.stop();
-    if (m_pNetworkReply)
+    if (m_networkReply)
     {
         // Block signals so any pending queued signal delivery
         // (QMetaCallEvent) is silently dropped rather than routed
         // to this already-destroyed NetworkRequest.
-        m_pNetworkReply->blockSignals(true);
+        m_networkReply->blockSignals(true);
 
         // Disconnect all signals to prevent callbacks after abort
-        m_pNetworkReply->disconnect(this);
+        m_networkReply->disconnect(this);
 
-        if (m_pNetworkReply->isRunning())
+        if (m_networkReply->isRunning())
         {
-            m_pNetworkReply->abort();
+            m_networkReply->abort();
         }
         // Use direct delete rather than deleteLater(): when the event loop
         // is about to be quit (cancel path), deferred deletion never runs
         // and the QNetworkReply lives on as a child of the shared NAM,
         // eventually delivering queued signals to a destroyed NetworkRequest.
-        delete m_pNetworkReply;
-        m_pNetworkReply = nullptr;
+        delete m_networkReply;
+        m_networkReply = nullptr;
     }
 }
 
 void NetworkRequest::start()
 {
-    m_bAbortManual = false;
-    m_nProgress = 0;
+    m_abortManual = false;
+    m_progress = 0;
     m_error = ErrorInfo{};
-    m_strError.clear();
-    m_spResult = QSharedPointer<ResponseResult>::create();
+    m_errorMessage.clear();
+    m_result = QSharedPointer<ResponseResult>::create();
 
     // Layer3: Idle/stall timeout
     m_heartbeatTimer.stop();
     m_heartbeatTimer.disconnect();
-    int idleMs = m_upContext ? m_upContext->behavior.idleTimeoutMs : 0;
+    int idleMs = m_context ? m_context->behavior.idleTimeoutMs : 0;
     if (idleMs > 0)
     {
         m_idleThreshold = qMax(1, idleMs / 250);
@@ -111,7 +111,7 @@ void NetworkRequest::onHeartbeat()
         m_idleTimeoutCount++;
         if (m_idleTimeoutCount >= m_idleThreshold)
         {
-            qWarning() << "[QMultiThreadNetwork] Request idle timeout, taskId:" << m_upContext->task.id;
+            qWarning() << "[QMultiThreadNetwork] Request idle timeout, taskId:" << m_context->task.id;
             setError(ErrorCategory::Timeout, ErrorCode::TimeoutIdle,
                      QStringLiteral("Request idle timeout"),
                      static_cast<int>(QNetworkReply::TimeoutError));
@@ -121,15 +121,15 @@ void NetworkRequest::onHeartbeat()
     }
 
     // Layer2b: Transfer timeout for Qt < 5.15 (reuses heartbeat timer)
-    if (QtCompat::isTransferTimedOut(m_transferElapsed, m_upContext->behavior.transferTimeout))
+    if (QtCompat::isTransferTimedOut(m_transferElapsed, m_context->behavior.transferTimeout))
     {
-        qWarning() << "[QMultiThreadNetwork] Request transfer timeout (legacy), taskId:" << m_upContext->task.id;
+        qWarning() << "[QMultiThreadNetwork] Request transfer timeout (legacy), taskId:" << m_context->task.id;
         setError(ErrorCategory::Timeout, ErrorCode::TimeoutTransfer,
                  QStringLiteral("Request transfer timeout"),
                  static_cast<int>(QNetworkReply::TimeoutError));
-        if (m_pNetworkReply)
+        if (m_networkReply)
         {
-            m_pNetworkReply->abort();
+            m_networkReply->abort();
         }
     }
 }
@@ -141,9 +141,9 @@ void NetworkRequest::resetIdleTimer()
 
 void NetworkRequest::onError(QNetworkReply::NetworkError code)
 {
-    m_error = makeNetworkError(code, m_pNetworkReply->errorString());
-    m_strError = m_error.message;
-    qDebug() << "[QMultiThreadNetwork] Error" << QString("[%1]").arg(NetworkRequestUtility::getRequestTypeString(m_upContext->type)) << m_strError;
+    m_error = makeNetworkError(code, m_networkReply->errorString());
+    m_errorMessage = m_error.message;
+    qDebug() << "[QMultiThreadNetwork] Error" << QString("[%1]").arg(NetworkRequestUtils::getRequestTypeString(m_context->type)) << m_errorMessage;
 }
 
 void NetworkRequest::setError(ErrorCategory category, ErrorCode code, const QString& msg, int nativeCode)
@@ -152,7 +152,7 @@ void NetworkRequest::setError(ErrorCategory category, ErrorCode code, const QStr
     m_error.code = code;
     m_error.nativeCode = nativeCode;
     m_error.message = msg;
-    m_strError = msg;
+    m_errorMessage = msg;
 }
 
 void NetworkRequest::onAuthenticationRequired(QNetworkReply *r, QAuthenticator *a)
@@ -163,9 +163,9 @@ void NetworkRequest::onAuthenticationRequired(QNetworkReply *r, QAuthenticator *
 
 void NetworkRequest::applyProxyConfig(QNetworkAccessManager* mgr)
 {
-    if (m_upContext && m_upContext->proxyConfig && m_upContext->proxyConfig->enabled)
+    if (m_context && m_context->proxyConfig && m_context->proxyConfig->enabled)
     {
-        mgr->setProxy(m_upContext->proxyConfig->toQNetworkProxy());
+        mgr->setProxy(m_context->proxyConfig->toQNetworkProxy());
         return;
     }
     const ProxyConfig& global = NetworkRequestManager::globalProxy();
@@ -178,40 +178,40 @@ void NetworkRequest::applyProxyConfig(QNetworkAccessManager* mgr)
 bool NetworkRequest::tryRetry()
 {
     // N3 fix: Do not retry if abort was triggered by timeout/cancellation
-    if (m_bAbortManual)
+    if (m_abortManual)
         return false;
 
-    if (!m_upContext || !m_upContext->behavior.retryOnFailed)
+    if (!m_context || !m_context->behavior.retryOnFailed)
         return false;
-    if (m_nRetryCount >= m_upContext->behavior.maxRetryCount)
+    if (m_retryCount >= m_context->behavior.maxRetryCount)
         return false;
 
-    QNetworkReply::NetworkError code = m_pNetworkReply
-        ? m_pNetworkReply->error() : QNetworkReply::UnknownNetworkError;
+    QNetworkReply::NetworkError code = m_networkReply
+        ? m_networkReply->error() : QNetworkReply::UnknownNetworkError;
     if (!isTransientError(code))
         return false;
 
-    m_nRetryCount++;
+    m_retryCount++;
 
     qDebug() << "[QMultiThreadNetwork] Retrying" << m_url.toString()
-             << "attempt" << m_nRetryCount << "/" << m_upContext->behavior.maxRetryCount;
+             << "attempt" << m_retryCount << "/" << m_context->behavior.maxRetryCount;
 
-    if (m_pNetworkReply)
+    if (m_networkReply)
     {
-        if (m_pNetworkReply->isRunning())
-            m_pNetworkReply->abort();
-        m_pNetworkReply->deleteLater();
-        m_pNetworkReply = nullptr;
+        if (m_networkReply->isRunning())
+            m_networkReply->abort();
+        m_networkReply->deleteLater();
+        m_networkReply = nullptr;
     }
-    if (m_pNetworkManager)
+    if (m_networkManager)
     {
         // NAM is owned by the pool — just release our reference
-        m_pNetworkManager = nullptr;
+        m_networkManager = nullptr;
     }
 
     cleanupForRetry();
 
-    int delay = qMin(m_upContext->behavior.retryDelayMs * (1 << (m_nRetryCount - 1)), 30000);
+    int delay = qMin(m_context->behavior.retryDelayMs * (1 << (m_retryCount - 1)), 30000);
     QTimer::singleShot(delay, this, &NetworkRequest::start);
 
     return true;
@@ -288,8 +288,8 @@ void NetworkRequest::applySslConfig(QNetworkRequest &request)
     if (request.url().scheme().toLower() != "https")
         return;
 
-    const SslConfig *perRequest = (m_upContext && m_upContext->sslConfig)
-        ? m_upContext->sslConfig.get() : nullptr;
+    const SslConfig *perRequest = (m_context && m_context->sslConfig)
+        ? m_context->sslConfig.get() : nullptr;
     SslConfig resolved = resolveSslConfig(perRequest);
 
     // Cache resolved ignore policy/types for onSslErrors().
@@ -314,8 +314,8 @@ void NetworkRequest::onSslErrors(const QList<QSslError> &errors)
                    << m_url.toString() << "- NOT for production use:";
         for (const QSslError &e : errors)
             qWarning() << "   " << e.errorString();
-        if (m_pNetworkReply)
-            m_pNetworkReply->ignoreSslErrors();
+        if (m_networkReply)
+            m_networkReply->ignoreSslErrors();
     }
     else if (m_resolvedIgnorePolicy == SslConfig::IgnorePolicy::IgnoreSpecificErrors)
     {
@@ -332,8 +332,8 @@ void NetworkRequest::onSslErrors(const QList<QSslError> &errors)
                 qWarning() << "[QMultiThreadNetwork] SSL error NOT ignored:" << e.errorString();
             }
         }
-        if (!ignorable.isEmpty() && m_pNetworkReply)
-            m_pNetworkReply->ignoreSslErrors(ignorable);
+        if (!ignorable.isEmpty() && m_networkReply)
+            m_networkReply->ignoreSslErrors(ignorable);
     }
     else
     {
@@ -371,50 +371,50 @@ bool NetworkRequest::isTransientError(QNetworkReply::NetworkError err)
 QNetworkRequest NetworkRequest::prepareRequest()
 {
     // Acquire thread-affine NAM from pool (once)
-    if (nullptr == m_pNetworkManager)
+    if (nullptr == m_networkManager)
     {
-        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
+        m_networkManager = NetworkRequestManager::acquireThreadNam();
     }
 
     // Per-request proxy applies after pool's global proxy
-    applyProxyConfig(m_pNetworkManager);
+    applyProxyConfig(m_networkManager);
 
     // Set cookies
-    for (QNetworkCookie &cookie : m_upContext->cookies)
+    for (QNetworkCookie &cookie : m_context->cookies)
     {
-        if (m_pNetworkManager->cookieJar())
+        if (m_networkManager->cookieJar())
         {
-            m_pNetworkManager->cookieJar()->insertCookie(cookie);
+            m_networkManager->cookieJar()->insertCookie(cookie);
         }
     }
 
     // --- Build URL: append queryParams and API Key (QueryParam placement) ---
     QUrl url = m_url;
-    bool bHasQueryParams = !m_upContext->queryParams.isEmpty();
-    bool bHasApiKeyQuery = (m_upContext->authConfig.type == AuthType::ApiKey
-                            && m_upContext->authConfig.apiKeyPlacement == ApiKeyPlacement::QueryParam);
-    if (bHasQueryParams || bHasApiKeyQuery)
+    bool hasQueryParams = !m_context->queryParams.isEmpty();
+    bool hasApiKeyQuery = (m_context->authConfig.type == AuthType::ApiKey
+                            && m_context->authConfig.apiKeyPlacement == ApiKeyPlacement::QueryParam);
+    if (hasQueryParams || hasApiKeyQuery)
     {
         QUrlQuery query(url);
-        if (bHasQueryParams)
+        if (hasQueryParams)
         {
-            for (auto it = m_upContext->queryParams.cbegin(); it != m_upContext->queryParams.cend(); ++it)
+            for (auto it = m_context->queryParams.cbegin(); it != m_context->queryParams.cend(); ++it)
                 query.addQueryItem(it.key(), it.value());
         }
-        if (bHasApiKeyQuery)
+        if (hasApiKeyQuery)
         {
-            const AuthConfig &auth = m_upContext->authConfig;
+            const AuthConfig &auth = m_context->authConfig;
             query.addQueryItem(auth.apiKey, auth.apiValue);
         }
         url.setQuery(query);
     }
 
     QNetworkRequest request(url);
-    QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
+    QtCompat::setTransferTimeout(request, m_context->behavior.transferTimeout);
 
     // Set custom headers (user-set headers take priority)
-    auto iter = m_upContext->headers.cbegin();
-    for (; iter != m_upContext->headers.cend(); ++iter)
+    auto iter = m_context->headers.cbegin();
+    for (; iter != m_context->headers.cend(); ++iter)
     {
         request.setRawHeader(iter.key(), iter.value());
     }
@@ -434,25 +434,25 @@ QNetworkRequest NetworkRequest::prepareRequest()
 
 std::pair<bool, int> NetworkRequest::evaluateOutcome()
 {
-    if (!m_pNetworkReply)
+    if (!m_networkReply)
         return {false, 0};
 
-    bool bSuccess = (m_pNetworkReply->error() == QNetworkReply::NoError);
-    int statusCode = m_pNetworkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    bool success = (m_networkReply->error() == QNetworkReply::NoError);
+    int statusCode = m_networkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
-    bool bHttpProxy = isHttpProxy(m_url.scheme()) || isHttpsProxy(m_url.scheme());
-    if (bHttpProxy)
+    bool isProxyScheme = isHttpProxy(m_url.scheme()) || isHttpsProxy(m_url.scheme());
+    if (isProxyScheme)
     {
-        bSuccess = bSuccess && (statusCode >= 200 && statusCode < 300);
+        success = success && (statusCode >= 200 && statusCode < 300);
     }
 
-    return {bSuccess, statusCode};
+    return {success, statusCode};
 }
 
 bool NetworkRequest::handleFailure()
 {
-    auto [bSuccess, statusCode] = evaluateOutcome();
-    if (bSuccess)
+    auto [success, statusCode] = evaluateOutcome();
+    if (success)
         return false;
 
     // 1) Try retry first
@@ -462,23 +462,23 @@ bool NetworkRequest::handleFailure()
     // 2) OAuth2 401 auto-refresh (M2): if we got a 401 with OAuth2 auth and
     //    haven't already tried refreshing, attempt one token refresh.
     if (statusCode == 401 &&
-        m_upContext->authConfig.type == AuthType::OAuth2 &&
-        !m_bOAuthRefreshed &&
-        !m_upContext->authConfig.oauth2Config.refreshToken.isEmpty())
+        m_context->authConfig.type == AuthType::OAuth2 &&
+        !m_oauthRefreshed &&
+        !m_context->authConfig.oauth2Config.refreshToken.isEmpty())
     {
         qDebug() << "[QMultiThreadNetwork] OAuth2 401 — attempting token refresh";
-        m_bOAuthRefreshed = true;
+        m_oauthRefreshed = true;
 
         // Swap to RefreshToken grant and use the stored refresh token.
         // The oauth2Config already has the refreshToken field populated;
         // we just switch the grant type.
-        m_upContext->authConfig.oauth2Config.grant = OAuth2GrantType::RefreshToken;
+        m_context->authConfig.oauth2Config.grant = OAuth2GrantType::RefreshToken;
 
         // Clean up current resources
-        if (m_pNetworkReply)
+        if (m_networkReply)
         {
-            m_pNetworkReply->deleteLater();
-            m_pNetworkReply = nullptr;
+            m_networkReply->deleteLater();
+            m_networkReply = nullptr;
         }
         cleanupForRetry();
 
@@ -490,18 +490,18 @@ bool NetworkRequest::handleFailure()
     // 3) Handle redirection (301/302)
     if (statusCode == 301 || statusCode == 302)
     {
-        const QVariant &redirectionTarget = m_pNetworkReply->attribute(QNetworkRequest::RedirectionTargetAttribute);
+        const QVariant &redirectionTarget = m_networkReply->attribute(QNetworkRequest::RedirectionTargetAttribute);
         const QUrl &redirectUrl = m_url.resolved(redirectionTarget.toUrl());
         if (redirectUrl.isValid() && m_url != redirectUrl &&
-            ++m_nRedirectionCount <= m_upContext->behavior.maxRedirectionCount)
+            ++m_redirectionCount <= m_context->behavior.maxRedirectionCount)
         {
             qDebug() << "[QMultiThreadNetwork] Redirecting from:" << m_url.toString()
                      << "to:" << redirectUrl.toString();
             m_url = redirectUrl;
 
             // Clean up current resources
-            m_pNetworkReply->deleteLater();
-            m_pNetworkReply = nullptr;
+            m_networkReply->deleteLater();
+            m_networkReply = nullptr;
 
             // Subclass-specific cleanup
             cleanupForRetry();
@@ -513,8 +513,8 @@ bool NetworkRequest::handleFailure()
     }
     else
     {
-        bool bHttpProxy = isHttpProxy(m_url.scheme()) || isHttpsProxy(m_url.scheme());
-        if (bHttpProxy)
+        bool isProxyScheme = isHttpProxy(m_url.scheme()) || isHttpsProxy(m_url.scheme());
+        if (isProxyScheme)
         {
             qDebug() << "[QMultiThreadNetwork]" << QString("HTTP error: status code %1").arg(statusCode);
         }
@@ -525,7 +525,7 @@ bool NetworkRequest::handleFailure()
 
 void NetworkRequest::applyAuthConfig(QNetworkRequest &request)
 {
-    const AuthConfig &auth = m_upContext->authConfig;
+    const AuthConfig &auth = m_context->authConfig;
     if (auth.type == AuthType::None || !auth.isValid())
         return;
 
@@ -569,7 +569,7 @@ void NetworkRequest::applyBodyTypeContentType(QNetworkRequest &request)
         request.hasRawHeader("content-type"))
         return;
 
-    switch (m_upContext->bodyType)
+    switch (m_context->bodyType)
     {
     case BodyType::Json:
         request.setHeader(QNetworkRequest::ContentTypeHeader, QByteArrayLiteral("application/json"));
@@ -593,37 +593,37 @@ void NetworkRequest::applyBodyTypeContentType(QNetworkRequest &request)
 
 QByteArray NetworkRequest::effectiveRequestBody() const
 {
-    if (m_upContext->bodyType == BodyType::Binary && !m_upContext->binaryBody.isEmpty())
-        return m_upContext->binaryBody;
-    return m_upContext->body.toUtf8();
+    if (m_context->bodyType == BodyType::Binary && !m_context->binaryBody.isEmpty())
+        return m_context->binaryBody;
+    return m_context->body.toUtf8();
 }
 
 void NetworkRequest::collectResponse(QMap<QByteArray, QByteArray>& outHeaders, QByteArray& outBody)
 {
-    if (!m_bAbortManual && m_pNetworkReply && m_pNetworkReply->isOpen())
+    if (!m_abortManual && m_networkReply && m_networkReply->isOpen())
     {
-        outBody = m_pNetworkReply->readAll();
-        foreach (const QByteArray &header, m_pNetworkReply->rawHeaderList())
+        outBody = m_networkReply->readAll();
+        foreach (const QByteArray &header, m_networkReply->rawHeaderList())
         {
-            outHeaders[header] = m_pNetworkReply->rawHeader(header);
+            outHeaders[header] = m_networkReply->rawHeader(header);
         }
 
         // Extract parsed cookies from Set-Cookie response headers
-        if (m_spResult)
+        if (m_result)
         {
-            QVariant cookieVar = m_pNetworkReply->header(QNetworkRequest::SetCookieHeader);
+            QVariant cookieVar = m_networkReply->header(QNetworkRequest::SetCookieHeader);
             if (cookieVar.isValid())
-                m_spResult->cookies = cookieVar.value<QList<QNetworkCookie>>();
+                m_result->cookies = cookieVar.value<QList<QNetworkCookie>>();
         }
     }
 }
 
 void NetworkRequest::disposeReply()
 {
-    if (m_pNetworkReply)
+    if (m_networkReply)
     {
-        m_pNetworkReply->deleteLater();
-        m_pNetworkReply = nullptr;
+        m_networkReply->deleteLater();
+        m_networkReply = nullptr;
     }
 }
 
@@ -631,27 +631,27 @@ void NetworkRequest::setRequestContext(std::unique_ptr<RequestContext> context)
 {
     if (context)
     {
-        m_upContext = std::move(context);
-        m_bOAuthRefreshed = false;   // reset the 401-refresh guard for each new request
+        m_context = std::move(context);
+        m_oauthRefreshed = false;   // reset the 401-refresh guard for each new request
         // (M1) Substitute {{var}} placeholders across url/headers/body/query/auth
         // before the QUrl is finalized, so the resolved value is used downstream.
-        if (!m_upContext->environment.isEmpty())
-            applyEnvironment(*m_upContext, m_upContext->environment);
-        m_url = QUrl(m_upContext->url);
+        if (!m_context->environment.isEmpty())
+            applyEnvironment(*m_context, m_context->environment);
+        m_url = QUrl(m_context->url);
     }
 }
 
 QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToFailedResult(int statusCode, const QByteArray& body, const QMap<QByteArray, QByteArray>& headers)
 {
-    if (!m_spResult)
+    if (!m_result)
     {
-        m_spResult = QSharedPointer<ResponseResult>::create();
+        m_result = QSharedPointer<ResponseResult>::create();
     }
     // Ensure a failed result always carries an error category.
     if (m_error.category == ErrorCategory::None)
     {
         if (statusCode >= 400)
-            m_error = makeHttpError(statusCode, m_strError);
+            m_error = makeHttpError(statusCode, m_errorMessage);
         else
         {
             m_error.category = ErrorCategory::Unknown;
@@ -659,38 +659,27 @@ QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToFailedResult(
         }
     }
     if (m_error.message.isEmpty())
-        m_error.message = m_strError;
-    m_spResult->error = m_error;
-    m_spResult->statusCode = statusCode;
-    m_spResult->body = body;
-    m_spResult->headers = headers;
-    m_spResult->task = m_upContext->task;
-    m_spResult->userContext = m_upContext->userContext;
-    return m_spResult;
+        m_error.message = m_errorMessage;
+    m_result->error = m_error;
+    m_result->statusCode = statusCode;
+    m_result->body = body;
+    m_result->headers = headers;
+    m_result->task = m_context->task;
+    m_result->userContext = m_context->userContext;
+    return m_result;
 }
 
 QSharedPointer<QtNetworkRequest::ResponseResult> NetworkRequest::ToSuccessResult(const QByteArray& body, const QMap<QByteArray, QByteArray>& headers, int statusCode)
 {
-    if (!m_spResult)
+    if (!m_result)
     {
-        m_spResult = QSharedPointer<ResponseResult>::create();
+        m_result = QSharedPointer<ResponseResult>::create();
     }
-    m_spResult->error = ErrorInfo{};
-    m_spResult->statusCode = statusCode;
-    m_spResult->body = body;
-    m_spResult->headers = headers;
-    m_spResult->task = m_upContext->task;
-    m_spResult->userContext = m_upContext->userContext;
-    return m_spResult;
-}
-
-std::unique_ptr<NetworkRequest> NetworkRequestFactory::create(std::unique_ptr<RequestContext> context)
-{
-    if (nullptr == context)
-        return nullptr;
-
-    // Delegate to the self-registering factory.
-    // Each NetworkRequest subclass registers itself via static initializers,
-    // so new types don't require modifications here.
-    return NetworkRequestRegistry::instance().create(std::move(context));
+    m_result->error = ErrorInfo{};
+    m_result->statusCode = statusCode;
+    m_result->body = body;
+    m_result->headers = headers;
+    m_result->task = m_context->task;
+    m_result->userContext = m_context->userContext;
+    return m_result;
 }

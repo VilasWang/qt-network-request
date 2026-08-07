@@ -30,8 +30,8 @@
 
 1. **代码重复率过高**：`start()` 和 `onFinished()` 约 60%-70% 逻辑在 4 个子类中重复（约 450 行重复代码）
 2. **重定向 / 重试 / SSL 错误处理散落多处**：同一逻辑在 5 个位置独立实现，行为一致性靠人工保证
-3. **工厂方法违反开闭原则**：`NetworkRequestFactory::create()` 使用硬编码 `switch-case`，新增类型必须修改工厂
-4. **`MTDownloadRequest` 多阶段状态隐式编码**：`m_pNetworkReply` 在三个阶段语义不同，状态转换不可见
+3. **工厂方法违反开闭原则**：旧 `NetworkRequest` 类内使用硬编码 `switch-case` 创建请求，新增类型必须修改工厂
+4. **`MTDownloadRequest` 多阶段状态隐式编码**：`m_networkReply` 在三个阶段语义不同，状态转换不可见
 5. **Qt 版本兼容代码散落**：`#if QT_VERSION` 在约 15 处出现，新增 Qt6 支持时修改成本高
 
 ---
@@ -210,10 +210,10 @@ protected:
     void   populateResponseHeaders(QNetworkReply* reply);
 
     // 持有
-    RequestContextPtr                m_upContext;
-    QSharedPointer<ResponseResult>   m_spResult;
-    QNetworkAccessManager*           m_pNetworkManager = nullptr;
-    QNetworkReply*                   m_pNetworkReply   = nullptr;
+    RequestContextPtr                m_context;
+    QSharedPointer<ResponseResult>   m_result;
+    QNetworkAccessManager*           m_networkManager = nullptr;
+    QNetworkReply*                   m_networkReply   = nullptr;
 
     std::unique_ptr<IRetryStrategy>   m_retryStrategy;
     std::unique_ptr<IRedirectHandler> m_redirectHandler;
@@ -240,21 +240,21 @@ void NetworkRequest::start()
     }
 
     // 步骤 3: 获取 NAM + 应用公共配置（代理/Cookie/SSL/头/超时）
-    if (nullptr == m_pNetworkManager)
-        m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
-    applyCommonConfig(m_pNetworkManager);
+    if (nullptr == m_networkManager)
+        m_networkManager = NetworkRequestManager::acquireThreadNam();
+    applyCommonConfig(m_networkManager);
 
     // 步骤 4: 子类构建请求
     QNetworkRequest req = buildRequest();
 
     // 步骤 5: 子类发送请求
-    m_pNetworkReply = executeRequest(req);
+    m_networkReply = executeRequest(req);
 
     // 步骤 6: 统一连接核心信号
-    connectCommonSignals(m_pNetworkReply);
+    connectCommonSignals(m_networkReply);
 
     // 步骤 7: 子类连接额外信号
-    connectExtraSignals(m_pNetworkReply);
+    connectExtraSignals(m_networkReply);
 
     // 步骤 8: 启动心跳（idle/transfer timeout）
     startHeartbeatMonitor();
@@ -262,23 +262,23 @@ void NetworkRequest::start()
 
 void NetworkRequest::onFinished()
 {
-    // 该槽连接到 m_pNetworkReply->finished，子类不再直接处理
-    if (!m_pNetworkReply)
+    // 该槽连接到 m_networkReply->finished，子类不再直接处理
+    if (!m_networkReply)
         return;
 
     // 步骤 1: 错误处理（包含重试 + 重定向）
-    if (handleError(m_pNetworkReply))
+    if (handleError(m_networkReply))
         return;
 
     // 步骤 2: 子类处理响应体
-    if (!processResponseBody(m_pNetworkReply))
+    if (!processResponseBody(m_networkReply))
         return;
 
     // 步骤 3: 填充响应头
-    populateResponseHeaders(m_pNetworkReply);
+    populateResponseHeaders(m_networkReply);
 
     // 步骤 4: 清理
-    cleanupReply(m_pNetworkReply);
+    cleanupReply(m_networkReply);
 
     // 步骤 5: 子类后置钩子
     onPostFinish();
@@ -301,19 +301,19 @@ protected:
     }
 
     QNetworkReply* executeRequest(QNetworkRequest& req) override {
-        switch (m_upContext->type) {
-            case RequestType::Get:    return m_pNetworkManager->get(req);
-            case RequestType::Post:   return m_pNetworkManager->post(req, buildBody());
-            case RequestType::Put:    return m_pNetworkManager->put(req, buildBody());
-            case RequestType::Delete: return m_pNetworkManager->deleteResource(req);
-            case RequestType::Head:   return m_pNetworkManager->head(req);
-            default:                  return m_pNetworkManager->sendCustomRequest(req, verb());
+        switch (m_context->type) {
+            case RequestType::Get:    return m_networkManager->get(req);
+            case RequestType::Post:   return m_networkManager->post(req, buildBody());
+            case RequestType::Put:    return m_networkManager->put(req, buildBody());
+            case RequestType::Delete: return m_networkManager->deleteResource(req);
+            case RequestType::Head:   return m_networkManager->head(req);
+            default:                  return m_networkManager->sendCustomRequest(req, verb());
         }
     }
 
     bool processResponseBody(QNetworkReply* reply) override {
-        m_spResult->responseData  = reply->readAll();
-        m_spResult->responseBody  = m_spResult->responseData;
+        m_result->responseData  = reply->readAll();
+        m_result->responseBody  = m_result->responseData;
         return true;
     }
     // 不覆写 onPreStart / connectExtraSignals / onPostFinish — 使用默认空实现
@@ -707,7 +707,7 @@ Phase 1      Phase 2      Phase 3      Phase 4      Phase 5
 
 ### 6.6 Phase 4 — MTDownloadRequest 状态机重构（预计 2 天）
 
-**目标**：引入显式状态机，消除 `m_pNetworkReply` 语义歧义和隐式阶段转换。
+**目标**：引入显式状态机，消除 `m_networkReply` 语义歧义和隐式阶段转换。
 
 | 任务 | 工时 |
 |:---|:---|
@@ -737,7 +737,7 @@ Phase 1      Phase 2      Phase 3      Phase 4      Phase 5
 |:---|:---|
 | 5.1 实现 `NetworkRequestRegistry` | 0.3 天 |
 | 5.2 各子类添加静态自注册代码 | 0.3 天 |
-| 5.3 `NetworkRequestFactory::create()` 改为调用 Registry | 0.2 天 |
+| 5.3 移除旧 `NetworkRequestFactory`，请求创建统一委托 `NetworkRequestRegistry` | 0.2 天 |
 | 5.4 删除旧的 switch-case | 0.1 天 |
 | 5.5 回归测试 + 验证动态加载场景 | 0.1 天 |
 
@@ -857,5 +857,5 @@ Week 1                      Week 2
 | SSL 错误处理 | 2 处重复 | `ISslPolicy` 一处实现 |
 | Qt 版本兼容 | ~15 处 `#if` 散落 | `QtCompat` 命名空间一处维护 |
 | 工厂扩展性 | 修改 switch-case | 自注册，不修改核心代码 |
-| MTDownloadRequest 状态 | 隐式，`m_pNetworkReply` 多语义 | 显式状态机，每状态独立类 |
+| MTDownloadRequest 状态 | 隐式，`m_networkReply` 多语义 | 显式状态机，每状态独立类 |
 | 新增请求类型成本 | ~120 行 + 改工厂 | ~30 行 + 一行注册代码 |

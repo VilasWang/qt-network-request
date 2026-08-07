@@ -12,7 +12,11 @@ CONFIG += debug_and_release
 INCLUDEPATH += . \
             $$PWD/../include \
             $$PWD/../../include \
-            $$PWD/..
+            $$PWD/.. \
+            $$PWD/core \
+            $$PWD/requests \
+            $$PWD/features \
+            $$PWD/infra
 
 DEFINES += UNICODE QT_MTNETWORK_LIB
 staticlib: DEFINES += QT_MTNETWORK_STATIC
@@ -28,27 +32,44 @@ HEADERS += $$PWD/../include/networkrequestglobal.h \
            $$PWD/../include/networkrequestmanager.h \
            $$PWD/../include/networkreply.h \
            $$PWD/../include/networkrequestevent.h \
-           memorymappedfile.h \
-           networkrequest.h \
-           networkmtdownloadrequest.h \
-           networkdownloadrequest.h \
-           networkuploadrequest.h \
-           networkcommonrequest.h \
-           networkrequestrunnable.h \
-           networkrequestutility.h \
-           networkcookiejar.h
+           infra/memorymappedfile.h \
+           requests/networkrequest.h \
+           requests/networkmtdownloadrequest.h \
+           requests/networkdownloadrequest.h \
+           requests/networkuploadrequest.h \
+           requests/networkcommonrequest.h \
+           core/networkrequestrunnable.h \
+           features/networkrequestutils.h \
+           infra/networkcookiejar.h \
+           core/networkaccessmanagerpool.h \
+           core/networkrequestregistry.h \
+           core/progressthrottle.h \
+           core/qtcompat.h \
+           infra/requeststrategies.h \
+           infra/sharedcookiejar.h \
+           requests/networkmtdownloadrequest_p.h
 
-SOURCES += networkrequest.cpp \
-           networkcommonrequest.cpp \
-           networkdownloadrequest.cpp \
-           networkmtdownloadrequest.cpp \
-           networkuploadrequest.cpp \
-           networkrequestrunnable.cpp \
-           networkreply.cpp \
-           networkrequestmanager.cpp \
-           networkrequestutility.cpp \
-           memorymappedfile.cpp \
-           networkcookiejar.cpp
+SOURCES += requests/networkrequest.cpp \
+           requests/networkcommonrequest.cpp \
+           requests/networkdownloadrequest.cpp \
+           requests/networkmtdownloadrequest.cpp \
+           requests/networkmtdownloadrequest_states.cpp \
+           requests/networkuploadrequest.cpp \
+           core/networkrequestrunnable.cpp \
+           core/networkreply.cpp \
+           core/networkrequestmanager.cpp \
+           features/networkrequestutils.cpp \
+           infra/memorymappedfile.cpp \
+           infra/networkcookiejar.cpp \
+           core/networkaccessmanagerpool.cpp \
+           core/networkrequestregistry.cpp \
+           core/progressthrottle.cpp \
+           infra/requeststrategies.cpp \
+           features/environment.cpp \
+           features/oauth2tokencache.cpp \
+           features/collectionmodel.cpp \
+           features/postmanconverter.cpp \
+           features/environmentstore.cpp
 
 # Qt version compatibility
 greaterThan(QT_MAJOR_VERSION, 4) {
