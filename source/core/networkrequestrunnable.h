@@ -26,7 +26,7 @@ namespace QtNetworkRequest
 		quint64 requestId() const;
 		quint64 batchId() const;
 		quint64 sessionId() const;
-		int priority() const { return m_nPriority; }
+		int priority() const { return m_priority; }
 		const TaskData task() const { return m_task; }
 
 		// End event loop to release task thread, make it idle, and automatically end executing request
@@ -39,16 +39,16 @@ namespace QtNetworkRequest
 		// finished touching this object. The manager uses it to destroy the
 		// runnable on the main thread only once run() has fully returned,
 		// preventing a use-after-free when a request is cancelled mid-run.
-		void finished(quint64 uiRequestId);
+		void finished(quint64 requestId);
 
 	private:
 		Q_DISABLE_COPY(NetworkRequestRunnable);
 		std::unique_ptr<RequestContext> m_context;
 		TaskData m_task;
-		int m_nPriority{ 0 };
+		int m_priority{ 0 };
 		QMetaObject::Connection m_connect;
-		std::atomic<bool> m_bAbort;
-		std::atomic<bool> m_bRunning{ false };        // true while run() is executing
+		std::atomic<bool> m_abort;
+		std::atomic<bool> m_isRunning{ false };        // true while run() is executing
 		std::atomic<bool> m_responseSent{ false };   // CAS gate: ensures exactly one response is emitted
         mutable QtCompat::Mutex m_mutex;
 	};

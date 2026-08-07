@@ -1561,7 +1561,7 @@ void TestNetworkRequest::testPerRequestCookies()
 void TestNetworkRequest::testInitializeIdempotent()
 {
     // The manager is already initialized by initTestCase(). A redundant
-    // initialize() must be a harmless no-op (guarded by ms_bIntialized) and the
+    // initialize() must be a harmless no-op (guarded by s_isInitialized) and the
     // global instance must remain the same, valid object.
     QVERIFY(NetworkRequestManager::isInitialized());
     NetworkRequestManager *before = NetworkRequestManager::globalInstance();

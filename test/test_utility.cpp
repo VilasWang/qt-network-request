@@ -8,7 +8,7 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 
-#include "networkrequestutility.h"
+#include "networkrequestutils.h"
 #include "requestcontext.h"
 
 using namespace QtNetworkRequest;
@@ -35,32 +35,32 @@ namespace
 
 void TestUtility::testGetRequestTypeString()
 {
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::Get), QString("GET"));
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::Post), QString("POST"));
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::Put), QString("PUT"));
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::Delete), QString("DELETE"));
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::Head), QString("HEAD"));
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::Patch), QString("PATCH"));
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::Options), QString("OPTIONS"));
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::Download), QString("Download"));
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::MTDownload), QString("MT Download"));
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::Upload), QString("Upload"));
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::Get), QString("GET"));
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::Post), QString("POST"));
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::Put), QString("PUT"));
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::Delete), QString("DELETE"));
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::Head), QString("HEAD"));
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::Patch), QString("PATCH"));
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::Options), QString("OPTIONS"));
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::Download), QString("Download"));
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::MTDownload), QString("MT Download"));
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::Upload), QString("Upload"));
     // Unknown maps to an empty string (default switch branch).
-    QCOMPARE(NetworkRequestUtility::getRequestTypeString(RequestType::Unknown), QString());
+    QCOMPARE(NetworkRequestUtils::getRequestTypeString(RequestType::Unknown), QString());
 }
 
 void TestUtility::testGetSaveFileNameExplicit()
 {
     // An explicit saveFileName always wins, ignoring the URL entirely.
     auto ctx = makeDownloadContext("http://example.com/path/ignored.bin", QString(), "explicit.dat", false);
-    QCOMPARE(NetworkRequestUtility::getSaveFileName(ctx.get()), QString("explicit.dat"));
+    QCOMPARE(NetworkRequestUtils::getSaveFileName(ctx.get()), QString("explicit.dat"));
 }
 
 void TestUtility::testGetSaveFileNameFromUrl()
 {
     // With no explicit name, the trailing URL path segment is used.
     auto ctx = makeDownloadContext("http://example.com/dir/archive.zip", QString(), QString(), false);
-    QCOMPARE(NetworkRequestUtility::getSaveFileName(ctx.get()), QString("archive.zip"));
+    QCOMPARE(NetworkRequestUtils::getSaveFileName(ctx.get()), QString("archive.zip"));
 }
 
 void TestUtility::testGetSaveFileNameFromContentDisposition()
@@ -73,7 +73,7 @@ void TestUtility::testGetSaveFileNameFromContentDisposition()
     u.setQuery(q);
 
     auto ctx = makeDownloadContext(u.toString(), QString(), QString(), false);
-    QCOMPARE(NetworkRequestUtility::getSaveFileName(ctx.get()), QString("report.pdf"));
+    QCOMPARE(NetworkRequestUtils::getSaveFileName(ctx.get()), QString("report.pdf"));
 }
 
 void TestUtility::testGetDownloadFileSaveDirEmpty()
@@ -81,7 +81,7 @@ void TestUtility::testGetDownloadFileSaveDirEmpty()
     // An empty saveDir is a configuration error and yields an empty result.
     auto ctx = makeDownloadContext("http://example.com/a.bin", QString(), "a.bin", false);
     QString err;
-    QString dir = NetworkRequestUtility::getDownloadFileSaveDir(ctx.get(), err);
+    QString dir = NetworkRequestUtils::getDownloadFileSaveDir(ctx.get(), err);
     QVERIFY(dir.isEmpty());
     QVERIFY(!err.isEmpty());
 }
@@ -96,7 +96,7 @@ void TestUtility::testGetDownloadFileSaveDirCreatesAndAppendsSeparator()
 
     auto ctx = makeDownloadContext("http://example.com/a.bin", target, "a.bin", false);
     QString err;
-    QString dir = NetworkRequestUtility::getDownloadFileSaveDir(ctx.get(), err);
+    QString dir = NetworkRequestUtils::getDownloadFileSaveDir(ctx.get(), err);
 
     QVERIFY2(err.isEmpty(), qPrintable(err));
     QVERIFY(!dir.isEmpty());
@@ -113,7 +113,7 @@ void TestUtility::testGetFilePathSuffixWhenNoOverwrite()
 
     // Pre-create the target so the helper is forced to disambiguate.
     QString err;
-    QString saveDir = NetworkRequestUtility::getDownloadFileSaveDir(ctx.get(), err);
+    QString saveDir = NetworkRequestUtils::getDownloadFileSaveDir(ctx.get(), err);
     QVERIFY2(err.isEmpty(), qPrintable(err));
     QString existing = QDir::toNativeSeparators(saveDir + "file.dat");
     {
@@ -123,7 +123,7 @@ void TestUtility::testGetFilePathSuffixWhenNoOverwrite()
         f.close();
     }
 
-    QString resolved = NetworkRequestUtility::getFilePath(ctx.get(), err);
+    QString resolved = NetworkRequestUtils::getFilePath(ctx.get(), err);
     QVERIFY2(err.isEmpty(), qPrintable(err));
     // overwriteFile=false + existing file → a _1 suffix is appended.
     QVERIFY2(resolved.endsWith("file.dat_1"),
@@ -140,7 +140,7 @@ void TestUtility::testGetFilePathOverwriteRemovesExisting()
     auto ctx = makeDownloadContext("http://example.com/x", tmp.path(), "file.dat", true);
 
     QString err;
-    QString saveDir = NetworkRequestUtility::getDownloadFileSaveDir(ctx.get(), err);
+    QString saveDir = NetworkRequestUtils::getDownloadFileSaveDir(ctx.get(), err);
     QVERIFY2(err.isEmpty(), qPrintable(err));
     QString existing = QDir::toNativeSeparators(saveDir + "file.dat");
     {
@@ -151,7 +151,7 @@ void TestUtility::testGetFilePathOverwriteRemovesExisting()
     }
     QVERIFY(QFile::exists(existing));
 
-    QString resolved = NetworkRequestUtility::getFilePath(ctx.get(), err);
+    QString resolved = NetworkRequestUtils::getFilePath(ctx.get(), err);
     QVERIFY2(err.isEmpty(), qPrintable(err));
     // overwriteFile=true → original path returned and the stale file removed.
     QCOMPARE(resolved, existing);
@@ -170,7 +170,7 @@ void TestUtility::testReadFileContentRoundTrip()
 
     QByteArray out;
     QString err;
-    QVERIFY(NetworkRequestUtility::readFileContent(path, out, err));
+    QVERIFY(NetworkRequestUtils::readFileContent(path, out, err));
     QVERIFY(err.isEmpty());
     QCOMPARE(out, payload);
 }
@@ -183,7 +183,7 @@ void TestUtility::testReadFileContentMissing()
                       QString::number(QCoreApplication::applicationPid()) + ".nope";
     QFile::remove(missing);
 
-    QVERIFY(!NetworkRequestUtility::readFileContent(missing, out, err));
+    QVERIFY(!NetworkRequestUtils::readFileContent(missing, out, err));
     QVERIFY(!err.isEmpty());
 }
 
@@ -200,15 +200,15 @@ void TestUtility::testRemoveFileAndExistence()
     }
 
     QFile probe(path);
-    QVERIFY(NetworkRequestUtility::isFileExists(&probe));
+    QVERIFY(NetworkRequestUtils::isFileExists(&probe));
 
     QString err;
-    QVERIFY(NetworkRequestUtility::removeFile(path, err));
+    QVERIFY(NetworkRequestUtils::removeFile(path, err));
     QVERIFY(err.isEmpty());
     QVERIFY(!QFile::exists(path));
 
     // Removing an already-absent file is a no-op success.
-    QVERIFY(NetworkRequestUtility::removeFile(path, err));
+    QVERIFY(NetworkRequestUtils::removeFile(path, err));
     QVERIFY(err.isEmpty());
 }
 
@@ -219,7 +219,7 @@ void TestUtility::testOpenFileMissingAndPresent()
     QFile::remove(missing);
 
     QString err;
-    std::unique_ptr<QFile> none = NetworkRequestUtility::openFile(missing, err);
+    std::unique_ptr<QFile> none = NetworkRequestUtils::openFile(missing, err);
     QVERIFY(none == nullptr);
     QVERIFY(!err.isEmpty());
 
@@ -230,7 +230,7 @@ void TestUtility::testOpenFileMissingAndPresent()
     QString path = tmp.fileName();
     tmp.close();
 
-    std::unique_ptr<QFile> opened = NetworkRequestUtility::openFile(path, err);
+    std::unique_ptr<QFile> opened = NetworkRequestUtils::openFile(path, err);
     QVERIFY(opened != nullptr);
     QVERIFY(opened->isOpen());
     QVERIFY(err.isEmpty());
@@ -245,7 +245,7 @@ void TestUtility::testCreateAndOpenFileConflict()
     // First: overwrite=false against a fresh dir succeeds and opens the file.
     auto ctx = makeDownloadContext("http://example.com/x", tmp.path(), "target.bin", false);
     QString err;
-    std::unique_ptr<QFile> created = NetworkRequestUtility::createAndOpenFile(ctx.get(), err);
+    std::unique_ptr<QFile> created = NetworkRequestUtils::createAndOpenFile(ctx.get(), err);
     QVERIFY2(created != nullptr, qPrintable(err));
     QVERIFY(created->isOpen());
     created->close();
@@ -253,14 +253,14 @@ void TestUtility::testCreateAndOpenFileConflict()
     // Second: same name, overwrite=false, file now exists → File conflict error.
     auto ctx2 = makeDownloadContext("http://example.com/x", tmp.path(), "target.bin", false);
     QString err2;
-    std::unique_ptr<QFile> conflict = NetworkRequestUtility::createAndOpenFile(ctx2.get(), err2);
+    std::unique_ptr<QFile> conflict = NetworkRequestUtils::createAndOpenFile(ctx2.get(), err2);
     QVERIFY(conflict == nullptr);
     QVERIFY2(err2.contains("File conflict"), qPrintable(err2));
 
     // Third: overwrite=true replaces the existing file successfully.
     auto ctx3 = makeDownloadContext("http://example.com/x", tmp.path(), "target.bin", true);
     QString err3;
-    std::unique_ptr<QFile> replaced = NetworkRequestUtility::createAndOpenFile(ctx3.get(), err3);
+    std::unique_ptr<QFile> replaced = NetworkRequestUtils::createAndOpenFile(ctx3.get(), err3);
     QVERIFY2(replaced != nullptr, qPrintable(err3));
     QVERIFY(replaced->isOpen());
     replaced->close();

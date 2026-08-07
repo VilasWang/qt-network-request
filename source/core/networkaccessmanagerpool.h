@@ -65,14 +65,14 @@ namespace QtNetworkRequest
 		int size() const;
 
 	private:
-		struct NamEntry
+		struct ThreadNamEntry
 		{
 			QNetworkAccessManager *nam{ nullptr };
 			QThread *thread{ nullptr };   // dual-verification against ABA
 		};
 
-		QHash<Qt::HANDLE, NamEntry> m_namPool;
+		QHash<Qt::HANDLE, ThreadNamEntry> m_namPool;
 		mutable QMutex m_mutex;
-		std::atomic<bool> m_bReleasing{ false };
+		std::atomic<bool> m_releasing{ false };
 	};
 }

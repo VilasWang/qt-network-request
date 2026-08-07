@@ -4,45 +4,45 @@
 
 add_library(QNetworkRequest SHARED
     # ── Implementation ───────────────────────────────────────────────────────
-    memorymappedfile.cpp
-    networkaccessmanagerpool.cpp
-    networkcommonrequest.cpp
-    networkcookiejar.cpp
-    networkdownloadrequest.cpp
-    networkmtdownloadrequest.cpp
-    networkmtdownloadrequest_states.cpp
-    networkreply.cpp
-    networkrequest.cpp
-    networkrequestmanager.cpp
-    networkrequestrunnable.cpp
-    networkuploadrequest.cpp
-    networkrequestutility.cpp
-    progressthrottle.cpp
-    networkrequestregistry.cpp
-    requeststrategies.cpp
-    environment.cpp
-    oauth2tokencache.cpp
-    collectionmodel.cpp
-    postmanconverter.cpp
-    environmentstore.cpp
+    infra/memorymappedfile.cpp
+    core/networkaccessmanagerpool.cpp
+    requests/networkcommonrequest.cpp
+    infra/networkcookiejar.cpp
+    requests/networkdownloadrequest.cpp
+    requests/networkmtdownloadrequest.cpp
+    requests/networkmtdownloadrequest_states.cpp
+    core/networkreply.cpp
+    requests/networkrequest.cpp
+    core/networkrequestmanager.cpp
+    core/networkrequestrunnable.cpp
+    requests/networkuploadrequest.cpp
+    features/networkrequestutils.cpp
+    core/progressthrottle.cpp
+    core/networkrequestregistry.cpp
+    infra/requeststrategies.cpp
+    features/environment.cpp
+    features/oauth2tokencache.cpp
+    features/collectionmodel.cpp
+    features/postmanconverter.cpp
+    features/environmentstore.cpp
 
     # ── Private headers (AUTOMOC) ────────────────────────────────────────────
-    memorymappedfile.h
-    networkaccessmanagerpool.h
-    networkcommonrequest.h
-    networkcookiejar.h
-    networkdownloadrequest.h
-    networkmtdownloadrequest.h
-    networkmtdownloadrequest_p.h
-    networkrequest.h
-    networkrequestrunnable.h
-    networkuploadrequest.h
-    networkrequestutility.h
-    sharedcookiejar.h
-    networkrequestregistry.h
-    progressthrottle.h
-    qtcompat.h
-    requeststrategies.h
+    infra/memorymappedfile.h
+    core/networkaccessmanagerpool.h
+    requests/networkcommonrequest.h
+    infra/networkcookiejar.h
+    requests/networkdownloadrequest.h
+    requests/networkmtdownloadrequest.h
+    requests/networkmtdownloadrequest_p.h
+    requests/networkrequest.h
+    core/networkrequestrunnable.h
+    requests/networkuploadrequest.h
+    features/networkrequestutils.h
+    infra/sharedcookiejar.h
+    core/networkrequestregistry.h
+    core/progressthrottle.h
+    core/qtcompat.h
+    infra/requeststrategies.h
 
     # ── Public headers (AUTOMOC) ─────────────────────────────────────────────
     ${CMAKE_SOURCE_DIR}/include/networkrequestmanager.h
@@ -80,6 +80,10 @@ target_include_directories(QNetworkRequest
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/core
+        ${CMAKE_CURRENT_SOURCE_DIR}/requests
+        ${CMAKE_CURRENT_SOURCE_DIR}/features
+        ${CMAKE_CURRENT_SOURCE_DIR}/infra
 )
 
 # ── Dependencies ─────────────────────────────────────────────────────────────

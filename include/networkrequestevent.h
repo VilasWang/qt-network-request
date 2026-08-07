@@ -42,9 +42,9 @@ namespace QtNetworkRequest
                 return iter->second;
             }
 
-            int nEventType = QEvent::registerEventType();
-            s_mapUserEvent[eventName] = nEventType;
-            return nEventType;
+            int eventType = QEvent::registerEventType();
+            s_mapUserEvent[eventName] = eventType;
+            return eventType;
         }
 
         // Keep old spelling for backward compatibility
@@ -70,25 +70,25 @@ namespace QtNetworkRequest
     class ReplyResultEvent : public QEvent
     {
     public:
-        ReplyResultEvent() : QEvent(QEvent::Type(NetworkEvent::ReplyResult)), bDestroyed(true) {}
+        ReplyResultEvent() : QEvent(QEvent::Type(NetworkEvent::ReplyResult)), isDestroyed(true) {}
 
         QSharedPointer<ResponseResult> response;
-        bool bDestroyed;
+        bool isDestroyed;
     };
 
     // Download/Upload progress event
     class NetworkProgressEvent : public QEvent
     {
     public:
-        NetworkProgressEvent() : QEvent(QEvent::Type(NetworkEvent::NetworkProgress)), bDownload(true), uiId(0), uiBatchId(0), iBytes(0), iTotalBytes(0)
+        NetworkProgressEvent() : QEvent(QEvent::Type(NetworkEvent::NetworkProgress)), isDownload(true), requestId(0), batchId(0), transferredBytes(0), totalBytes(0)
         {
         }
 
-        bool bDownload;
-        quint64 uiId;
-        quint64 uiBatchId;
-        qint64 iBytes;
-        qint64 iTotalBytes;
+        bool isDownload;
+        quint64 requestId;
+        quint64 batchId;
+        qint64 transferredBytes;
+        qint64 totalBytes;
     };
 }
 

@@ -107,17 +107,17 @@ QNetworkAccessManager *NetworkAccessManagerPool::acquireNam()
 
 void NetworkAccessManagerPool::setReleasing(bool b)
 {
-	m_bReleasing.store(b);
+	m_releasing.store(b);
 }
 
 bool NetworkAccessManagerPool::isReleasing() const
 {
-	return m_bReleasing.load();
+	return m_releasing.load();
 }
 
 void NetworkAccessManagerPool::releaseCurrentThreadNam()
 {
-	if (!m_bReleasing.load())
+	if (!m_releasing.load())
 		return;
 
 	Qt::HANDLE threadId = QThread::currentThreadId();

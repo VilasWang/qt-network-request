@@ -14,7 +14,7 @@ class NetworkRequest;
 
 /// @brief Self-registering factory for NetworkRequest subclasses.
 ///
-/// Replaces the hard-coded switch-case in NetworkRequestFactory::create().
+/// Replaces the hard-coded switch-case factory that previously lived in NetworkRequest.
 /// Each request type registers itself via a static initializer in its .cpp file,
 /// so adding a new request type never requires modifying core code.
 ///

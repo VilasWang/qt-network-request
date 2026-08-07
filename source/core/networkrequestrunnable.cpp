@@ -5,18 +5,19 @@
 #include <QThread>
 #include "networkrequest.h"
 #include "networkrequestmanager.h"
+#include "networkrequestregistry.h"
 #include <QMutexLocker>
 
 using namespace QtNetworkRequest;
 
 NetworkRequestRunnable::NetworkRequestRunnable(std::unique_ptr<RequestContext> request, QObject* parent)
-    : QObject(parent), m_context(std::move(request)), m_bAbort(false)
+    : QObject(parent), m_context(std::move(request)), m_abort(false)
 {
     setAutoDelete(false);
     if (m_context)
     {
         m_task = m_context->task;
-        m_nPriority = m_context->behavior.priority;
+        m_priority = m_context->behavior.priority;
     }
 }
 
@@ -49,7 +50,7 @@ void NetworkRequestRunnable::run()
 
     // Reset state for this run
     m_responseSent.store(false);
-    m_bRunning.store(true);
+    m_isRunning.store(true);
 
     std::unique_ptr<NetworkRequest> pRequest = nullptr;
     QEventLoop loop;
@@ -68,7 +69,7 @@ void NetworkRequestRunnable::run()
 
                 qWarning() << "[QMultiThreadNetwork] Request total timeout, taskId:" << taskId;
 
-                m_bAbort = true;
+                m_abort = true;
                 if (m_connect)
                     disconnect(m_connect);
 
@@ -88,7 +89,7 @@ void NetworkRequestRunnable::run()
             QMutexLocker locker(&m_mutex);
             if (m_context)
             {
-                pRequest = std::move(NetworkRequestFactory::create(std::move(m_context)));
+                pRequest = NetworkRequestRegistry::instance().create(std::move(m_context));
             }
         }
 
@@ -107,7 +108,7 @@ void NetworkRequestRunnable::run()
                 rsp->task.endTime = QDateTime::currentDateTime();
                 // If cancelled and the request didn't already classify the error
                 // as cancellation/timeout, mark it as a user cancellation.
-                if (m_bAbort && rsp->error.category != ErrorCategory::Cancelled
+                if (m_abort && rsp->error.category != ErrorCategory::Cancelled
                               && rsp->error.category != ErrorCategory::Timeout)
                 {
                     rsp->error.category = ErrorCategory::Cancelled;
@@ -156,7 +157,7 @@ void NetworkRequestRunnable::run()
     if (!m_responseSent.load())
     {
         auto rsp = QSharedPointer<ResponseResult>::create();
-        if (m_bAbort)
+        if (m_abort)
         {
             rsp->error.category = ErrorCategory::Cancelled;
             rsp->error.code = ErrorCode::OperationCancelled;
@@ -171,7 +172,7 @@ void NetworkRequestRunnable::run()
         emit response(rsp);
     }
     pRequest.reset();
-    m_bRunning.store(false);
+    m_isRunning.store(false);
 
     // Signal completion LAST — after every access to this object on the worker
     // thread is done. Delivered to the manager on the main thread (queued), so
@@ -197,11 +198,11 @@ quint64 NetworkRequestRunnable::sessionId() const
 
 void NetworkRequestRunnable::quit()
 {
-    m_bAbort = true;
+    m_abort = true;
     this->disconnect(m_connect);
     // Only emit exitLoop if run() is still active (event loop is running).
     // After timeout, run() already returned and the loop is destroyed.
-    if (m_bRunning.load())
+    if (m_isRunning.load())
     {
         emit exitLoop();
     }

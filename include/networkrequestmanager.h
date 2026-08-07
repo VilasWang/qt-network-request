@@ -106,38 +106,38 @@ namespace QtNetworkRequest
 		std::shared_ptr<NetworkReply> postRequest(std::unique_ptr<RequestContext> context);
 
 		// Asynchronously execute batch request tasks (requests in same batch will be bound to same NetworkReply)
-		std::shared_ptr<NetworkReply> postBatchRequest(BatchRequestPtrTasks&& tasks, quint64 &uiBatchId);
+		std::shared_ptr<NetworkReply> postBatchRequest(BatchRequestPtrTasks&& tasks, quint64 &batchId);
 
 		// Synchronously execute single request task (returns false if url is invalid or no idle thread to handle)
 		// By default, synchronous mode blocks user interaction to avoid callback object not existing during callback. If set to non-blocking, caller needs to ensure callback lifecycle
-		bool sendRequest(std::unique_ptr<RequestContext> context, ResponseCallBack callback, bool bBlockUserInteraction = true);
+		bool sendRequest(std::unique_ptr<RequestContext> context, ResponseCallBack callback, bool blockUserInteraction = true);
 
 		// Stop all request tasks (async requests only)
 		void stopAllRequest();
 		// Stop batch request tasks with specified batchid (async requests only)
-		void stopBatchRequests(quint64 uiBatchId);
+		void stopBatchRequests(quint64 batchId);
 		// Stop specific request task (async requests only)
-		void stopRequest(quint64 uiTaskId);
+		void stopRequest(quint64 taskId);
 		// Stop all requests of specific session (async requests only)
-		void stopSessionRequest(quint64 uiSessionId);
+		void stopSessionRequest(quint64 sessionId);
 
 	public:
 		// Set maximum thread count for thread pool (1-100, default is system CPU core count)
-		bool setMaxThreadCount(int iMax);
+		bool setMaxThreadCount(int maxConcurrent);
 		int maxThreadCount();
 
 		quint64 nextSessionId();
 
 	Q_SIGNALS:
 		void errorMessage(const QString &error);
-		void batchRequestFinished(quint64 uiBatchId, bool bAllSuccess);
+		void batchRequestFinished(quint64 batchId, bool bAllSuccess);
 
 	public Q_SLOTS:
 		void onResponse(QSharedPointer<QtNetworkRequest::ResponseResult> rsp);
 		// Destroys a runnable on the main thread once its run() has fully
 		// returned (see NetworkRequestRunnable::finished). Sole owner of the
 		// runnable's lifetime end for cancelled-while-running requests.
-		void onRunnableFinished(quint64 uiRequestId);
+		void onRunnableFinished(quint64 requestId);
 
 	public:
 		bool event(QEvent *pEvent) Q_DECL_OVERRIDE;
@@ -153,20 +153,20 @@ namespace QtNetworkRequest
 
 		bool startAsRunnable(std::unique_ptr<RequestContext> request);
 
-		// bDownload(false: upload)
-		void updateProgress(quint64 uiRequestId, quint64 uiBatchId,
-							qint64 iBytes, qint64 iTotalBytes, bool bDownload);
+		// isDownload(false: upload)
+		void updateProgress(quint64 requestId, quint64 batchId,
+							qint64 transferredBytes, qint64 totalBytes, bool isDownload);
 
 	private:
 		QScopedPointer<NetworkRequestManagerPrivate> d_ptr;
 
-		static std::atomic<bool> ms_bIntialized;
-		static std::atomic<bool> ms_bUnIntializing;
-		static ProxyConfig ms_globalProxy;
-		static QScopedPointer<QNetworkCookieJar> ms_spCookieJar;
+		static std::atomic<bool> s_isInitialized;
+		static std::atomic<bool> s_isUninitializing;
+		static ProxyConfig s_globalProxy;
+		static QScopedPointer<QNetworkCookieJar> s_cookieJar;
 #ifndef QT_NO_SSL
-		static SslConfig ms_globalSslConfig;
-		static QMutex ms_globalSslConfigMutex;
+		static SslConfig s_globalSslConfig;
+		static QMutex s_globalSslConfigMutex;
 #endif
 	};
 }

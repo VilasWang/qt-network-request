@@ -138,16 +138,16 @@ add_test(NAME AuthTests COMMAND AuthTests)
 set_tests_properties(AuthTests PROPERTIES TIMEOUT 120)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# UtilityTests — pure NetworkRequestUtility unit tests (filesystem only)
+# UtilityTests — pure NetworkRequestUtils unit tests (filesystem only)
 #
-# NetworkRequestUtility is an internal helper that is NOT exported from the
+# NetworkRequestUtils is an internal helper that is NOT exported from the
 # shared library, so its implementation is compiled directly into this
 # executable rather than linked from QNetworkRequest.
 # ══════════════════════════════════════════════════════════════════════════════
 add_executable(UtilityTests
     main_utility.cpp
     test_utility.cpp
-    ${CMAKE_SOURCE_DIR}/source/networkrequestutility.cpp
+    ${CMAKE_SOURCE_DIR}/source/features/networkrequestutils.cpp
 )
 
 target_link_libraries(UtilityTests
@@ -160,6 +160,8 @@ target_include_directories(UtilityTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/source
+    ${CMAKE_SOURCE_DIR}/source/core
+    ${CMAKE_SOURCE_DIR}/source/features
 )
 
 set_output_directories(UtilityTests)

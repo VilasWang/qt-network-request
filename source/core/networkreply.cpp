@@ -22,7 +22,7 @@ bool NetworkReply::event(QEvent *event)
         ReplyResultEvent *e = static_cast<ReplyResultEvent *>(event);
         if (nullptr != e)
         {
-            replyResult(e->response, e->bDestroyed);
+            replyResult(e->response, e->isDestroyed);
         }
         return true;
     }

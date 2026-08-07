@@ -8,7 +8,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkCookieJar>
 #include "networkrequestmanager.h"
-#include "networkrequestutility.h"
+#include "networkrequestutils.h"
 #include "networkrequestevent.h"
 #include "qtcompat.h"
 #include "networkrequestregistry.h"
@@ -37,29 +37,29 @@ NetworkUploadRequest::NetworkUploadRequest(QObject *parent /* = nullptr */)
 NetworkUploadRequest::~NetworkUploadRequest()
 {
 	// Improved destructor - ensure proper resource cleanup
-	if (m_pFile && m_pFile->isOpen())
+	if (m_file && m_file->isOpen())
 	{
-		m_pFile->close();
+		m_file->close();
 	}
-	m_pFile.reset();
+	m_file.reset();
 }
 
 void NetworkUploadRequest::start()
 {
 	NetworkRequest::start();
-	m_nBytesSent = 0;
-	m_nLastSentBytes = 0;
+	m_bytesSent = 0;
+	m_lastSentBytes = 0;
 
 	// Estimate bytes sent
-	if (m_upContext->uploadConfig)
+	if (m_context->uploadConfig)
 	{
-		if (!m_upContext->uploadConfig->filePath.isEmpty())
+		if (!m_context->uploadConfig->filePath.isEmpty())
 		{
-			QFileInfo fi(m_upContext->uploadConfig->filePath);
-			m_nBytesSent = fi.size();
+			QFileInfo fi(m_context->uploadConfig->filePath);
+			m_bytesSent = fi.size();
 		}
 		else
-			m_nBytesSent = m_upContext->uploadConfig->data.size();
+			m_bytesSent = m_context->uploadConfig->data.size();
 	}
 
 	const QUrl& url = m_url;
@@ -71,53 +71,53 @@ void NetworkUploadRequest::start()
 		return;
 	}
 
-	if (nullptr == m_pNetworkManager)
+	if (nullptr == m_networkManager)
 	{
-		m_pNetworkManager = NetworkRequestManager::acquireThreadNam();
+		m_networkManager = NetworkRequestManager::acquireThreadNam();
 	}
 	// Per-request proxy applies after pool's global proxy
-	applyProxyConfig(m_pNetworkManager);
-	m_pNetworkManager->connectToHost(url.host(), url.port());
+	applyProxyConfig(m_networkManager);
+	m_networkManager->connectToHost(url.host(), url.port());
 
-	for (QNetworkCookie& cookie : m_upContext->cookies)
+	for (QNetworkCookie& cookie : m_context->cookies)
 	{
-		if (m_pNetworkManager->cookieJar())
+		if (m_networkManager->cookieJar())
 		{
-			m_pNetworkManager->cookieJar()->insertCookie(cookie);
+			m_networkManager->cookieJar()->insertCookie(cookie);
 		}
 	}
 
 	QNetworkRequest request(url);
-	QtCompat::setTransferTimeout(request, m_upContext->behavior.transferTimeout);
+	QtCompat::setTransferTimeout(request, m_context->behavior.transferTimeout);
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/octet-stream");
 	// Let Qt automatically handle Content-Length, remove manual setting
 	// request.setHeader(QNetworkRequest::ContentLengthHeader, bytes.length());
 	// NOTE: Do NOT set "Connection" manually. It is a hop-by-hop header that Qt
 	// manages via its connection pool (keep-alive is the HTTP/1.1 default, and the
 	// header is forbidden under HTTP/2 which Qt may negotiate).
-	auto iter = m_upContext->headers.cbegin();
-	for (; iter != m_upContext->headers.cend(); ++iter)
+	auto iter = m_context->headers.cbegin();
+	for (; iter != m_context->headers.cend(); ++iter)
 	{
 		request.setRawHeader(iter.key(), iter.value());
 	}
 
-	Q_ASSERT(nullptr != m_upContext->uploadConfig);
-	QHttpMultiPart* pHttpMultiPart = nullptr;
-	bool bFormData = m_upContext->uploadConfig && m_upContext->uploadConfig->useFormData && !m_upContext->uploadConfig->files.isEmpty();
+	Q_ASSERT(nullptr != m_context->uploadConfig);
+	QHttpMultiPart* httpMultiPart = nullptr;
+	bool bFormData = m_context->uploadConfig && m_context->uploadConfig->useFormData && !m_context->uploadConfig->files.isEmpty();
 	if (!bFormData)
 	{
-		m_pFile = NetworkRequestUtility::openFile(m_upContext->uploadConfig->filePath, m_strError);
-		if (!m_pFile || !m_pFile->isOpen())
+		m_file = NetworkRequestUtils::openFile(m_context->uploadConfig->filePath, m_errorMessage);
+		if (!m_file || !m_file->isOpen())
 		{
-			setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed, m_strError);
+			setError(ErrorCategory::FileIo, ErrorCode::FileOpenFailed, m_errorMessage);
 			emit response(ToFailedResult());
 			return;
 		}
 	}
 	else
 	{
-		pHttpMultiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-		auto& files = m_upContext->uploadConfig->files;
+		httpMultiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+		auto& files = m_context->uploadConfig->files;
 		for (auto& filePath : files)
 		{
 			QFileInfo fileInfo(filePath);
@@ -135,7 +135,7 @@ void NetworkUploadRequest::start()
 					delete file;
 				continue;
 			}
-			file->setParent(pHttpMultiPart); // Will be set when multiPart is created
+			file->setParent(httpMultiPart); // Will be set when multiPart is created
 
 			// Add file field
 			QHttpPart filePart;
@@ -143,9 +143,9 @@ void NetworkUploadRequest::start()
 			QString disposition = QString("form-data; name=\"file\"; filename=\"%1\"").arg(fileInfo.fileName());
 			filePart.setHeader(QNetworkRequest::ContentDispositionHeader, QVariant(disposition));
 			filePart.setBodyDevice(file);
-			pHttpMultiPart->append(filePart);
+			httpMultiPart->append(filePart);
 		}
-		auto& kvPairs = m_upContext->uploadConfig->kvPairs;
+		auto& kvPairs = m_context->uploadConfig->kvPairs;
 		for (auto iter = kvPairs.begin(); iter != kvPairs.end(); ++iter)
 		{
 			// Handle plain text
@@ -155,9 +155,9 @@ void NetworkUploadRequest::start()
 				.arg(iter.key());
 			textPart.setHeader(QNetworkRequest::ContentDispositionHeader, QVariant(disposition));
 			textPart.setBody(iter.value().toUtf8());
-			pHttpMultiPart->append(textPart);
+			httpMultiPart->append(textPart);
 		}
-		request.setHeader(QNetworkRequest::ContentTypeHeader, "multipart/form-data; boundary=" + pHttpMultiPart->boundary());
+		request.setHeader(QNetworkRequest::ContentTypeHeader, "multipart/form-data; boundary=" + httpMultiPart->boundary());
 	}
 
 	if (!isFtpProxy(url.scheme())) // http / https
@@ -165,28 +165,28 @@ void NetworkUploadRequest::start()
 #ifndef QT_NO_SSL
 		applySslConfig(request);
 #endif
-		if (m_upContext->uploadConfig->usePutMethod)
+		if (m_context->uploadConfig->usePutMethod)
 		{
 			if (bFormData)
 			{
-				m_pNetworkReply = m_pNetworkManager->put(request, pHttpMultiPart);
-				pHttpMultiPart->setParent(m_pNetworkReply);
+				m_networkReply = m_networkManager->put(request, httpMultiPart);
+				httpMultiPart->setParent(m_networkReply);
 			}
 			else
 			{
-				m_pNetworkReply = m_pNetworkManager->put(request, m_pFile.get());
+				m_networkReply = m_networkManager->put(request, m_file.get());
 			}
 		}
 		else
 		{
 			if (bFormData)
 			{
-				m_pNetworkReply = m_pNetworkManager->post(request, pHttpMultiPart);
-				pHttpMultiPart->setParent(m_pNetworkReply);
+				m_networkReply = m_networkManager->post(request, httpMultiPart);
+				httpMultiPart->setParent(m_networkReply);
 			}
 			else
 			{
-				m_pNetworkReply = m_pNetworkManager->post(request, m_pFile.get());
+				m_networkReply = m_networkManager->post(request, m_file.get());
 			}
 		}
 	}
@@ -194,25 +194,25 @@ void NetworkUploadRequest::start()
 	{
 		if (bFormData)
 		{
-			m_pNetworkReply = m_pNetworkManager->put(request, pHttpMultiPart);
-			pHttpMultiPart->setParent(m_pNetworkReply);
+			m_networkReply = m_networkManager->put(request, httpMultiPart);
+			httpMultiPart->setParent(m_networkReply);
 		}
 		else
 		{
-			m_pNetworkReply = m_pNetworkManager->put(request, m_pFile.get());
+			m_networkReply = m_networkManager->put(request, m_file.get());
 		}
 	}
 
-	connect(m_pNetworkReply, SIGNAL(finished()), this, SLOT(onFinished()));
-	QtCompat::connectErrorSignal(m_pNetworkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
-	connect(m_pNetworkManager, SIGNAL(authenticationRequired(QNetworkReply *, QAuthenticator *)),
+	connect(m_networkReply, SIGNAL(finished()), this, SLOT(onFinished()));
+	QtCompat::connectErrorSignal(m_networkReply, this, SLOT(onError(QNetworkReply::NetworkError)));
+	connect(m_networkManager, SIGNAL(authenticationRequired(QNetworkReply *, QAuthenticator *)),
 			SLOT(onAuthenticationRequired(QNetworkReply *, QAuthenticator *)));
 #ifndef QT_NO_SSL
-	connectSslErrorHandling(m_pNetworkReply);
+	connectSslErrorHandling(m_networkReply);
 #endif
-	if (m_upContext->behavior.showProgress)
+	if (m_context->behavior.showProgress)
 	{
-		connect(m_pNetworkReply, SIGNAL(uploadProgress(qint64, qint64)), this, SLOT(onUploadProgress(qint64, qint64)));
+		connect(m_networkReply, SIGNAL(uploadProgress(qint64, qint64)), this, SLOT(onUploadProgress(qint64, qint64)));
 	}
 
 	// Layer2b: transfer timeout via elapsed timer (no-op on Qt >= 5.15)
@@ -222,7 +222,7 @@ void NetworkUploadRequest::start()
 
 void NetworkUploadRequest::onFinished()
 {
-	if (!m_pNetworkReply)
+	if (!m_networkReply)
 	{
 		setError(ErrorCategory::Network, ErrorCode::InvalidReply, QString("Network error: Invalid reply"));
 		emit response(ToFailedResult());
@@ -231,31 +231,31 @@ void NetworkUploadRequest::onFinished()
 
 	CloseFile();
 
-	auto [bSuccess, statusCode] = evaluateOutcome();
-	if (!bSuccess && handleFailure())
+	auto [success, statusCode] = evaluateOutcome();
+	if (!success && handleFailure())
 		return;
 
 	// Get response header information
 	QMap<QByteArray, QByteArray> responseHeaders;
 	QByteArray body;
-	if (bSuccess)
+	if (success)
 		collectResponse(responseHeaders, body);
 
-	if (bSuccess)
+	if (success)
 		qDebug() << "[NetworkDownloadRequest] Upload completed successfully:" << m_url.toString();
 	else
-		qDebug() << "[NetworkDownloadRequest] Upload failed:" << m_strError;
+		qDebug() << "[NetworkDownloadRequest] Upload failed:" << m_errorMessage;
 
 	disposeReply();
 
-    m_nBytesSent = qMax(m_nBytesSent, m_nLastSentBytes);
-    if (m_spResult)
+    m_bytesSent = qMax(m_bytesSent, m_lastSentBytes);
+    if (m_result)
     {
-        m_spResult->performance.bytesSent = m_nBytesSent;
-        m_spResult->performance.bytesReceived = body.size();
+        m_result->performance.bytesSent = m_bytesSent;
+        m_result->performance.bytesReceived = body.size();
     }
 
-	if (bSuccess)
+	if (success)
 		emit response(ToSuccessResult(body, responseHeaders, statusCode));
 	else
 		emit response(ToFailedResult(statusCode));
@@ -263,26 +263,26 @@ void NetworkUploadRequest::onFinished()
 
 void NetworkUploadRequest::onUploadProgress(qint64 iSent, qint64 iTotal)
 {
-	m_nLastSentBytes = iSent;
+	m_lastSentBytes = iSent;
 
     // Reset idle timeout on data sent
     if (iSent > 0)
         resetIdleTimer();
 
-	if (m_bAbortManual)
+	if (m_abortManual)
 		return;
 
 	m_throttle->report(iSent, iTotal, [this](qint64 bytes, qint64 total) {
 		int progress = bytes * 100 / total;
-		if (m_nProgress < progress)
+		if (m_progress < progress)
 		{
-			m_nProgress = progress;
+			m_progress = progress;
 			NetworkProgressEvent *event = new NetworkProgressEvent;
-			event->bDownload = false;
-			event->uiId = m_upContext->task.id;
-			event->uiBatchId = m_upContext->task.batchId;
-			event->iBytes = bytes;
-			event->iTotalBytes = total;
+			event->isDownload = false;
+			event->requestId = m_context->task.id;
+			event->batchId = m_context->task.batchId;
+			event->transferredBytes = bytes;
+			event->totalBytes = total;
 			QCoreApplication::postEvent(NetworkRequestManager::globalInstance(), event);
 		}
 	});
@@ -290,13 +290,13 @@ void NetworkUploadRequest::onUploadProgress(qint64 iSent, qint64 iTotal)
 
 void NetworkUploadRequest::CloseFile()
 {
-	if (m_pFile)
+	if (m_file)
 	{
-		if (m_pFile->isOpen())
+		if (m_file->isOpen())
 		{
-			m_pFile->close();
+			m_file->close();
 		}
 
-		m_pFile.reset();
+		m_file.reset();
 	}
 }

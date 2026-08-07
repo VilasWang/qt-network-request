@@ -1,5 +1,5 @@
-﻿#ifndef NETWORKBIGFLEDOWNLOADREQUEST_H
-#define NETWORKBIGFLEDOWNLOADREQUEST_H
+﻿#ifndef NETWORKMTDOWNLOADREQUEST_H
+#define NETWORKMTDOWNLOADREQUEST_H
 #pragma once
 
 #include <QObject>
@@ -43,7 +43,7 @@ namespace QtNetworkRequest
 		void abort() Q_DECL_OVERRIDE;
 		void onFinished() Q_DECL_OVERRIDE;
 		void onError(QNetworkReply::NetworkError code) Q_DECL_OVERRIDE;
-		void onSubPartFinished(int index, bool bSuccess, const QString &strErr);
+		void onSubPartFinished(int index, bool success, const QString &strErr);
 		void onSubPartDownloadProgress(int index, qint64 bytesReceived, qint64 bytesTotal);
 
 	protected:
@@ -69,25 +69,25 @@ namespace QtNetworkRequest
 		bool renameTempFileToFinal();
 
 	private:
-		QString m_strDstFilePath;
-		QString m_strTempFilePath;
-		qint64 m_nFileSize;
+		QString m_dstFilePath;
+		QString m_tempFilePath;
+		qint64 m_fileSize;
 
-		std::map<int, std::unique_ptr<Downloader>> m_mapDownloader;
-		int m_nThreadCount; // How many segments to divide into for download
-		int m_nSuccess;
-		int m_nFailed;
-		QSet<int> m_setFinishedIds;
+		std::map<int, std::unique_ptr<Downloader>> m_downloaders;
+		int m_threadCount; // How many segments to divide into for download
+		int m_successCount;
+		int m_failedCount;
+		QSet<int> m_finishedPartIds;
 
 		std::unique_ptr<MemoryMappedFile> m_mappedFile; // Memory mapped file
 		QElapsedTimer m_downloadTimer;					// Download timer
 
-		QMap<int, qint64> m_mapBytesReceived;
+		QMap<int, qint64> m_bytesReceivedByPart;
 		qint64 m_bytesTotal;
 		QMap<QByteArray, QByteArray> m_responseHeaders;  // Cached HEAD response headers
 
-		bool m_bRangeSupportProbed{ false };  // Whether we've completed a range probe
-		bool m_bRangeSupported{ false };      // Whether the server actually honors Range requests
+		bool m_rangeSupportProbed{ false };  // Whether we've completed a range probe
+		bool m_rangeSupported{ false };      // Whether the server actually honors Range requests
 
 		std::unique_ptr<IMDTDownloadState> m_state;  // Current phase state
 	};
@@ -115,10 +115,10 @@ namespace QtNetworkRequest
 
 		void abort();
 
-		QString errorString() const { return m_strError; }
+		QString errorString() const { return m_errorMessage; }
 
 	Q_SIGNALS:
-		void downloadFinished(int index, bool bSuccess, const QString &strErr);
+		void downloadFinished(int index, bool success, const QString &strErr);
 		void downloadProgress(int index, qint64 bytesReceived, qint64 bytesTotal);
 		void dataReceived();  // N6: fired on readyRead/downloadProgress for Layer3 idle timeout forwarding
 
@@ -131,23 +131,23 @@ namespace QtNetworkRequest
 #endif
 
 	private:
-		QPointer<QNetworkAccessManager> m_pNetworkManager;
-		QNetworkReply *m_pNetworkReply;
+		QPointer<QNetworkAccessManager> m_networkManager;
+		QNetworkReply *m_networkReply;
 		QUrl m_url;
-		bool m_bAbortManual;
-		QString m_strError;
+		bool m_abortManual;
+		QString m_errorMessage;
 
-		const int m_nIndex;
-		qint64 m_nStartPoint;
-		qint64 m_nEndPoint;
+		const int m_index;
+		qint64 m_startPoint;
+		qint64 m_endPoint;
 
-		bool m_bShowProgress;
-		quint16 m_nRedirectionCount;
-		quint16 m_nMaxRedirectionCount;
+		bool m_showProgress;
+		quint16 m_redirectionCount;
+		quint16 m_maxRedirectionCount;
 
 		QPointer<MemoryMappedFile> m_mappedFile; // Memory mapped file pointer
 		qint64 m_bytesWritten;					 // Bytes written
-		bool m_bOverflowLogged{ false };		 // Only log overflow once per download
+		bool m_overflowLogged{ false };		 // Only log overflow once per download
 		int m_transferTimeout{ 0 };              // Per-request transfer timeout (ms)
 #ifndef QT_NO_SSL
 		const SslConfig *m_perRequestSslConfig{ nullptr };
@@ -159,4 +159,4 @@ namespace QtNetworkRequest
 	};
 }
 
-#endif // NETWORKBIGFLEDOWNLOADREQUEST_H
+#endif // NETWORKMTDOWNLOADREQUEST_H

@@ -30,8 +30,8 @@ namespace QtNetworkRequest
 		void CloseFile();
 
 	private:
-		std::unique_ptr<QFile> m_pFile;
+		std::unique_ptr<QFile> m_file;
 		std::unique_ptr<ProgressThrottle> m_throttle;
-		qint64 m_nLastSentBytes{ 0 };
+		qint64 m_lastSentBytes{ 0 };
 	};
 }
