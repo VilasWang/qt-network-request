@@ -135,8 +135,8 @@ void NetworkCommonRequest::performSend()
     }
     else if (m_context->type == RequestType::Post)
     {
-        bool bFormData = m_context->uploadConfig && m_context->uploadConfig->useFormData && !m_context->uploadConfig->files.isEmpty();
-        if (!bFormData)
+        bool isFormData = m_context->uploadConfig && m_context->uploadConfig->useFormData && !m_context->uploadConfig->files.isEmpty();
+        if (!isFormData)
         {
             // Only default to application/x-www-form-urlencoded when bodyType is None (backward compat)
             if (m_context->bodyType == BodyType::None &&

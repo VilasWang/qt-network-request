@@ -130,7 +130,7 @@ namespace QtNetworkRequest
 
 	Q_SIGNALS:
 		void errorMessage(const QString &error);
-		void batchRequestFinished(quint64 batchId, bool bAllSuccess);
+		void batchRequestFinished(quint64 batchId, bool allSuccess);
 
 	public Q_SLOTS:
 		void onResponse(QSharedPointer<QtNetworkRequest::ResponseResult> rsp);
@@ -140,7 +140,7 @@ namespace QtNetworkRequest
 		void onRunnableFinished(quint64 requestId);
 
 	public:
-		bool event(QEvent *pEvent) Q_DECL_OVERRIDE;
+		bool event(QEvent *event) Q_DECL_OVERRIDE;
 
 	private:
 		explicit NetworkRequestManager(QObject *parent = 0);

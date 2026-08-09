@@ -27,7 +27,7 @@ namespace QtNetworkRequest
 		void start() Q_DECL_OVERRIDE;
 		void onFinished() Q_DECL_OVERRIDE;
 		void onReadyRead();
-		void onDownloadProgress(qint64 iReceived, qint64 iTotal);
+		void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
 
 	protected:
 		void cleanupForRetry() Q_DECL_OVERRIDE { CloseFile(true); }

@@ -180,7 +180,7 @@ void NetworkDownloadRequest::onFinished()
     QMap<QByteArray, QByteArray> responseHeaders;
     if (success)
     {
-        if (!m_abortManual && m_networkReply->isOpen())
+        if (!m_isAbortedManually && m_networkReply->isOpen())
         {
             foreach(const QByteArray & header, m_networkReply->rawHeaderList())
             {
@@ -208,16 +208,16 @@ void NetworkDownloadRequest::onFinished()
         emit response(ToFailedResult(statusCode));
 }
 
-void NetworkDownloadRequest::onDownloadProgress(qint64 iReceived, qint64 iTotal)
+void NetworkDownloadRequest::onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal)
 {
     // Reset idle timeout on data arrival
-    if (iReceived > 0)
+    if (bytesReceived > 0)
         resetIdleTimer();
 
-    if (m_abortManual)
+    if (m_isAbortedManually)
         return;
 
-    m_throttle->report(iReceived, iTotal, [this](qint64 bytes, qint64 total) {
+    m_throttle->report(bytesReceived, bytesTotal, [this](qint64 bytes, qint64 total) {
         int progress = static_cast<int>(bytes * 100 / total);
         if (m_progress < progress)
         {
