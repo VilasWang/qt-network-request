@@ -118,7 +118,7 @@ namespace QtNetworkRequest
 	protected:
 		std::unique_ptr<RequestContext> m_context;
 		QSharedPointer<ResponseResult> m_result;
-		bool m_abortManual;
+		bool m_isAbortedManually;
 		QString m_errorMessage;
 		ErrorInfo m_error;
 		int m_progress;
@@ -126,7 +126,7 @@ namespace QtNetworkRequest
 		qint64 m_bytesReceived{ 0 };
 		qint64 m_bytesSent{ 0 };
 		quint16 m_redirectionCount;
-		bool m_oauthRefreshed{ false };   // M2: guard against infinite refresh loops
+		bool m_isOAuthRefreshed{ false };   // M2: guard against infinite refresh loops
 		QNetworkAccessManager *m_networkManager;  // non-owning — managed by NetworkAccessManagerPool
 		QNetworkReply *m_networkReply;
         QUrl m_url;
@@ -149,8 +149,8 @@ namespace QtNetworkRequest
 
 }
 
-inline bool isHttpProxy(const QString &strScheme) { return (strScheme.compare(QString("http"), Qt::CaseInsensitive) == 0); }
-inline bool isHttpsProxy(const QString &strScheme) { return (strScheme.compare(QString("https"), Qt::CaseInsensitive) == 0); }
-inline bool isFtpProxy(const QString &strScheme) { return (strScheme.compare(QString("ftp"), Qt::CaseInsensitive) == 0); }
+inline bool isHttpProxy(const QString &scheme) { return (scheme.compare(QString("http"), Qt::CaseInsensitive) == 0); }
+inline bool isHttpsProxy(const QString &scheme) { return (scheme.compare(QString("https"), Qt::CaseInsensitive) == 0); }
+inline bool isFtpProxy(const QString &scheme) { return (scheme.compare(QString("ftp"), Qt::CaseInsensitive) == 0); }
 
 #endif // NETWORKREQUEST_H

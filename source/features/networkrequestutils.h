@@ -31,11 +31,11 @@ namespace QtNetworkRequest
         // Get save directory for download file
         static QString getDownloadFileSaveDir(const RequestContext* context, QString &errorMessage);
 
-        static bool isFileExists(QFile *pFile);
-        static bool isFileOpened(QFile *pFile);
+        static bool isFileExists(QFile *file);
+        static bool isFileOpened(QFile *file);
         static bool removeFile(const QString &filePath, QString &errorMessage);
 
-        static const QString getRequestTypeString(const RequestType eType);
+        static const QString getRequestTypeString(const RequestType type);
 
     private:
         NetworkRequestUtils() {}

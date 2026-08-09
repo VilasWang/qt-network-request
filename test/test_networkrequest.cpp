@@ -936,7 +936,7 @@ void TestNetworkRequest::testSendRequestSync()
 void TestNetworkRequest::testBatchSuccessAndSignal()
 {
     // A batch of successful requests should emit batchRequestFinished with
-    // bAllSuccess == true once every task in the batch completes.
+    // allSuccess == true once every task in the batch completes.
     QSignalSpy batchSpy(NetworkRequestManager::globalInstance(),
                         &NetworkRequestManager::batchRequestFinished);
 

@@ -3,10 +3,6 @@
 #include <QThread>
 #include <QNetworkCookie>
 #include <QUrlQuery>
-#include "networkdownloadrequest.h"
-#include "networkuploadrequest.h"
-#include "networkcommonrequest.h"
-#include "networkmtdownloadrequest.h"
 #include "networkrequestutils.h"
 #include "networkrequestmanager.h"
 #include "networkrequestregistry.h"
@@ -17,7 +13,7 @@
 using namespace QtNetworkRequest;
 
 NetworkRequest::NetworkRequest(QObject *parent)
-    : QObject(parent), m_abortManual(false), m_networkManager(nullptr), m_networkReply(nullptr), m_progress(0), m_retryCount(0), m_redirectionCount(0)
+    : QObject(parent), m_isAbortedManually(false), m_networkManager(nullptr), m_networkReply(nullptr), m_progress(0), m_retryCount(0), m_redirectionCount(0)
 {
 }
 
@@ -57,7 +53,7 @@ NetworkRequest::~NetworkRequest()
 
 void NetworkRequest::abort()
 {
-    m_abortManual = true;
+    m_isAbortedManually = true;
     m_heartbeatTimer.stop();
     if (m_networkReply)
     {
@@ -84,7 +80,7 @@ void NetworkRequest::abort()
 
 void NetworkRequest::start()
 {
-    m_abortManual = false;
+    m_isAbortedManually = false;
     m_progress = 0;
     m_error = ErrorInfo{};
     m_errorMessage.clear();
@@ -178,7 +174,7 @@ void NetworkRequest::applyProxyConfig(QNetworkAccessManager* mgr)
 bool NetworkRequest::tryRetry()
 {
     // N3 fix: Do not retry if abort was triggered by timeout/cancellation
-    if (m_abortManual)
+    if (m_isAbortedManually)
         return false;
 
     if (!m_context || !m_context->behavior.retryOnFailed)
@@ -463,11 +459,11 @@ bool NetworkRequest::handleFailure()
     //    haven't already tried refreshing, attempt one token refresh.
     if (statusCode == 401 &&
         m_context->authConfig.type == AuthType::OAuth2 &&
-        !m_oauthRefreshed &&
+        !m_isOAuthRefreshed &&
         !m_context->authConfig.oauth2Config.refreshToken.isEmpty())
     {
         qDebug() << "[QMultiThreadNetwork] OAuth2 401 — attempting token refresh";
-        m_oauthRefreshed = true;
+        m_isOAuthRefreshed = true;
 
         // Swap to RefreshToken grant and use the stored refresh token.
         // The oauth2Config already has the refreshToken field populated;
@@ -600,7 +596,7 @@ QByteArray NetworkRequest::effectiveRequestBody() const
 
 void NetworkRequest::collectResponse(QMap<QByteArray, QByteArray>& outHeaders, QByteArray& outBody)
 {
-    if (!m_abortManual && m_networkReply && m_networkReply->isOpen())
+    if (!m_isAbortedManually && m_networkReply && m_networkReply->isOpen())
     {
         outBody = m_networkReply->readAll();
         foreach (const QByteArray &header, m_networkReply->rawHeaderList())
@@ -632,7 +628,7 @@ void NetworkRequest::setRequestContext(std::unique_ptr<RequestContext> context)
     if (context)
     {
         m_context = std::move(context);
-        m_oauthRefreshed = false;   // reset the 401-refresh guard for each new request
+        m_isOAuthRefreshed = false;   // reset the 401-refresh guard for each new request
         // (M1) Substitute {{var}} placeholders across url/headers/body/query/auth
         // before the QUrl is finalized, so the resolved value is used downstream.
         if (!m_context->environment.isEmpty())

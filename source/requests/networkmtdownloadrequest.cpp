@@ -121,7 +121,7 @@ void NetworkMTDownloadRequest::onError(QNetworkReply::NetworkError code)
 
 void NetworkMTDownloadRequest::startMTDownloadInternal()
 {
-    if (m_abortManual)
+    if (m_isAbortedManually)
     {
         return;
     }
@@ -153,7 +153,7 @@ void NetworkMTDownloadRequest::startMTDownloadInternal()
         return;
     }
 
-    if (m_abortManual)
+    if (m_isAbortedManually)
     {
         return;
     }
@@ -181,7 +181,7 @@ void NetworkMTDownloadRequest::startMTDownloadInternal()
     // server doesn't advertise Accept-Ranges at all, we already forced
     // threadCount = 1 and must keep it — splitting into multiple
     // Range-based parts would re-create the overflow.
-    if (!m_rangeSupportProbed || m_rangeSupported)
+    if (!m_isRangeProbed || m_isRangeSupported)
         m_threadCount = qMax(m_threadCount, 2);
     m_bytesTotal = m_fileSize;
 
@@ -238,9 +238,9 @@ void NetworkMTDownloadRequest::startMTDownloadInternal()
     }
 }
 
-void NetworkMTDownloadRequest::onSubPartFinished(int index, bool success, const QString &strErr)
+void NetworkMTDownloadRequest::onSubPartFinished(int index, bool success, const QString &errorMsg)
 {
-    if (m_abortManual)
+    if (m_isAbortedManually)
     {
         return;
     }
@@ -263,7 +263,7 @@ void NetworkMTDownloadRequest::onSubPartFinished(int index, bool success, const 
         }
         if (m_errorMessage.isEmpty())
         {
-            setError(ErrorCategory::Network, ErrorCode::Unknown, strErr);
+            setError(ErrorCategory::Network, ErrorCode::Unknown, errorMsg);
         }
     }
 
@@ -324,7 +324,7 @@ void NetworkMTDownloadRequest::onSubPartDownloadProgress(int index, qint64 bytes
     if (bytesReceived > 0)
         resetIdleTimer();
 
-    if (m_abortManual || bytesReceived <= 0 || bytesTotal <= 0)
+    if (m_isAbortedManually || bytesReceived <= 0 || bytesTotal <= 0)
         return;
 
     if (!m_bytesReceivedByPart.contains(index))
@@ -456,8 +456,8 @@ void NetworkMTDownloadRequest::handleProbeFinished(QNetworkReply* reply)
 	}
 	else
 	{
-		m_rangeSupportProbed = true;
-		m_rangeSupported = false;
+		m_isRangeProbed = true;
+		m_isRangeSupported = false;
 		qDebug() << "[MTDownload] Server does not advertise Accept-Ranges, falling back to single-thread";
 		m_context->downloadConfig->threadCount = 1;
 		transitionTo(std::make_unique<MultiDownloadState>());
@@ -514,8 +514,8 @@ void NetworkMTDownloadRequest::handleRangeProbeFinished(QNetworkReply* reply)
 	int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 	bool probeSuccess = (statusCode == 206);
 
-	m_rangeSupportProbed = true;
-	m_rangeSupported = probeSuccess;
+	m_isRangeProbed = true;
+	m_isRangeSupported = probeSuccess;
 
 	qDebug() << "[MTDownload] Range probe result:" << statusCode
 			 << (probeSuccess ? "(206 - supported)" : "(not supported)");
@@ -619,7 +619,7 @@ bool NetworkMTDownloadRequest::renameTempFileToFinal()
 }
 
 //////////////////////////////////////////////////////////////////////////
-Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessManager *pNetworkManager, bool bShowProgress, quint16 nMaxRedirectionCount, int transferTimeout
+Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessManager *networkManager, bool showProgress, quint16 maxRedirectionCount, int transferTimeout
 #ifndef QT_NO_SSL
     , const SslConfig *sslConfig
 #endif
@@ -627,13 +627,13 @@ Downloader::Downloader(int index, MemoryMappedFile *mappedFile, QNetworkAccessMa
     : QObject(parent),
       m_index(index),
       m_networkReply(nullptr),
-      m_abortManual(false),
+      m_isAbortedManually(false),
       m_startPoint(0),
       m_endPoint(0),
       m_redirectionCount(0),
-      m_networkManager(QPointer<QNetworkAccessManager>(pNetworkManager)),
-      m_showProgress(bShowProgress),
-      m_maxRedirectionCount(nMaxRedirectionCount),
+      m_networkManager(QPointer<QNetworkAccessManager>(networkManager)),
+      m_showProgress(showProgress),
+      m_maxRedirectionCount(maxRedirectionCount),
       m_mappedFile(QPointer<MemoryMappedFile>(mappedFile)),
       m_bytesWritten(0),
       m_transferTimeout(transferTimeout)
@@ -652,7 +652,7 @@ Downloader::~Downloader()
 
 void Downloader::abort()
 {
-    m_abortManual = true;
+    m_isAbortedManually = true;
     m_throttle->stop();
     if (m_networkReply)
     {
@@ -677,9 +677,9 @@ bool Downloader::start(const QUrl &url, qint64 startPoint, qint64 endPoint)
         return false;
     }
 
-    m_abortManual = false;
+    m_isAbortedManually = false;
     m_bytesWritten = 0;
-    m_overflowLogged = false;
+    m_isOverflowLogged = false;
 
     m_url = url;
     m_startPoint = startPoint;
@@ -835,9 +835,9 @@ void Downloader::onReadyRead()
             }
             else
             {
-                if (!m_overflowLogged)
+                if (!m_isOverflowLogged)
                 {
-                    m_overflowLogged = true;
+                    m_isOverflowLogged = true;
                     int httpStatus = m_networkReply
                         ? m_networkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()
                         : -1;

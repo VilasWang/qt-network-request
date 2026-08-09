@@ -16,7 +16,7 @@ using namespace QtNetworkRequest;
 
 std::unique_ptr<QFile> NetworkRequestUtils::createAndOpenFile(const RequestContext *context, QString &errorMessage)
 {
-    std::unique_ptr<QFile> pFile;
+    std::unique_ptr<QFile> file;
     errorMessage.clear();
 
     Q_ASSERT(context && nullptr != context->downloadConfig);
@@ -24,50 +24,50 @@ std::unique_ptr<QFile> NetworkRequestUtils::createAndOpenFile(const RequestConte
     const QString &saveDir = getDownloadFileSaveDir(context, errorMessage);
     if (saveDir.isEmpty())
     {
-        return pFile;
+        return file;
     }
 
     // Get download save filename
-    const QString &strFileName = getSaveFileName(context);
-    if (strFileName.isEmpty())
+    const QString &fileName = getSaveFileName(context);
+    if (fileName.isEmpty())
     {
         errorMessage = QString("Invalid request: File name cannot be empty");
         qWarning() << errorMessage;
-        return pFile;
+        return file;
     }
 
     // If file exists and bReplaceFileIfExist is set, close file and remove
-    const QString &filePath = QDir::toNativeSeparators(saveDir + strFileName);
+    const QString &filePath = QDir::toNativeSeparators(saveDir + fileName);
     if (QFile::exists(filePath))
     {
         if (context->downloadConfig->overwriteFile)
         {
-            QString strFileErr;
-            if (!removeFile(filePath, strFileErr))
+            QString fileErr;
+            if (!removeFile(filePath, fileErr))
             {
-                errorMessage = QString("File operation failed: Unable to remove existing file '%1' - %2").arg(filePath).arg(strFileErr);
+                errorMessage = QString("File operation failed: Unable to remove existing file '%1' - %2").arg(filePath).arg(fileErr);
                 qWarning() << errorMessage;
-                return pFile;
+                return file;
             }
         }
         else
         {
             errorMessage = QString("File conflict: Target file already exists at '%1'").arg(filePath);
             qWarning() << errorMessage;
-            return pFile;
+            return file;
         }
     }
 
     // Create and open file
-    pFile = std::make_unique<QFile>(filePath);
-    if (!pFile->open(QIODevice::WriteOnly))
+    file = std::make_unique<QFile>(filePath);
+    if (!file->open(QIODevice::WriteOnly))
     {
-        errorMessage = QString("File operation failed: Unable to open file '%1' for writing - %2").arg(filePath).arg(pFile->errorString());
+        errorMessage = QString("File operation failed: Unable to open file '%1' for writing - %2").arg(filePath).arg(file->errorString());
         qWarning() << errorMessage;
-        pFile.reset();
-        return pFile;
+        file.reset();
+        return file;
     }
-    return pFile;
+    return file;
 }
 
 bool NetworkRequestUtils::readFileContent(const QString &filePath, QByteArray &bytes, QString &errorMessage)
@@ -106,7 +106,7 @@ QString NetworkRequestUtils::getFilePath(const RequestContext* context, QString 
     }
 
     // Get download save filename
-    const QString &strFileName = getSaveFileName(context);
+    const QString &fileName = getSaveFileName(context);
     if (saveDir.isEmpty())
     {
         errorMessage = QString("Invalid request: File name cannot be empty");
@@ -114,17 +114,17 @@ QString NetworkRequestUtils::getFilePath(const RequestContext* context, QString 
         return filePath;
     }
 
-    filePath = QDir::toNativeSeparators(saveDir + strFileName);
+    filePath = QDir::toNativeSeparators(saveDir + fileName);
     if (!QFile::exists(filePath))
         return filePath;
 
     // If file exists and bOverwriteFile is set, close file and remove
     if (context->downloadConfig->overwriteFile)
     {
-        QString strFileErr;
-        if (!removeFile(filePath, strFileErr))
+        QString fileErr;
+        if (!removeFile(filePath, fileErr))
         {
-            errorMessage = QString("File operation failed: Unable to remove existing file '%1' - %2").arg(filePath).arg(strFileErr);
+            errorMessage = QString("File operation failed: Unable to remove existing file '%1' - %2").arg(filePath).arg(fileErr);
             qWarning() << errorMessage;
         }
         else
@@ -136,7 +136,7 @@ QString NetworkRequestUtils::getFilePath(const RequestContext* context, QString 
     // If bOverwriteFile is not set, add suffix to filename, _1, _2, ...
     for (int i = 1; i < 100; ++i)
     {
-        QString newFileName = strFileName + QString("_%1").arg(i);
+        QString newFileName = fileName + QString("_%1").arg(i);
         filePath = QDir::toNativeSeparators(saveDir + newFileName);
         if (!QFile::exists(filePath))
             return filePath;
@@ -159,7 +159,7 @@ QString NetworkRequestUtils::getSaveFileName(const RequestContext* context)
         return QString();
     }
 
-    QString strFileName;
+    QString fileName;
     // Extract filename from url, format like: response-content-disposition=attachment; filename=test.exe
     QUrlQuery query(url.query(QUrl::FullyDecoded));
     const QList<QPair<QString, QString>> &querys = query.queryItems();
@@ -167,24 +167,24 @@ QString NetworkRequestUtils::getSaveFileName(const RequestContext* context)
     {
         if (pair.first.compare("response-content-disposition", Qt::CaseInsensitive) == 0 || pair.first.compare("content-disposition", Qt::CaseInsensitive) == 0)
         {
-            const QStringList &strlist = pair.second.split(";", QtCompat::kSkipEmptyParts);
-            foreach (QString str, strlist)
+            const QStringList &parts = pair.second.split(";", QtCompat::kSkipEmptyParts);
+            foreach (QString part, parts)
             {
-                str = str.trimmed();
-                if (str.startsWith(QString("filename="), Qt::CaseInsensitive))
+                part = part.trimmed();
+                if (part.startsWith(QString("filename="), Qt::CaseInsensitive))
                 {
-                    strFileName = str.right(str.size() - QString("filename=").size());
+                    fileName = part.right(part.size() - QString("filename=").size());
 
                     // Filename cannot contain \/|":<> symbols
-                    QStringList strlst;
-                    strlst << "\"" << ":" << "<" << ">" << "|" << "/" << "\\";
-                    for (auto &str : strlst)
+                    QStringList forbiddenChars;
+                    forbiddenChars << "\"" << ":" << "<" << ">" << "|" << "/" << "\\";
+                    for (auto &ch : forbiddenChars)
                     {
-                        int index = strFileName.indexOf(str);
+                        int index = fileName.indexOf(ch);
                         while (-1 != index)
                         {
-                            strFileName.remove(index, str.length());
-                            index = strFileName.indexOf(str);
+                            fileName.remove(index, ch.length());
+                            index = fileName.indexOf(ch);
                         }
                     }
                     break;
@@ -193,12 +193,12 @@ QString NetworkRequestUtils::getSaveFileName(const RequestContext* context)
             break;
         }
     }
-    if (strFileName.isEmpty())
+    if (fileName.isEmpty())
     {
-        strFileName = url.fileName();
+        fileName = url.fileName();
     }
 
-    return strFileName;
+    return fileName;
 }
 
 QString NetworkRequestUtils::getDownloadFileSaveDir(const RequestContext* context, QString &errorMessage)
@@ -229,14 +229,14 @@ QString NetworkRequestUtils::getDownloadFileSaveDir(const RequestContext* contex
     return saveDir;
 }
 
-bool NetworkRequestUtils::isFileExists(QFile *pFile)
+bool NetworkRequestUtils::isFileExists(QFile *file)
 {
-    return (nullptr != pFile && pFile->exists());
+    return (nullptr != file && file->exists());
 }
 
-bool NetworkRequestUtils::isFileOpened(QFile *pFile)
+bool NetworkRequestUtils::isFileOpened(QFile *file)
 {
-    return (nullptr != pFile && pFile->exists() && pFile->isOpen());
+    return (nullptr != file && file->exists() && file->isOpen());
 }
 
 bool NetworkRequestUtils::removeFile(const QString &filePath, QString &errorMessage)
@@ -254,10 +254,10 @@ bool NetworkRequestUtils::removeFile(const QString &filePath, QString &errorMess
     return true;
 }
 
-const QString NetworkRequestUtils::getRequestTypeString(const RequestType eType)
+const QString NetworkRequestUtils::getRequestTypeString(const RequestType type)
 {
     QString requestTypeString;
-    switch (eType)
+    switch (type)
     {
     case RequestType::Download:
     {
@@ -318,14 +318,14 @@ const QString NetworkRequestUtils::getRequestTypeString(const RequestType eType)
 std::unique_ptr<QFile> NetworkRequestUtils::openFile(const QString& filePath, QString& errorMessage)
 {
     errorMessage.clear();
-    auto pFile = std::make_unique<QFile>(filePath);
-    if (pFile->exists())
+    auto file = std::make_unique<QFile>(filePath);
+    if (file->exists())
     {
-        if (pFile->open(QIODevice::ReadOnly))
+        if (file->open(QIODevice::ReadOnly))
         {
-            return pFile;
+            return file;
         }
-        errorMessage = QString("File operation failed: Unable to open file '%1' for reading - %2").arg(filePath).arg(pFile->errorString());
+        errorMessage = QString("File operation failed: Unable to open file '%1' for reading - %2").arg(filePath).arg(file->errorString());
     }
     else
     {

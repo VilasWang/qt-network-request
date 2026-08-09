@@ -103,8 +103,8 @@ void NetworkUploadRequest::start()
 
 	Q_ASSERT(nullptr != m_context->uploadConfig);
 	QHttpMultiPart* httpMultiPart = nullptr;
-	bool bFormData = m_context->uploadConfig && m_context->uploadConfig->useFormData && !m_context->uploadConfig->files.isEmpty();
-	if (!bFormData)
+	bool isFormData = m_context->uploadConfig && m_context->uploadConfig->useFormData && !m_context->uploadConfig->files.isEmpty();
+	if (!isFormData)
 	{
 		m_file = NetworkRequestUtils::openFile(m_context->uploadConfig->filePath, m_errorMessage);
 		if (!m_file || !m_file->isOpen())
@@ -167,7 +167,7 @@ void NetworkUploadRequest::start()
 #endif
 		if (m_context->uploadConfig->usePutMethod)
 		{
-			if (bFormData)
+			if (isFormData)
 			{
 				m_networkReply = m_networkManager->put(request, httpMultiPart);
 				httpMultiPart->setParent(m_networkReply);
@@ -179,7 +179,7 @@ void NetworkUploadRequest::start()
 		}
 		else
 		{
-			if (bFormData)
+			if (isFormData)
 			{
 				m_networkReply = m_networkManager->post(request, httpMultiPart);
 				httpMultiPart->setParent(m_networkReply);
@@ -192,7 +192,7 @@ void NetworkUploadRequest::start()
 	}
 	else // ftp
 	{
-		if (bFormData)
+		if (isFormData)
 		{
 			m_networkReply = m_networkManager->put(request, httpMultiPart);
 			httpMultiPart->setParent(m_networkReply);
@@ -261,18 +261,18 @@ void NetworkUploadRequest::onFinished()
 		emit response(ToFailedResult(statusCode));
 }
 
-void NetworkUploadRequest::onUploadProgress(qint64 iSent, qint64 iTotal)
+void NetworkUploadRequest::onUploadProgress(qint64 bytesSent, qint64 bytesTotal)
 {
-	m_lastSentBytes = iSent;
+	m_lastSentBytes = bytesSent;
 
     // Reset idle timeout on data sent
-    if (iSent > 0)
+    if (bytesSent > 0)
         resetIdleTimer();
 
-	if (m_abortManual)
+	if (m_isAbortedManually)
 		return;
 
-	m_throttle->report(iSent, iTotal, [this](qint64 bytes, qint64 total) {
+	m_throttle->report(bytesSent, bytesTotal, [this](qint64 bytes, qint64 total) {
 		int progress = bytes * 100 / total;
 		if (m_progress < progress)
 		{
