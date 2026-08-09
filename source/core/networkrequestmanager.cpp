@@ -641,13 +641,13 @@ bool NetworkRequestManagerPrivate::startRunnable(std::shared_ptr<NetworkRequestR
     return false;
 }
 
-bool NetworkRequestManagerPrivate::setMaxThreadCount(int maxRedirections)
+bool NetworkRequestManagerPrivate::setMaxThreadCount(int maxConcurrent)
 {
     bool result = false;
-    if (maxRedirections >= 1 && maxRedirections <= 100 && m_threadPool)
+    if (maxConcurrent >= 1 && maxConcurrent <= 100 && m_threadPool)
     {
-        qDebug() << "[QMultiThreadNetwork] ThreadPool maxThreadCount: " << maxRedirections;
-        m_threadPool->setMaxThreadCount(maxRedirections);
+        qDebug() << "[QMultiThreadNetwork] ThreadPool maxThreadCount: " << maxConcurrent;
+        m_threadPool->setMaxThreadCount(maxConcurrent);
         result = true;
     }
     return result;
