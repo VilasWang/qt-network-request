@@ -14,8 +14,8 @@
 #include "oauth2tokencache.h"
 #include "qtcompat.h"
 #include "networkrequestregistry.h"
-#include "QThread"
-#include "QHttpMultiPart"
+#include <QThread>
+#include <QHttpMultiPart>
 
 // Self-registration: register for all common request types
 namespace {
