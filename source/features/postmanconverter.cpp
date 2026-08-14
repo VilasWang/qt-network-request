@@ -26,6 +26,8 @@ SOFTWARE.
 
 #include "postmanconverter.h"
 
+#include "qtcompat.h"
+
 #include <QJsonArray>
 #include <QJsonObject>
 
@@ -146,7 +148,7 @@ namespace QtNetworkRequest
 		{
 			item.type = CollectionItemType::Folder;
 			const QJsonArray children = obj["item"].toArray();
-			item.children.reserve(children.size());
+			QtCompat::reserveList(item.children, children.size());
 			for (const auto &c : children)
 			{
 				bool childOk = false;
@@ -203,7 +205,7 @@ namespace QtNetworkRequest
 
 		const QJsonArray items = doc["item"].toArray();
 		bool allOk = true;
-		c.root().children.reserve(items.size());
+		QtCompat::reserveList(c.root().children, items.size());
 		for (const auto &it : items)
 		{
 			bool itemOk = false;

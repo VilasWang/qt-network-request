@@ -257,8 +257,8 @@ static QSsl::SslProtocol toQSslProtocol(SslConfig::TlsProtocol p)
     case SslConfig::TlsProtocol::TlsV1_0: return QSsl::TlsV1_0OrLater;
     case SslConfig::TlsProtocol::TlsV1_1: return QSsl::TlsV1_1OrLater;
     case SslConfig::TlsProtocol::TlsV1_2: return QSsl::TlsV1_2OrLater;
-    case SslConfig::TlsProtocol::TlsV1_3:
-        return QtCompat::kHasTlsV1_3 ? QSsl::TlsV1_3OrLater : QSsl::TlsV1_2OrLater;
+	case SslConfig::TlsProtocol::TlsV1_3:
+		return QtCompat::tlsV1_3OrLater();
     case SslConfig::TlsProtocol::AnyProtocol: return QSsl::AnyProtocol;
     default: return QSsl::TlsV1_2OrLater;
     }

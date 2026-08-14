@@ -26,6 +26,8 @@ SOFTWARE.
 
 #include "environmentstore.h"
 
+#include "qtcompat.h"
+
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -48,7 +50,7 @@ namespace QtNetworkRequest
 		m_environments.clear();
 
 		const QJsonArray envs = root["environments"].toArray();
-		m_environments.reserve(envs.size());
+		QtCompat::reserveList(m_environments, envs.size());
 		for (const auto &ev : envs)
 		{
 			const QJsonObject eo = ev.toObject();
@@ -95,7 +97,7 @@ namespace QtNetworkRequest
 	QStringList EnvironmentStore::environmentNames() const
 	{
 		QStringList names;
-		names.reserve(m_environments.size());
+		QtCompat::reserveList(names, m_environments.size());
 		for (const auto &e : m_environments)
 			names.append(e.name);
 		return names;

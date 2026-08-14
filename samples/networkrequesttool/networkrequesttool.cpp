@@ -426,7 +426,8 @@ void NetworkRequestTool::initializeConnections()
 
     // Environment
     if (m_cmbEnvironment)
-        connect(m_cmbEnvironment, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        connect(m_cmbEnvironment,
+                static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
                 this, &NetworkRequestTool::onEnvironmentChanged);
     if (m_btnManageEnv)
         connect(m_btnManageEnv, &QPushButton::clicked, this, &NetworkRequestTool::onManageEnvironments);

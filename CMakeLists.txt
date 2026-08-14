@@ -31,7 +31,7 @@ if(USE_QT6)
     find_package(Qt6 COMPONENTS Core Widgets Network Xml Test REQUIRED)
     set(QT_VERSION_MAJOR 6)
 else()
-    find_package(Qt5 5.9 COMPONENTS Core Widgets Network Xml Test REQUIRED)
+    find_package(Qt5 5.6 COMPONENTS Core Widgets Network Xml Test REQUIRED)
     set(QT_VERSION_MAJOR 5)
 endif()
 

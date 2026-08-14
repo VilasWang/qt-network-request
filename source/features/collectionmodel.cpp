@@ -26,6 +26,8 @@ SOFTWARE.
 
 #include "collectionmodel.h"
 
+#include "qtcompat.h"
+
 #include <QUuid>
 #include <QFile>
 #include <QJsonDocument>
@@ -70,7 +72,7 @@ namespace QtNetworkRequest
 		{
 			item.type = CollectionItemType::Folder;
 			const QJsonArray children = obj["children"].toArray();
-			item.children.reserve(children.size());
+			QtCompat::reserveList(item.children, children.size());
 			for (const auto &c : children)
 			{
 				bool childOk = false;
@@ -119,7 +121,7 @@ namespace QtNetworkRequest
 
 		const QJsonArray items = root["items"].toArray();
 		m_root.children.clear();
-		m_root.children.reserve(items.size());
+		QtCompat::reserveList(m_root.children, items.size());
 		for (const auto &it : items)
 		{
 			bool itemOk = false;

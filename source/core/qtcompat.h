@@ -11,10 +11,12 @@
 #include <QString>
 #include <QNetworkRequest>
 #include <QNetworkReply>
+#include <QSsl>
 #include <QObject>
 #include <QElapsedTimer>
 #include <QMutex>
 #include <QThreadPool>
+#include <QList>
 
 namespace QtCompat
 {
@@ -57,7 +59,10 @@ namespace QtCompat
 	}
 	inline bool isTransferTimedOut(QElapsedTimer& timer, int timeoutMs)
 	{
-		return timer.isValid() && timer.elapsed() > timeoutMs;
+		// timeoutMs <= 0 means "no timeout", matching Qt >= 5.15 setTransferTimeout()
+		// which is a no-op for non-positive values. Without this guard a 0 timeout
+		// would evaluate as elapsed() > 0 and abort every request on Qt < 5.15.
+		return timeoutMs > 0 && timer.isValid() && timer.elapsed() > timeoutMs;
 	}
 #else
 	inline void startTransferTimer(QElapsedTimer&) { /* no-op: Qt >= 5.15 uses setTransferTimeout */ }
@@ -81,8 +86,11 @@ namespace QtCompat
 // ============================================================================
 #if QT_VERSION >= QT_VERSION_CHECK(5, 12, 0)
 	constexpr bool kHasTlsV1_3 = true;
+	inline QSsl::SslProtocol tlsV1_3OrLater() { return QSsl::TlsV1_3OrLater; }
 #else
 	constexpr bool kHasTlsV1_3 = false;
+	// QSsl::TlsV1_3OrLater does not exist before 5.12; fall back to 1.2.
+	inline QSsl::SslProtocol tlsV1_3OrLater() { return QSsl::TlsV1_2OrLater; }
 #endif
 
 // ============================================================================
@@ -91,7 +99,29 @@ namespace QtCompat
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
 	using Mutex = QRecursiveMutex;
 #else
-	using Mutex = QMutex;
+	// Qt < 5.14 has no QRecursiveMutex. Derive from QMutex and default to
+	// Recursive so call sites that relied on QRecursiveMutex keep their
+	// recursive-lock behavior (a plain QMutex is non-recursive by default).
+	class Mutex : public QMutex
+	{
+	public:
+		Mutex() : QMutex(QMutex::Recursive) {}
+	};
+#endif
+
+// ============================================================================
+// QList::reserve() (Qt >= 5.7). QStringList derives from QList<QString>, so it
+// is covered too. Before 5.7 QList had no reserve(); provide a no-op fallback.
+// ============================================================================
+#if QT_VERSION >= QT_VERSION_CHECK(5, 7, 0)
+	template <typename T>
+	inline void reserveList(QList<T>& list, int size)
+	{
+		list.reserve(size);
+	}
+#else
+	template <typename T>
+	inline void reserveList(QList<T>&, int) { /* no-op: QList::reserve added in 5.7 */ }
 #endif
 
 // ============================================================================
