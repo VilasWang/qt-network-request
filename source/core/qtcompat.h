@@ -17,6 +17,9 @@
 #include <QMutex>
 #include <QThreadPool>
 #include <QList>
+#include <QNetworkAccessManager>
+#include <QBuffer>
+#include <QUuid>
 
 namespace QtCompat
 {
@@ -147,6 +150,67 @@ namespace QtCompat
 		return true;
 #endif
 	}
+
+// ============================================================================
+// sendCustomRequest with a QByteArray body (Qt >= 5.8)
+// Before 5.8 sendCustomRequest only accepted a QIODevice* as the body, so the
+// QByteArray overload did not exist. Wrap the body in a QBuffer and delete it
+// when the reply finishes.
+// ============================================================================
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+	inline QNetworkReply *sendCustomRequest(QNetworkAccessManager *manager,
+	                                        const QNetworkRequest &request,
+	                                        const QByteArray &verb,
+	                                        const QByteArray &data = QByteArray())
+	{
+		return manager->sendCustomRequest(request, verb, data);
+	}
+#else
+	inline QNetworkReply *sendCustomRequest(QNetworkAccessManager *manager,
+	                                        const QNetworkRequest &request,
+	                                        const QByteArray &verb,
+	                                        const QByteArray &data = QByteArray())
+	{
+		QBuffer *buffer = nullptr;
+		QIODevice *device = nullptr;
+		if (!data.isEmpty())
+		{
+			buffer = new QBuffer;
+			buffer->setData(data);
+			buffer->open(QIODevice::ReadOnly);
+			device = buffer;
+		}
+		QNetworkReply *reply = manager->sendCustomRequest(request, verb, device);
+		if (buffer)
+		{
+			if (reply)
+				QObject::connect(reply, &QNetworkReply::finished, buffer, &QObject::deleteLater);
+			else
+				delete buffer;
+		}
+		return reply;
+	}
+#endif
+
+// ============================================================================
+// QUuid::WithoutBraces (Qt >= 5.11)
+// Before 5.11 toString() only produced the brace-enclosed form, so strip the
+// surrounding braces to get the brace-less UUID string.
+// ============================================================================
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+	inline QString createUuidString()
+	{
+		return QUuid::createUuid().toString(QUuid::WithoutBraces);
+	}
+#else
+	inline QString createUuidString()
+	{
+		QString s = QUuid::createUuid().toString();  // "{...}" form
+		if (s.length() >= 2 && s.startsWith(QLatin1Char('{')) && s.endsWith(QLatin1Char('}')))
+			return s.mid(1, s.length() - 2);
+		return s;
+	}
+#endif
 
 } // namespace QtCompat
 

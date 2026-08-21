@@ -37,7 +37,7 @@ namespace QtNetworkRequest
 {
 	QString Collection::genId()
 	{
-		return QUuid::createUuid().toString(QUuid::WithoutBraces);
+		return QtCompat::createUuidString();
 	}
 
 	QJsonObject Collection::toJson(const CollectionItem &item)

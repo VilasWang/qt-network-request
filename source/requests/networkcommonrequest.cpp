@@ -127,11 +127,11 @@ void NetworkCommonRequest::performSend()
     else if (m_context->type == RequestType::Patch)
     {
         const QByteArray &bytes = effectiveRequestBody();
-        m_networkReply = m_networkManager->sendCustomRequest(request, "PATCH", bytes);
+        m_networkReply = QtCompat::sendCustomRequest(m_networkManager, request, "PATCH", bytes);
     }
     else if (m_context->type == RequestType::Options)
     {
-        m_networkReply = m_networkManager->sendCustomRequest(request, "OPTIONS");
+        m_networkReply = QtCompat::sendCustomRequest(m_networkManager, request, "OPTIONS");
     }
     else if (m_context->type == RequestType::Post)
     {
