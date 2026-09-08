@@ -11,6 +11,21 @@ QT += core network xml
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 CONFIG += debug_and_release
 
+# C++17 is required (e.g. inline static members in thememanager.h).
+# qmake only understands CONFIG += c++17 since Qt 5.12; older toolchains
+# need the compiler flag passed directly.
+greaterThan(QT_MAJOR_VERSION, 5) {
+    # Qt 6: C++17 is the baseline.
+    CONFIG += c++17
+} else: greaterThan(QT_MINOR_VERSION, 11) {
+    # Qt 5.12 – 5.15.
+    CONFIG += c++17
+} else {
+    # Qt 5.6 – 5.11: qmake has no c++17 CONFIG value.
+    msvc: QMAKE_CXXFLAGS += /std:c++17
+    else: QMAKE_CXXFLAGS += -std=c++17
+}
+
 INCLUDEPATH += . \
                 $$PWD/../../include \
                 $$PWD/resources

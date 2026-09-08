@@ -117,7 +117,12 @@ void NetworkRequestTool::initialize()
     {
         injectDemoData();
         QTimer::singleShot(2500, this, [this]() {
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 10, 0))
             const QString shotPath = qEnvironmentVariable("QT_REQUESTER_SHOT");
+#else
+            // qEnvironmentVariable() was added in Qt 5.10.
+            const QString shotPath = QString::fromLocal8Bit(qgetenv("QT_REQUESTER_SHOT"));
+#endif
             if (!shotPath.isEmpty()) {
                 const QPixmap shot = this->grab();
                 shot.save(shotPath, "PNG");

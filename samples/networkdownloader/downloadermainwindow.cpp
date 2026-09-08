@@ -172,7 +172,12 @@ QtNetworkRequest::NetworkDownloaderMainWindow::NetworkDownloaderMainWindow(QWidg
         // by QT_DOWNLOADER_DEMO so CI/manual comparison against the HTML
         // prototype is reproducible on high-DPI screens.
         QTimer::singleShot(2000, this, [this]() {
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 10, 0))
             const QString name = qEnvironmentVariable("QT_DOWNLOADER_SHOT");
+#else
+            // qEnvironmentVariable() was added in Qt 5.10.
+            const QString name = QString::fromLocal8Bit(qgetenv("QT_DOWNLOADER_SHOT"));
+#endif
             if (!name.isEmpty())
             {
                 const QPixmap shot = this->grab();
